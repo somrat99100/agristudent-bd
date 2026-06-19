@@ -25,7 +25,6 @@
 <div class="viewer-bg">
   <div class="viewer-book">
     <div class="viewer-frame-wrap" id="viewer-frame-wrap" title="Double-click or pinch to magnify">
-      <div class="spine"></div>
       </div>
     
     <div class="book-controls" id="book-controls" style="display: none;">
@@ -68,7 +67,7 @@
     let pageNum = 1;
     let pageRendering = false;
     let pageNumPending = null;
-    let currentScale = 1; 
+    let currentScale = 1; // Maintained globally, not reset on page turn
 
     const ALLOWED_HOSTS = [
       window.location.hostname, "raw.githubusercontent.com", 
@@ -89,7 +88,7 @@
       } else {
         const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
         if (isImage) {
-          wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain; margin-left:12px;">`;
+          wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
           loadingMask.classList.add("hidden"); 
         } else {
           pdfjs.getDocument(fileUrl).promise.then((pdfDoc_) => {
@@ -113,26 +112,26 @@
 
     async function renderPage(num, direction = 'forward') {
       pageRendering = true;
-      currentScale = 1; // Reset zoom on page turn
+      // Fix 3: Removed 'currentScale = 1' here to persist user's zoom settings across page turns
       
       try {
         const page = await pdfDoc.getPage(num);
         const wrapRect = wrap.getBoundingClientRect();
         
         const containerWidth = wrapRect.width > 0 ? wrapRect.width : 800;
-        const containerHeight = wrapRect.height > 0 ? wrapRect.height : 600;
 
         const viewportUnscaled = page.getViewport({ scale: 1 });
-        const scale = Math.min(
-          containerWidth / viewportUnscaled.width,
-          containerHeight / viewportUnscaled.height
-        );
+        
+        // Fix 3: Changed to default "Fit-Width" layout to match requested image behavior
+        const padding = 16; 
+        const scale = (containerWidth - padding) / viewportUnscaled.width;
         
         const viewport = page.getViewport({ scale: scale });
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        const outputScale = Math.max(window.devicePixelRatio || 1, 2);
+        // Fix 2: Changed base device ratio to a minimum of 4 for maximum text crispness
+        const outputScale = Math.max(window.devicePixelRatio || 1, 4);
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = Math.floor(viewport.width) + "px";
@@ -144,6 +143,13 @@
 
         const pageDiv = document.createElement('div');
         pageDiv.className = 'book-page';
+        
+        // Apply persistent zoom configuration onto newly generated page
+        if (currentScale > 1) {
+            pageDiv.classList.add('is-zoomed');
+            canvas.style.transform = `scale(${currentScale})`;
+            canvas.style.cursor = 'grab';
+        }
         
         if (direction === 'forward') pageDiv.classList.add('in-right');
         else if (direction === 'backward') pageDiv.classList.add('in-left');
