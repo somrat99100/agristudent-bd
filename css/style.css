@@ -542,14 +542,17 @@ body.viewer-layout {
   margin: 0 auto;
 }
 
-/* Zoom state overrides */
+/* Zoom state overrides — anchored top-left (not centered) so the full
+   zoomed page is reachable by scrolling; centering here would clip the
+   "before" (top/left) half of the overflow as unreachable. */
 .book-page.is-zoomed {
+  align-items: flex-start;
+  justify-content: flex-start;
   overflow: auto; -webkit-overflow-scrolling: touch;
-  /* keep flex + center origin so toggling zoom doesn't jump/shift the page */
 }
 .book-page.is-zoomed canvas { 
-  transform-origin: center center; 
-  margin: 0 auto; 
+  transform-origin: top left; 
+  margin: 0; 
   max-width: none;
   max-height: none;
 }
