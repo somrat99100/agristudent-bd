@@ -456,45 +456,98 @@ footer{
 }
 
 /* ============================================
-   DOCUMENT VIEWER (read-only)
+   DOCUMENT VIEWER (read-only) — book-style
    ============================================ */
 .viewer-bar{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:.8rem 1.25rem;
+  padding:.85rem 1.5rem;
   background:var(--moss-900);
   color:var(--paper-100);
 }
 .viewer-bar .back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
   font-size:.85rem;
   font-weight:600;
-  color:var(--paper-100);
+  color:var(--moss-900);
+  background:var(--wheat-400);
+  padding:.45rem 1rem;
+  border-radius:999px;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.viewer-bar .back-link:hover{
+  transform:translateX(-2px);
+  box-shadow:0 4px 14px rgba(212,162,76,.35);
 }
 .viewer-bar .title{
   font-family:var(--font-mono);
-  font-size:.8rem;
-  opacity:.85;
+  font-size:.82rem;
+  opacity:.9;
+  text-align:center;
+  flex:1;
+  margin:0 1rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
-.viewer-frame-wrap{
-  height:calc(100vh - 52px);
-  background:#525659;
+.viewer-bg{
+  min-height:calc(100vh - 58px);
+  background:
+    radial-gradient(circle at 20% 10%, rgba(107,155,94,.08), transparent 45%),
+    var(--paper-100);
+  display:flex;
+  justify-content:center;
+  padding:2.2rem 1.25rem;
   user-select:none;
   -webkit-user-select:none;
 }
-.viewer-frame-wrap iframe{
+.viewer-book{
+  width:100%;
+  max-width:840px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:4px;
+  box-shadow:
+    0 1px 0 rgba(31,46,34,.04),
+    0 18px 40px rgba(31,46,34,.12),
+    -6px 0 0 -2px var(--paper-100),
+    -7px 0 0 -3px var(--line);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.viewer-book .spine{
+  height:6px;
+  background:linear-gradient(90deg, var(--moss-700), var(--leaf-500));
+}
+.viewer-frame-wrap{
+  height:calc(100vh - 58px - 2.2rem - 2.2rem - 6px);
+  min-height:520px;
+}
+.viewer-frame-wrap iframe,
+.viewer-frame-wrap img{
   width:100%;
   height:100%;
   border:none;
+  display:block;
+  object-fit:contain;
+  background:#fff;
 }
 .viewer-watermark{
   position:fixed;
   bottom:14px; right:18px;
   font-family:var(--font-mono);
   font-size:.7rem;
-  color:rgba(255,255,255,.5);
+  color:rgba(31,46,34,.45);
   pointer-events:none;
   z-index:5;
+}
+@media (max-width:700px){
+  .viewer-bar .title{ display:none; }
+  .viewer-bg{ padding:1rem .6rem; }
 }
 
 /* utility */
