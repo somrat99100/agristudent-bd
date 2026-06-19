@@ -10,7 +10,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
-<body oncontextmenu="return false;" style="margin:0;">
+<body class="viewer-layout" oncontextmenu="return false;" style="margin:0;">
 
 <div id="loading-mask" class="loading-mask">
   <div class="loading-spinner"></div>
@@ -30,9 +30,22 @@
       </div>
     
     <div class="book-controls" id="book-controls" style="display: none;">
-      <button id="btn-prev" class="book-btn" disabled>◀ Prev</button>
-      <div class="page-indicator">Page <span id="page-num">0</span> of <span id="page-count">0</span></div>
-      <button id="btn-next" class="book-btn">Next ▶</button>
+      <div class="control-group">
+        <button id="btn-zoom-out" class="book-btn icon-only" title="Zoom Out">−</button>
+        <button id="btn-zoom-in" class="book-btn icon-only" title="Zoom In">+</button>
+      </div>
+      
+      <div class="control-group">
+        <button id="btn-prev" class="book-btn" disabled>◀ Prev</button>
+        <div class="page-indicator">
+          Page 
+          <input type="number" id="page-input" class="page-input" value="0" min="1"> 
+          of <span id="page-count">0</span>
+        </div>
+        <button id="btn-next" class="book-btn">Next ▶</button>
+      </div>
+      
+      <div class="control-group" style="width: 76px; visibility: hidden;"></div>
     </div>
   </div>
 </div>
@@ -40,7 +53,6 @@
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
 <script>
-  // Setup global worker for PDF.js
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -50,6 +62,7 @@
   const wrap = document.getElementById("viewer-frame-wrap");
   const controls = document.getElementById("book-controls");
   const loadingMask = document.getElementById("loading-mask");
+  const pageInput = document.getElementById("page-input");
 
   document.getElementById("viewer-title").textContent = fileName;
   document.title = fileName + " — AgriStudent BD";
@@ -59,6 +72,9 @@
   let pageNum = 1;
   let pageRendering = false;
   let pageNumPending = null;
+  
+  // Zoom State
+  let currentZoom = 1; 
 
   const ALLOWED_HOSTS = [
     window.location.hostname,
@@ -81,34 +97,32 @@
   if (fileUrl) {
     if (!isAllowedUrl(fileUrl)) {
       wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">This file's source isn't recognized and can't be displayed.</p>`;
-      loadingMask.classList.add("hidden"); // Hide loader on error
+      loadingMask.classList.add("hidden"); 
     } else {
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
       if (isImage) {
         wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
-        loadingMask.classList.add("hidden"); // Hide loader immediately for simple images
+        loadingMask.classList.add("hidden"); 
       } else {
-        // Init PDF Book
         pdfjsLib.getDocument(fileUrl).promise.then((pdfDoc_) => {
           pdfDoc = pdfDoc_;
           document.getElementById('page-count').textContent = pdfDoc.numPages;
-          controls.style.display = 'flex'; // Show controls
+          pageInput.max = pdfDoc.numPages;
+          controls.style.display = 'flex'; 
           
-          // Render the first page
           renderPage(pageNum, 'init').then(() => {
-            // HIDE THE LOADING MASK ONCE THE FIRST PAGE IS READY
             loadingMask.classList.add("hidden");
           });
 
         }).catch((err) => {
           wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error loading PDF: ${err.message}</p>`;
-          loadingMask.classList.add("hidden"); // Hide loader on error
+          loadingMask.classList.add("hidden"); 
         });
       }
     }
   } else {
     wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
-    loadingMask.classList.add("hidden"); // Hide loader if missing file
+    loadingMask.classList.add("hidden"); 
   }
 
   // --- Render and Animation Logic ---
@@ -120,11 +134,16 @@
       
       const wrapRect = wrap.getBoundingClientRect();
       const viewportUnscaled = page.getViewport({ scale: 1 });
-      const scale = Math.min(
+      
+      // Calculate base scale to fit the screen
+      const baseScale = Math.min(
         wrapRect.width / viewportUnscaled.width,
         wrapRect.height / viewportUnscaled.height
       );
-      const viewport = page.getViewport({ scale: scale * 1.5 });
+      
+      // Apply user zoom multiplier
+      const finalScale = (baseScale * 1.2) * currentZoom; 
+      const viewport = page.getViewport({ scale: finalScale });
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -141,6 +160,12 @@
       const pageDiv = document.createElement('div');
       pageDiv.className = 'book-page';
       
+      // If zoomed in, allow scrolling and remove CSS constrains
+      if (currentZoom > 1) {
+        pageDiv.classList.add('is-zoomed');
+      }
+      
+      // If direction is 'none' (used for zooming), don't add sliding classes
       if (direction === 'forward') {
         pageDiv.classList.add('in-right');
       } else if (direction === 'backward') {
@@ -169,10 +194,10 @@
         
         setTimeout(() => {
           if (oldPage.parentElement) oldPage.parentElement.removeChild(oldPage);
-        }, 600);
+        }, direction === 'none' ? 0 : 600); // Remove instantly if just zooming
       });
 
-      document.getElementById('page-num').textContent = num;
+      pageInput.value = num;
       updateButtons();
       pageRendering = false;
 
@@ -199,9 +224,13 @@
   function updateButtons() {
     document.getElementById('btn-prev').disabled = pageNum <= 1;
     document.getElementById('btn-next').disabled = pageNum >= pdfDoc.numPages;
+    document.getElementById('btn-zoom-out').disabled = currentZoom <= 0.5;
+    document.getElementById('btn-zoom-in').disabled = currentZoom >= 3;
   }
 
   // --- Interactions ---
+  
+  // Next / Prev Buttons
   document.getElementById('btn-prev').addEventListener('click', () => {
     if (pageNum <= 1) return;
     pageNum--;
@@ -214,17 +243,48 @@
     queueRenderPage(pageNum, 'forward');
   });
 
+  // Specific Page Input
+  pageInput.addEventListener('change', (e) => {
+    let desiredPage = parseInt(e.target.value);
+    if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
+    if (desiredPage > pdfDoc.numPages) desiredPage = pdfDoc.numPages;
+    
+    if (desiredPage !== pageNum) {
+      const direction = desiredPage > pageNum ? 'forward' : 'backward';
+      pageNum = desiredPage;
+      queueRenderPage(pageNum, direction);
+    } else {
+      e.target.value = pageNum; // Reset if invalid
+    }
+  });
+
+  // Zoom Controls
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    if (currentZoom >= 3) return;
+    currentZoom += 0.3;
+    renderPage(pageNum, 'none'); // Re-render without sliding animation
+  });
+
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    if (currentZoom <= 0.5) return;
+    currentZoom -= 0.3;
+    renderPage(pageNum, 'none'); 
+  });
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
       e.preventDefault();
     }
-    if (e.key === "ArrowRight" && pdfDoc && pageNum < pdfDoc.numPages) {
-      pageNum++;
-      queueRenderPage(pageNum, 'forward');
-    }
-    if (e.key === "ArrowLeft" && pdfDoc && pageNum > 1) {
-      pageNum--;
-      queueRenderPage(pageNum, 'backward');
+    // Only use arrow keys if they aren't typing in the page input box
+    if (document.activeElement !== pageInput) {
+      if (e.key === "ArrowRight" && pdfDoc && pageNum < pdfDoc.numPages) {
+        pageNum++;
+        queueRenderPage(pageNum, 'forward');
+      }
+      if (e.key === "ArrowLeft" && pdfDoc && pageNum > 1) {
+        pageNum--;
+        queueRenderPage(pageNum, 'backward');
+      }
     }
   });
 
