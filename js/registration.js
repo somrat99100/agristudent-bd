@@ -16,17 +16,28 @@ function setProgress(pct) {
   progressText.textContent = pct + "%";
 }
 
+// Pre-submit validation errors — shown without the ring, nothing has started yet.
+function showError(message) {
+  progressWrap.classList.add("hidden");
+  statusBox.textContent = message;
+  statusBox.style.color = "var(--terracotta-500)";
+  statusBox.classList.remove("hidden");
+}
+
+// In-progress / outcome messages — ring + label stay visible together,
+// including on failure, so errors are actually seen.
 function showStatus(message, isError = false) {
   progressWrap.classList.remove("hidden");
   statusBox.textContent = message;
   statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-  if (isError) progressWrap.classList.add("hidden");
+  if (isError) progressBar.style.stroke = "var(--terracotta-500)";
 }
 
 function uploadToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000; // 2 min
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && onProgress) {
@@ -39,10 +50,11 @@ function uploadToCloudinary(file, onProgress) {
         const json = JSON.parse(xhr.responseText);
         resolve(json.secure_url);
       } else {
-        reject(new Error("Cloudinary upload failed"));
+        reject(new Error(`Cloudinary upload failed (server said: ${xhr.status})`));
       }
     };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.onerror = () => reject(new Error("Network error during upload. Check your connection and try again."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again, or check your connection."));
 
     const data = new FormData();
     data.append("file", file);
@@ -64,13 +76,13 @@ form.addEventListener("submit", async (e) => {
 
   // Validation: at least one of photo or number required
   if (!studentIdNumber && !idFile) {
-    showStatus("Please provide either a Student ID photo or a Student ID number (at least one is required).", true);
+    showError("Please provide either a Student ID photo or a Student ID number (at least one is required).");
     return;
   }
 
   // File size check (5MB max for ID photo)
   if (idFile && idFile.size > 5 * 1024 * 1024) {
-    showStatus("Student ID photo must be under 5MB.", true);
+    showError("Student ID photo must be under 5MB.");
     return;
   }
 
