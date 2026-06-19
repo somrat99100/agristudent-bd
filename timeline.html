@@ -1,86 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Academic Timeline — AgriStudent BD</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Academic Timeline — AgriStudent BD</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<!-- ANNOUNCEMENT BAR -->
-<div class="announce-bar">
-  <div class="marquee"><span>🚀 Be Registered to Keep Access in Future Updates &amp; Premium Resources — Join the AgriStudent BD community today</span></div>
-  <a href="register.html" class="btn-register">Register Now</a>
-</div>
+  <!-- ============================================================ -->
+  <!-- PASTE YOUR EXISTING MARQUEE BAR + HEADER + NAV HERE           -->
+  <!-- (copy exactly from resources.html or any other built page)    -->
+  <!-- ============================================================ -->
 
-<!-- NAVBAR -->
-<header class="navbar">
-  <div class="container inner">
-    <a href="index.html" class="brand">🌱 AgriStudent BD</a>
-    <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="resources.html">Resources</a></li>
-      <li><a href="timeline.html">Academic Timeline</a></li>
-      <li><a href="knowledge-hub.html">Knowledge Hub</a></li>
-      <li><a href="calculators.html">Calculators</a></li>
-      <li><a href="faq.html">FAQ</a></li>
-      <li><a href="help.html">Help</a></li>
-    </ul>
-    <div class="nav-actions">
-      <button class="icon-btn" aria-label="Search">🔍</button>
-      <button class="icon-btn" aria-label="Toggle dark mode">🌙</button>
-      <button class="nav-toggle" aria-label="Open menu">☰</button>
-    </div>
-  </div>
-</header>
+  <main class="timeline-page">
 
-<section class="section-page">
-  <div class="container">
-    <div class="crumb"><a href="index.html">Home</a> / Academic Timeline</div>
-    <h1>📅 Academic Timeline</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Registration, advising, exam, and break dates at a glance.</p>
+    <section class="page-hero seed-packet-hero">
+      <h1>Academic Timeline</h1>
+      <p>Registration windows, exams, results, and holidays — all in one place.</p>
+    </section>
 
-    <div class="uc-panel">
-      <span class="badge">🚧 Under construction</span>
-      <h3>Academic Timeline is being built next</h3>
-      <p>This section will include: a mini calendar, countdown cards for upcoming events, and an admin-managed academic timeline.</p>
-    </div>
-  </div>
-</section>
-
-<!-- FOOTER -->
-<footer>
-  <div class="container">
-    <div class="footer-grid">
-      <div>
-        <h4>🌱 AgriStudent BD</h4>
-        <p style="opacity:.8;font-size:.88rem;max-width:320px;">Academic resource, knowledge &amp; timeline platform built for agriculture students in Bangladesh.</p>
+    <section class="timeline-controls">
+      <div class="control-group">
+        <label for="termFilter">Term</label>
+        <select id="termFilter">
+          <option value="all">All Terms</option>
+        </select>
       </div>
-      <div>
-        <h4>Quick Links</h4>
-        <ul>
-          <li><a href="resources.html">Resources</a></li>
-          <li><a href="timeline.html">Academic Timeline</a></li>
-          <li><a href="knowledge-hub.html">Knowledge Hub</a></li>
-          <li><a href="calculators.html">Calculators</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>Contact</h4>
-        <ul>
-          <li>WhatsApp</li>
-          <li>Email</li>
-        </ul>
-      </div>
-    </div>
-    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
-  </div>
-</footer>
 
-<script src="js/main.js"></script>
+      <div class="control-group">
+        <label for="categoryFilter">Category</label>
+        <select id="categoryFilter">
+          <option value="all">All Categories</option>
+          <option value="registration">Registration</option>
+          <option value="class">Class</option>
+          <option value="midterm">Midterm</option>
+          <option value="final">Final</option>
+          <option value="result">Result</option>
+          <option value="holiday">Holiday</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="view-toggle" role="group" aria-label="Switch view">
+        <button class="view-btn active" data-view="list" id="listViewBtn">List View</button>
+        <button class="view-btn" data-view="calendar" id="calendarViewBtn">Calendar View</button>
+      </div>
+    </section>
+
+    <section class="timeline-legend" aria-hidden="false">
+      <span class="legend-item"><i class="legend-swatch swatch-today"></i> Today</span>
+      <span class="legend-item"><i class="legend-swatch swatch-path"></i> Countdown to next event</span>
+      <span class="legend-item"><i class="legend-dot cat-registration"></i> Registration</span>
+      <span class="legend-item"><i class="legend-dot cat-class"></i> Class</span>
+      <span class="legend-item"><i class="legend-dot cat-midterm"></i> Midterm</span>
+      <span class="legend-item"><i class="legend-dot cat-final"></i> Final</span>
+      <span class="legend-item"><i class="legend-dot cat-result"></i> Result</span>
+      <span class="legend-item"><i class="legend-dot cat-holiday"></i> Holiday</span>
+      <span class="legend-item"><i class="legend-dot cat-other"></i> Other</span>
+    </section>
+
+    <!-- LIST VIEW -->
+    <section id="listView" class="timeline-list-view">
+      <div id="nextEventCard" class="next-event-card" hidden>
+        <span class="next-event-label">Up Next</span>
+        <h3 id="nextEventTitle"></h3>
+        <p id="nextEventDate"></p>
+        <p id="nextEventCountdown" class="countdown"></p>
+      </div>
+
+      <div id="timelineEmpty" class="timeline-empty" hidden>
+        No events to show for this filter yet — check back soon 🌱
+      </div>
+
+      <div id="timelineList" class="timeline-vertical"></div>
+    </section>
+
+    <!-- CALENDAR VIEW -->
+    <section id="calendarView" class="timeline-calendar-view" hidden>
+      <div class="calendar-nav">
+        <button id="prevMonth" aria-label="Previous month">‹</button>
+        <h2 id="calendarMonthLabel"></h2>
+        <button id="nextMonth" aria-label="Next month">›</button>
+      </div>
+
+      <div class="calendar-grid" id="calendarGrid"></div>
+
+      <div id="calendarDayDetails" class="calendar-day-details" hidden></div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================ -->
+  <!-- PASTE YOUR EXISTING FOOTER HERE                                -->
+  <!-- ============================================================ -->
+
+  <script src="js/firebase-config.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/timeline.js"></script>
 </body>
 </html>
