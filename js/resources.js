@@ -10,6 +10,7 @@ function uploadFileToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000; // 2 min — large files can take a while to send + process
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && onProgress) {
@@ -22,10 +23,11 @@ function uploadFileToCloudinary(file, onProgress) {
         const json = JSON.parse(xhr.responseText);
         resolve({ url: json.secure_url, name: file.name });
       } else {
-        reject(new Error("Upload failed for " + file.name));
+        reject(new Error(`Upload failed for ${file.name} (server said: ${xhr.status})`));
       }
     };
-    xhr.onerror = () => reject(new Error("Network error uploading " + file.name));
+    xhr.onerror = () => reject(new Error("Network error uploading " + file.name + ". Check your connection and try again."));
+    xhr.ontimeout = () => reject(new Error(file.name + " took too long to upload. Try again, or check your connection."));
 
     const data = new FormData();
     data.append("file", file);
@@ -61,11 +63,22 @@ if (uploadForm) {
     progressText.textContent = pct + "%";
   }
 
+  // Pre-submit validation errors (file too big, wrong type, etc.) — shown
+  // without the progress ring, since no upload has started yet.
+  function showError(msg) {
+    progressWrap.classList.add("hidden");
+    statusBox.textContent = msg;
+    statusBox.style.color = "var(--terracotta-500)";
+    statusBox.classList.remove("hidden");
+  }
+
+  // In-progress / outcome messages — ring + label stay visible together,
+  // including on failure, so the person can actually see what happened.
   function showStatus(msg, isError = false) {
     progressWrap.classList.remove("hidden");
     statusBox.textContent = msg;
     statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-    if (isError) progressWrap.classList.add("hidden"); // hide ring on validation errors
+    if (isError) progressBar.style.stroke = "var(--terracotta-500)";
   }
 
   uploadForm.addEventListener("submit", async (e) => {
@@ -81,21 +94,21 @@ if (uploadForm) {
     const files = Array.from(fileInput.files);
 
     if (files.length === 0) {
-      showStatus("Please choose at least one file.", true);
+      showError("Please choose at least one file.");
       return;
     }
     if (files.length > MAX_FILES) {
-      showStatus(`Maximum ${MAX_FILES} files allowed.`, true);
+      showError(`Maximum ${MAX_FILES} files allowed.`);
       return;
     }
     const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
     if (nonPdf) {
-      showStatus(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`, true);
+      showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`);
       return;
     }
     const oversized = files.find(f => f.size > MAX_SIZE);
     if (oversized) {
-      showStatus(`"${oversized.name}" is over 20MB. Please reduce file size.`, true);
+      showError(`"${oversized.name}" is over 20MB. Please reduce file size.`);
       return;
     }
 
@@ -111,6 +124,11 @@ if (uploadForm) {
       const updateOverall = () => {
         const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
         setProgress(avg);
+        if (avg >= 100) {
+          showStatus("Upload sent — processing on server, please wait…");
+        } else {
+          showStatus(`Uploading ${files.length} file(s) in parallel…`);
+        }
       };
 
       const fileUrls = await Promise.all(
