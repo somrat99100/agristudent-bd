@@ -96,8 +96,18 @@
       <div class="flip-stage">
         <img class="flip-base" id="flip-base" alt="${fileName} — page 1">
         <div class="flip-leaf" id="flip-leaf">
-          <div class="flip-face flip-front"><img id="flip-front-img" alt=""></div>
-          <div class="flip-face flip-back"><img id="flip-back-img" alt=""></div>
+          <div class="flip-face flip-front">
+            <img id="flip-front-img" alt="">
+            <div class="flip-shade flip-shade-front"></div>
+          </div>
+          <div class="flip-face flip-back">
+            <img id="flip-back-img" alt="">
+            <div class="flip-shade flip-shade-back"></div>
+          </div>
+        </div>
+        <div class="page-loading-mask hidden" id="page-loading-mask">
+          <div class="page-loading-spinner"></div>
+          <span>Loading page…</span>
         </div>
       </div>`;
 
@@ -105,7 +115,21 @@
     const leaf = document.getElementById("flip-leaf");
     const frontImg = document.getElementById("flip-front-img");
     const backImg = document.getElementById("flip-back-img");
+    const loadingMask = document.getElementById("page-loading-mask");
     pagectrl.classList.remove("hidden");
+
+    // Cache of resolved (already-loaded) page images, so flipping back to a
+    // visited page never shows the loading mask again.
+    const loadedCache = {};
+    function preload(src) {
+      if (loadedCache[src]) return Promise.resolve(src);
+      return new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => { loadedCache[src] = true; resolve(src); };
+        im.onerror = reject;
+        im.src = src;
+      });
+    }
 
     function setIndicator() {
       pageIndicator.textContent = (current + 1) + " / " + valid.length;
@@ -116,8 +140,18 @@
     // Show a page with no animation (first load / fallback)
     function showStatic(i) {
       current = Math.max(0, Math.min(i, valid.length - 1));
-      base.src = valid[current];
-      base.alt = fileName + " — page " + (current + 1);
+      const src = valid[current];
+      loadingMask.classList.remove("hidden");
+      base.style.visibility = "hidden";
+      preload(src).then(() => {
+        base.src = src;
+        base.alt = fileName + " — page " + (current + 1);
+        base.style.visibility = "visible";
+        loadingMask.classList.add("hidden");
+        setIndicator();
+      }).catch(() => {
+        loadingMask.querySelector("span").textContent = "Couldn't load this page.";
+      });
       setIndicator();
     }
 
@@ -127,10 +161,25 @@
       const target = Math.max(0, Math.min(i, valid.length - 1));
       if (target === current) return;
       animating = true;
+      setIndicator();
 
       const fromSrc = valid[current];
       const toSrc = valid[target];
 
+      // Wait until the target page image is actually decoded before turning —
+      // a hard-copy book never shows you a blank page mid-flip.
+      loadingMask.classList.remove("hidden");
+      preload(toSrc).then(() => {
+        loadingMask.classList.add("hidden");
+        runFlip(fromSrc, toSrc, target, direction);
+      }).catch(() => {
+        loadingMask.querySelector("span").textContent = "Couldn't load this page.";
+        animating = false;
+        setIndicator();
+      });
+    }
+
+    function runFlip(fromSrc, toSrc, target, direction) {
       if (direction === "forward") {
         // Current page sits on top, flips away left-to-right(out), revealing next underneath
         base.src = toSrc;
@@ -142,7 +191,7 @@
         leaf.style.transform = "rotateY(0deg)";
         // force reflow
         void leaf.offsetWidth;
-        leaf.style.transition = "transform .6s cubic-bezier(.4,.1,.2,1)";
+        leaf.style.transition = "transform .7s cubic-bezier(.45,.05,.15,1)";
         leaf.style.transform = "rotateY(-180deg)";
       } else {
         // Bring previous page in from the left, flipping it down over the current one
@@ -154,7 +203,7 @@
         leaf.style.transition = "none";
         leaf.style.transform = "rotateY(-180deg)";
         void leaf.offsetWidth;
-        leaf.style.transition = "transform .6s cubic-bezier(.4,.1,.2,1)";
+        leaf.style.transition = "transform .7s cubic-bezier(.45,.05,.15,1)";
         leaf.style.transform = "rotateY(0deg)";
       }
 
