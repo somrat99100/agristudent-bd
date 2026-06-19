@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Viewing Resource — AgriStudent BD</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body oncontextmenu="return false;" style="margin:0;">
@@ -12,42 +13,71 @@
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:50px;"></span>
+  <span style="width:74px;"></span>
 </div>
 
-<div class="viewer-frame-wrap">
-  <iframe id="viewer-frame" src="" title="Resource viewer"></iframe>
+<div class="viewer-bg">
+  <div class="viewer-book">
+    <div class="spine"></div>
+    <div class="viewer-frame-wrap" id="viewer-frame-wrap">
+      <p style="text-align:center;padding:3rem;color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;">Loading document…</p>
+    </div>
+  </div>
 </div>
 
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
 <script>
-  // Read-only viewer: opens files in-page via Google Docs viewer (no native download
-  // toolbar) and disables right-click. NOTE: no web technology can fully block
-  // screenshots or determined downloads — this raises friction, it isn't a hard lock.
+  // Read-only viewer: opens files in-page, same tab, no native download toolbar
+  // where the browser allows hiding it. NOTE: no web technology can fully block
+  // screenshots or determined downloads — this raises friction, not a hard lock.
   const params = new URLSearchParams(window.location.search);
   const fileUrl = params.get("url");
   const fileName = params.get("name") || "Document";
+  const wrap = document.getElementById("viewer-frame-wrap");
 
   document.getElementById("viewer-title").textContent = fileName;
   document.title = fileName + " — AgriStudent BD";
 
-  if (fileUrl) {
-    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-    const frame = document.getElementById("viewer-frame");
-    if (isImage) {
-      frame.src = fileUrl; // images render natively, fine as-is
-    } else {
-      // Google Docs Viewer embeds PDFs/PPTs without exposing a download button
-      frame.src = "https://docs.google.com/viewer?url=" + encodeURIComponent(fileUrl) + "&embedded=true";
+  // Allowlist check: only render files hosted on domains we trust.
+  // Edit ALLOWED_HOSTS to match wherever your course files actually live
+  // (e.g. your GitHub Pages domain, a Drive/CDN host, etc).
+  const ALLOWED_HOSTS = [
+    window.location.hostname,
+    "raw.githubusercontent.com",
+    "drive.google.com",
+    "docs.google.com"
+  ];
+
+  function isAllowedUrl(urlStr) {
+    try {
+      const u = new URL(urlStr, window.location.href);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+      return ALLOWED_HOSTS.includes(u.hostname);
+    } catch (e) {
+      return false;
     }
   }
 
-  // Light deterrents — not real protection, just friction:
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "PrintScreen") {
-      navigator.clipboard?.writeText("");
+  if (fileUrl) {
+    if (!isAllowedUrl(fileUrl)) {
+      wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">This file's source isn't recognized and can't be displayed.</p>`;
+    } else {
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+      if (isImage) {
+        wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}">`;
+      } else {
+        // Native browser PDF rendering, full size, toolbar/sidebar hidden where supported (Chrome/Edge)
+        const pdfSrc = fileUrl + "#toolbar=0&navpanes=0&scrollbar=1&view=FitH";
+        wrap.innerHTML = `<iframe src="${pdfSrc}" title="${fileName}"></iframe>`;
+      }
     }
+  } else {
+    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
+  }
+
+  // Light deterrents — friction only, not real protection:
+  document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
       e.preventDefault();
     }
