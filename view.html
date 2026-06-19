@@ -7,24 +7,32 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body oncontextmenu="return false;" style="margin:0;">
+
+<div id="loading-mask" class="loading-mask">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Fetching Document...</div>
+</div>
 
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span class="viewer-pagectrl hidden" id="viewer-pagectrl">
-    <button type="button" id="page-prev" aria-label="Previous page">‹</button>
-    <span id="page-indicator">1 / 1</span>
-    <button type="button" id="page-next" aria-label="Next page">›</button>
-  </span>
+  <span style="width:74px;"></span>
 </div>
 
 <div class="viewer-bg">
   <div class="viewer-book">
     <div class="spine"></div>
     <div class="viewer-frame-wrap" id="viewer-frame-wrap">
-      <p style="text-align:center;padding:3rem;color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;">Loading document…</p>
+      </div>
+    
+    <div class="book-controls" id="book-controls" style="display: none;">
+      <button id="btn-prev" class="book-btn" disabled>◀ Prev</button>
+      <div class="page-indicator">Page <span id="page-num">0</span> of <span id="page-count">0</span></div>
+      <button id="btn-next" class="book-btn">Next ▶</button>
     </div>
   </div>
 </div>
@@ -32,32 +40,26 @@
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
 <script>
-  // Read-only viewer: opens files in-page, same tab, no native download toolbar
-  // where the browser allows hiding it. NOTE: no web technology can fully block
-  // screenshots or determined downloads — this raises friction, not a hard lock.
-  //
-  // Two modes:
-  //   1) ?url=<file>          single file (PDF via native renderer, or an image)
-  //   2) ?pages=<json-array>  multi-page image mode — page images rendered as <img>,
-  //      no PDF handed to the OS/native viewer, so no mobile "download/open" popup.
-  //      Pass a JSON array of image URLs, e.g.
-  //      ?pages=["https://res.cloudinary.com/.../p1.jpg","https://res.cloudinary.com/.../p2.jpg"]
+  // Setup global worker for PDF.js
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
   const params = new URLSearchParams(window.location.search);
   const fileUrl = params.get("url");
-  const pagesParam = params.get("pages");
   const fileName = params.get("name") || "Document";
   const wrap = document.getElementById("viewer-frame-wrap");
-  const pagectrl = document.getElementById("viewer-pagectrl");
-  const pageIndicator = document.getElementById("page-indicator");
-  const btnPrev = document.getElementById("page-prev");
-  const btnNext = document.getElementById("page-next");
+  const controls = document.getElementById("book-controls");
+  const loadingMask = document.getElementById("loading-mask");
 
   document.getElementById("viewer-title").textContent = fileName;
   document.title = fileName + " — AgriStudent BD";
 
-  // Allowlist check: only render files hosted on domains we trust.
-  // Edit ALLOWED_HOSTS to match wherever your course files actually live
-  // (e.g. your GitHub Pages domain, a Drive/CDN host, etc).
+  // PDF.js State
+  let pdfDoc = null;
+  let pageNum = 1;
+  let pageRendering = false;
+  let pageNumPending = null;
+
   const ALLOWED_HOSTS = [
     window.location.hostname,
     "raw.githubusercontent.com",
@@ -70,216 +72,159 @@
     try {
       const u = new URL(urlStr, window.location.href);
       if (u.protocol !== "https:" && u.protocol !== "http:") return false;
-      return ALLOWED_HOSTS.includes(u.hostname);
+      return ALLOWED_HOSTS.includes(u.hostname) || u.hostname === "localhost" || u.hostname === "127.0.0.1";
     } catch (e) {
       return false;
     }
   }
 
-  function showBlocked() {
-    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">This file's source isn't recognized and can't be displayed.</p>`;
-  }
-
-  function showNone() {
-    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
-  }
-
-  // ---------- Multi-page image mode (with page-turn animation) ----------
-  function renderPageMode(urls) {
-    const valid = urls.filter(isAllowedUrl);
-    if (valid.length === 0) { showBlocked(); return; }
-
-    let current = 0;
-    let animating = false;
-
-    wrap.innerHTML = `
-      <div class="flip-stage">
-        <img class="flip-base" id="flip-base" alt="${fileName} — page 1">
-        <div class="flip-leaf" id="flip-leaf">
-          <div class="flip-face flip-front">
-            <img id="flip-front-img" alt="">
-            <div class="flip-shade flip-shade-front"></div>
-          </div>
-          <div class="flip-face flip-back">
-            <img id="flip-back-img" alt="">
-            <div class="flip-shade flip-shade-back"></div>
-          </div>
-        </div>
-        <div class="page-loading-mask hidden" id="page-loading-mask">
-          <div class="page-loading-spinner"></div>
-          <span>Loading page…</span>
-        </div>
-      </div>`;
-
-    const base = document.getElementById("flip-base");
-    const leaf = document.getElementById("flip-leaf");
-    const frontImg = document.getElementById("flip-front-img");
-    const backImg = document.getElementById("flip-back-img");
-    const loadingMask = document.getElementById("page-loading-mask");
-    pagectrl.classList.remove("hidden");
-
-    // Cache of resolved (already-loaded) page images, so flipping back to a
-    // visited page never shows the loading mask again.
-    const loadedCache = {};
-    function preload(src) {
-      if (loadedCache[src]) return Promise.resolve(src);
-      return new Promise((resolve, reject) => {
-        const im = new Image();
-        im.onload = () => { loadedCache[src] = true; resolve(src); };
-        im.onerror = reject;
-        im.src = src;
-      });
-    }
-
-    function setIndicator() {
-      pageIndicator.textContent = (current + 1) + " / " + valid.length;
-      btnPrev.disabled = current === 0 || animating;
-      btnNext.disabled = current === valid.length - 1 || animating;
-    }
-
-    // Show a page with no animation (first load / fallback)
-    function showStatic(i) {
-      current = Math.max(0, Math.min(i, valid.length - 1));
-      const src = valid[current];
-      loadingMask.classList.remove("hidden");
-      base.style.visibility = "hidden";
-      preload(src).then(() => {
-        base.src = src;
-        base.alt = fileName + " — page " + (current + 1);
-        base.style.visibility = "visible";
-        loadingMask.classList.add("hidden");
-        setIndicator();
-      }).catch(() => {
-        loadingMask.querySelector("span").textContent = "Couldn't load this page.";
-      });
-      setIndicator();
-    }
-
-    // direction: "forward" (next, right-to-left turn) or "back" (prev, left-to-right turn)
-    function turnTo(i, direction) {
-      if (animating) return;
-      const target = Math.max(0, Math.min(i, valid.length - 1));
-      if (target === current) return;
-      animating = true;
-      setIndicator();
-
-      const fromSrc = valid[current];
-      const toSrc = valid[target];
-
-      // Wait until the target page image is actually decoded before turning —
-      // a hard-copy book never shows you a blank page mid-flip.
-      loadingMask.classList.remove("hidden");
-      preload(toSrc).then(() => {
-        loadingMask.classList.add("hidden");
-        runFlip(fromSrc, toSrc, target, direction);
-      }).catch(() => {
-        loadingMask.querySelector("span").textContent = "Couldn't load this page.";
-        animating = false;
-        setIndicator();
-      });
-    }
-
-    function runFlip(fromSrc, toSrc, target, direction) {
-      if (direction === "forward") {
-        // Current page sits on top, flips away left-to-right(out), revealing next underneath
-        base.src = toSrc;
-        frontImg.src = fromSrc;
-        backImg.src = toSrc;
-        leaf.style.transformOrigin = "left center";
-        leaf.classList.remove("hidden");
-        leaf.style.transition = "none";
-        leaf.style.transform = "rotateY(0deg)";
-        // force reflow
-        void leaf.offsetWidth;
-        leaf.style.transition = "transform .7s cubic-bezier(.45,.05,.15,1)";
-        leaf.style.transform = "rotateY(-180deg)";
-      } else {
-        // Bring previous page in from the left, flipping it down over the current one
-        base.src = fromSrc;
-        frontImg.src = toSrc;
-        backImg.src = fromSrc;
-        leaf.style.transformOrigin = "left center";
-        leaf.classList.remove("hidden");
-        leaf.style.transition = "none";
-        leaf.style.transform = "rotateY(-180deg)";
-        void leaf.offsetWidth;
-        leaf.style.transition = "transform .7s cubic-bezier(.45,.05,.15,1)";
-        leaf.style.transform = "rotateY(0deg)";
-      }
-
-      const onEnd = () => {
-        leaf.removeEventListener("transitionend", onEnd);
-        base.src = toSrc;
-        base.alt = fileName + " — page " + (target + 1);
-        leaf.classList.add("hidden");
-        leaf.style.transition = "none";
-        current = target;
-        animating = false;
-        setIndicator();
-      };
-      leaf.addEventListener("transitionend", onEnd);
-    }
-
-    btnPrev.addEventListener("click", () => turnTo(current - 1, "back"));
-    btnNext.addEventListener("click", () => turnTo(current + 1, "forward"));
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") turnTo(current - 1, "back");
-      if (e.key === "ArrowRight") turnTo(current + 1, "forward");
-    });
-
-    // Swipe support for touch devices
-    let touchStartX = null;
-    wrap.addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
-    wrap.addEventListener("touchend", (e) => {
-      if (touchStartX === null) return;
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      if (Math.abs(dx) > 40) {
-        if (dx < 0) turnTo(current + 1, "forward");
-        else turnTo(current - 1, "back");
-      }
-      touchStartX = null;
-    }, { passive: true });
-
-    showStatic(0);
-  }
-
-  // ---------- Single file mode ----------
-  function renderFileMode(urlStr) {
-    if (!isAllowedUrl(urlStr)) { showBlocked(); return; }
-    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-    if (isImage) {
-      wrap.innerHTML = `<img src="${urlStr}" alt="${fileName}">`;
+  if (fileUrl) {
+    if (!isAllowedUrl(fileUrl)) {
+      wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">This file's source isn't recognized and can't be displayed.</p>`;
+      loadingMask.classList.add("hidden"); // Hide loader on error
     } else {
-      // Native browser PDF rendering, full size, toolbar/sidebar hidden where supported
-      // (desktop Chrome/Edge). On many mobile browsers this still hands off to a native
-      // viewer with its own download/open chrome — that's a platform limitation we can't
-      // suppress from here. Use ?pages=[...] mode instead to avoid it entirely.
-      const pdfSrc = urlStr + "#toolbar=0&navpanes=0&scrollbar=1&view=FitH";
-      wrap.innerHTML = `<iframe src="${pdfSrc}" title="${fileName}"></iframe>`;
-    }
-  }
-
-  if (pagesParam) {
-    try {
-      const urls = JSON.parse(pagesParam);
-      if (Array.isArray(urls) && urls.length > 0) {
-        renderPageMode(urls);
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+      if (isImage) {
+        wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
+        loadingMask.classList.add("hidden"); // Hide loader immediately for simple images
       } else {
-        showNone();
+        // Init PDF Book
+        pdfjsLib.getDocument(fileUrl).promise.then((pdfDoc_) => {
+          pdfDoc = pdfDoc_;
+          document.getElementById('page-count').textContent = pdfDoc.numPages;
+          controls.style.display = 'flex'; // Show controls
+          
+          // Render the first page
+          renderPage(pageNum, 'init').then(() => {
+            // HIDE THE LOADING MASK ONCE THE FIRST PAGE IS READY
+            loadingMask.classList.add("hidden");
+          });
+
+        }).catch((err) => {
+          wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error loading PDF: ${err.message}</p>`;
+          loadingMask.classList.add("hidden"); // Hide loader on error
+        });
       }
-    } catch (e) {
-      showBlocked();
     }
-  } else if (fileUrl) {
-    renderFileMode(fileUrl);
   } else {
-    showNone();
+    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
+    loadingMask.classList.add("hidden"); // Hide loader if missing file
   }
 
-  // Light deterrents — friction only, not real protection:
+  // --- Render and Animation Logic ---
+  async function renderPage(num, direction = 'forward') {
+    pageRendering = true;
+    
+    try {
+      const page = await pdfDoc.getPage(num);
+      
+      const wrapRect = wrap.getBoundingClientRect();
+      const viewportUnscaled = page.getViewport({ scale: 1 });
+      const scale = Math.min(
+        wrapRect.width / viewportUnscaled.width,
+        wrapRect.height / viewportUnscaled.height
+      );
+      const viewport = page.getViewport({ scale: scale * 1.5 });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
+
+      await page.render(renderContext).promise;
+
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'book-page';
+      
+      if (direction === 'forward') {
+        pageDiv.classList.add('in-right');
+      } else if (direction === 'backward') {
+        pageDiv.classList.add('in-left');
+      }
+      
+      pageDiv.appendChild(canvas);
+      wrap.appendChild(pageDiv);
+
+      pageDiv.getBoundingClientRect(); // Force reflow
+
+      const activePages = wrap.querySelectorAll('.book-page.active');
+
+      pageDiv.classList.remove('in-right', 'in-left');
+      pageDiv.classList.add('active');
+
+      activePages.forEach(oldPage => {
+        oldPage.classList.remove('active');
+        if (direction === 'forward') {
+          oldPage.classList.add('out-left');
+        } else if (direction === 'backward') {
+          oldPage.classList.add('out-right');
+        } else {
+          oldPage.style.opacity = '0';
+        }
+        
+        setTimeout(() => {
+          if (oldPage.parentElement) oldPage.parentElement.removeChild(oldPage);
+        }, 600);
+      });
+
+      document.getElementById('page-num').textContent = num;
+      updateButtons();
+      pageRendering = false;
+
+      if (pageNumPending !== null) {
+        const pendingNum = pageNumPending;
+        const pendingDir = pageNumPending > num ? 'forward' : 'backward';
+        pageNumPending = null;
+        renderPage(pendingNum, pendingDir);
+      }
+    } catch (err) {
+      pageRendering = false;
+      console.error("Error rendering page:", err);
+    }
+  }
+
+  function queueRenderPage(num, direction) {
+    if (pageRendering) {
+      pageNumPending = num;
+    } else {
+      renderPage(num, direction);
+    }
+  }
+
+  function updateButtons() {
+    document.getElementById('btn-prev').disabled = pageNum <= 1;
+    document.getElementById('btn-next').disabled = pageNum >= pdfDoc.numPages;
+  }
+
+  // --- Interactions ---
+  document.getElementById('btn-prev').addEventListener('click', () => {
+    if (pageNum <= 1) return;
+    pageNum--;
+    queueRenderPage(pageNum, 'backward');
+  });
+
+  document.getElementById('btn-next').addEventListener('click', () => {
+    if (pageNum >= pdfDoc.numPages) return;
+    pageNum++;
+    queueRenderPage(pageNum, 'forward');
+  });
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
       e.preventDefault();
+    }
+    if (e.key === "ArrowRight" && pdfDoc && pageNum < pdfDoc.numPages) {
+      pageNum++;
+      queueRenderPage(pageNum, 'forward');
+    }
+    if (e.key === "ArrowLeft" && pdfDoc && pageNum > 1) {
+      pageNum--;
+      queueRenderPage(pageNum, 'backward');
     }
   });
 
