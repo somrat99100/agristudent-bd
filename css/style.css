@@ -373,5 +373,72 @@ footer{
   .footer-grid{ grid-template-columns:1fr; }
 }
 
+/* ============================================
+   RESOURCES PAGES
+   ============================================ */
+.course-btn{
+  font-family:var(--font-mono);
+  font-weight:700;
+  font-size:.85rem;
+  background:#fff;
+  border:1.5px solid var(--moss-600);
+  color:var(--moss-700);
+  padding:.6rem 1.1rem;
+  border-radius:8px;
+  cursor:pointer;
+  margin:0 .5rem .5rem 0;
+}
+.course-btn:hover{ background:var(--moss-700); color:#fff; }
+.resource-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:1rem;
+  flex-wrap:wrap;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:1rem 1.2rem;
+  margin-bottom:.8rem;
+  background:#fff;
+}
+.resource-row-files{ display:flex; flex-direction:column; gap:.3rem; align-items:flex-end; }
+.view-link{
+  font-size:.85rem;
+  font-weight:600;
+  color:var(--leaf-500);
+  border-bottom:1px solid var(--leaf-500);
+}
+.form-field{ margin-bottom:1.1rem; }
+.form-field label{ display:block; font-weight:600; margin-bottom:.3rem; font-size:.92rem; }
+.form-field input, .form-field select{
+  width:100%;
+  padding:.7rem .9rem;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-family:var(--font-body);
+  font-size:.95rem;
+}
+.filters-row{
+  display:flex;
+  gap:.8rem;
+  flex-wrap:wrap;
+  margin-bottom:1.6rem;
+}
+.filters-row input, .filters-row select{
+  padding:.6rem .9rem;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-size:.9rem;
+}
+.btn-primary{
+  background:var(--moss-700);
+  color:#fff;
+  border:none;
+  padding:.7rem 1.3rem;
+  border-radius:8px;
+  font-weight:600;
+  cursor:pointer;
+}
+
 /* utility */
 .hidden{ display:none !important; }
