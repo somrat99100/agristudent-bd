@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Viewing Resource — AgriStudent BD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=JetBrains+Mono:wght@500;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -14,19 +14,18 @@
 
 <div id="loading-mask" class="loading-mask">
   <div class="loading-spinner"></div>
-  <div class="loading-text">Fetching Document...</div>
+  <div class="loading-text">Preparing Document...</div>
 </div>
 
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:74px;"></span>
-</div>
+  <span style="width:80px;"></span> </div>
 
 <div class="viewer-bg">
   <div class="viewer-book">
-    <div class="spine"></div>
-    <div class="viewer-frame-wrap" id="viewer-frame-wrap" title="Double-click to zoom">
+    <div class="viewer-frame-wrap" id="viewer-frame-wrap" title="Double-click to magnify">
+      <div class="spine"></div>
       </div>
     
     <div class="book-controls" id="book-controls" style="display: none;">
@@ -44,9 +43,7 @@
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
 <script>
-  // 1. Strictly bind the modern global variable for PDF.js
   const pdfjs = window.pdfjsLib;
-  
   const wrap = document.getElementById("viewer-frame-wrap");
   const controls = document.getElementById("book-controls");
   const loadingMask = document.getElementById("loading-mask");
@@ -59,47 +56,39 @@
   document.getElementById("viewer-title").textContent = fileName;
   document.title = fileName + " — AgriStudent BD";
 
-  // 2. FAIL-SAFE: If the library didn't load from the CDN, show a clean error and stop.
   if (!pdfjs) {
-    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:red;font-weight:bold;">Critical Error: The PDF Engine failed to load. Please check your internet connection and refresh.</p>`;
+    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:#C97D3C;font-family:var(--font-mono);">Engine failed to load. Please refresh.</p>`;
     loadingMask.classList.add("hidden");
   } else {
-    // 3. Set the worker ONLY if pdfjs successfully loaded
     pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     
-    // --- Application State ---
     let pdfDoc = null;
     let pageNum = 1;
     let pageRendering = false;
     let pageNumPending = null;
     let isZoomed = false; 
 
+    // Allowlist protection
     const ALLOWED_HOSTS = [
-      window.location.hostname,
-      "raw.githubusercontent.com",
-      "drive.google.com",
-      "docs.google.com",
-      "res.cloudinary.com"
+      window.location.hostname, "raw.githubusercontent.com", 
+      "drive.google.com", "docs.google.com", "res.cloudinary.com"
     ];
 
     function isAllowedUrl(urlStr) {
       try {
         const u = new URL(urlStr, window.location.href);
-        if (u.protocol !== "https:" && u.protocol !== "http:") return false;
         return ALLOWED_HOSTS.includes(u.hostname) || u.hostname === "localhost" || u.hostname === "127.0.0.1";
-      } catch (e) {
-        return false;
-      }
+      } catch (e) { return false; }
     }
 
     if (fileUrl) {
       if (!isAllowedUrl(fileUrl)) {
-        wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">This file's source isn't recognized and can't be displayed.</p>`;
+        wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Source blocked.</p>`;
         loadingMask.classList.add("hidden"); 
       } else {
         const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
         if (isImage) {
-          wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
+          wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain; margin-left:12px;">`;
           loadingMask.classList.add("hidden"); 
         } else {
           pdfjs.getDocument(fileUrl).promise.then((pdfDoc_) => {
@@ -111,19 +100,17 @@
             renderPage(pageNum, 'init').then(() => {
               loadingMask.classList.add("hidden");
             });
-
           }).catch((err) => {
-            wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:red;">Error loading PDF: ${err.message}</p>`;
+            wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error: ${err.message}</p>`;
             loadingMask.classList.add("hidden"); 
           });
         }
       }
     } else {
-      wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
       loadingMask.classList.add("hidden"); 
     }
 
-    // --- Core Rendering & HD Logic ---
+    // --- Core HD Rendering ---
     async function renderPage(num, direction = 'forward') {
       pageRendering = true;
       isZoomed = false; 
@@ -132,12 +119,11 @@
         const page = await pdfDoc.getPage(num);
         const wrapRect = wrap.getBoundingClientRect();
         
-        // Prevent math errors if CSS hasn't fully painted yet
+        // Dynamic fallback sizing to prevent zero-calc errors
         const containerWidth = wrapRect.width > 0 ? wrapRect.width : 800;
         const containerHeight = wrapRect.height > 0 ? wrapRect.height : 600;
 
         const viewportUnscaled = page.getViewport({ scale: 1 });
-        
         const scale = Math.min(
           containerWidth / viewportUnscaled.width,
           containerHeight / viewportUnscaled.height
@@ -147,22 +133,16 @@
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // HD Quality Scaling Math
+        // Crystal Clear HD rendering
         const outputScale = Math.max(window.devicePixelRatio || 1, 2);
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = Math.floor(viewport.width) + "px";
         canvas.style.height = Math.floor(viewport.height) + "px";
 
-        const transform = outputScale !== 1 
-          ? [outputScale, 0, 0, outputScale, 0, 0] 
-          : null;
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
 
-        await page.render({
-          canvasContext: ctx,
-          transform: transform,
-          viewport: viewport
-        }).promise;
+        await page.render({ canvasContext: ctx, transform: transform, viewport: viewport }).promise;
 
         const pageDiv = document.createElement('div');
         pageDiv.className = 'book-page';
@@ -172,7 +152,7 @@
         
         pageDiv.appendChild(canvas);
         wrap.appendChild(pageDiv);
-        pageDiv.getBoundingClientRect(); // Force reflow
+        pageDiv.getBoundingClientRect(); // Force reflow for animation
 
         const activePages = wrap.querySelectorAll('.book-page.active');
         pageDiv.classList.remove('in-right', 'in-left');
@@ -186,7 +166,7 @@
           
           setTimeout(() => {
             if (oldPage.parentElement) oldPage.parentElement.removeChild(oldPage);
-          }, 600);
+          }, 750); // Matches the new slower, heavier CSS animation
         });
 
         pageInput.value = num;
@@ -202,7 +182,6 @@
         }
       } catch (err) {
         pageRendering = false;
-        wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:red;">Render Error: ${err.message}</p>`;
         loadingMask.classList.add("hidden");
       }
     }
@@ -212,36 +191,30 @@
       else renderPage(num, direction);
     }
 
-    // --- Search Input ---
+    // --- Inputs & Controls ---
     pageInput.addEventListener('change', (e) => {
       let desiredPage = parseInt(e.target.value);
       if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
       if (desiredPage > pdfDoc.numPages) desiredPage = pdfDoc.numPages;
-      
       if (desiredPage !== pageNum) {
         const direction = desiredPage > pageNum ? 'forward' : 'backward';
         pageNum = desiredPage;
         queueRenderPage(pageNum, direction);
-      } else {
-        e.target.value = pageNum;
-      }
+      } else { e.target.value = pageNum; }
     });
 
-    // --- Navigation Buttons ---
     document.getElementById('btn-prev').addEventListener('click', () => {
       if (pageNum <= 1) return;
-      pageNum--;
-      queueRenderPage(pageNum, 'backward');
+      pageNum--; queueRenderPage(pageNum, 'backward');
     });
 
     document.getElementById('btn-next').addEventListener('click', () => {
       if (pageNum >= pdfDoc.numPages) return;
-      pageNum++;
-      queueRenderPage(pageNum, 'forward');
+      pageNum++; queueRenderPage(pageNum, 'forward');
     });
 
-    // --- Double-Click Zoom Toggle ---
-    wrap.addEventListener('dblclick', () => {
+    // --- Premium Double-Click Zoom & Pan ---
+    wrap.addEventListener('dblclick', (e) => {
       const activePage = wrap.querySelector('.book-page.active');
       if (!activePage) return;
       
@@ -249,38 +222,49 @@
       isZoomed = !isZoomed;
       
       if (isZoomed) {
-        activePage.style.overflow = 'auto'; 
-        canvas.style.transform = 'scale(2.2)'; 
+        activePage.classList.add('is-zoomed');
+        canvas.style.transform = 'scale(2.4)'; 
         canvas.style.cursor = 'grab';
+        
+        const clickX = e.clientX - activePage.getBoundingClientRect().left;
+        const clickY = e.clientY - activePage.getBoundingClientRect().top;
+        setTimeout(() => {
+          activePage.scrollLeft = clickX;
+          activePage.scrollTop = clickY;
+        }, 50);
+
       } else {
-        activePage.style.overflow = 'hidden';
+        activePage.classList.remove('is-zoomed');
         canvas.style.transform = 'scale(1)';
         canvas.style.cursor = 'default';
-        activePage.scrollTop = 0; 
-        activePage.scrollLeft = 0;
+        activePage.scrollTop = 0; activePage.scrollLeft = 0;
       }
     });
 
-    // --- Panning Logic when Zoomed ---
     let isDragging = false, startX, startY, scrollLeft, scrollTop;
     wrap.addEventListener('mousedown', (e) => {
-      if (!isZoomed) return;
+      if (!isZoomed || e.pointerType === 'touch') return;
       isDragging = true;
       const activePage = wrap.querySelector('.book-page.active');
-      activePage.querySelector('canvas').style.cursor = 'grabbing';
+      const canvas = activePage.querySelector('canvas');
+      
+      canvas.classList.add('is-dragging');
       startX = e.pageX - activePage.offsetLeft;
       startY = e.pageY - activePage.offsetTop;
       scrollLeft = activePage.scrollLeft;
       scrollTop = activePage.scrollTop;
     });
+    
     wrap.addEventListener('mouseleave', () => { isDragging = false; });
-    wrap.addEventListener('mouseup', () => { 
+    
+    window.addEventListener('mouseup', () => { 
       isDragging = false; 
       if(isZoomed) {
         const activeCanvas = wrap.querySelector('.book-page.active canvas');
-        if(activeCanvas) activeCanvas.style.cursor = 'grab';
+        if(activeCanvas) activeCanvas.classList.remove('is-dragging');
       }
     });
+    
     wrap.addEventListener('mousemove', (e) => {
       if (!isDragging || !isZoomed) return;
       e.preventDefault();
@@ -291,7 +275,7 @@
       activePage.scrollTop = scrollTop - (y - startY);
     });
 
-    // --- Keyboard Navigation ---
+    // Keyboard Shortcuts
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) e.preventDefault();
       if (document.activeElement !== pageInput) {
@@ -303,7 +287,7 @@
         }
       }
     });
-  } // End of Safe Wrapper
+  } 
 
   document.getElementById("viewer-watermark").textContent =
     "AgriStudent BD · viewed " + new Date().toLocaleString();
