@@ -1,57 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Viewing Resource — AgriStudent BD</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-</head>
-<body class="viewer-layout" oncontextmenu="return false;" style="margin:0;">
-
-<div id="loading-mask" class="loading-mask">
-  <div class="loading-spinner"></div>
-  <div class="loading-text">Fetching Document...</div>
-</div>
-
-<div class="viewer-bar">
-  <a href="javascript:history.back()" class="back-link">← Back</a>
-  <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:74px;"></span>
-</div>
-
-<div class="viewer-bg">
-  <div class="viewer-book">
-    <div class="spine"></div>
-    <div class="viewer-frame-wrap" id="viewer-frame-wrap">
-      </div>
-    
-    <div class="book-controls" id="book-controls" style="display: none;">
-      <div class="control-group">
-        <button id="btn-zoom-out" class="book-btn icon-only" title="Zoom Out">−</button>
-        <button id="btn-zoom-in" class="book-btn icon-only" title="Zoom In">+</button>
-      </div>
-      
-      <div class="control-group">
-        <button id="btn-prev" class="book-btn" disabled>◀ Prev</button>
-        <div class="page-indicator">
-          Page 
-          <input type="number" id="page-input" class="page-input" value="0" min="1"> 
-          of <span id="page-count">0</span>
-        </div>
-        <button id="btn-next" class="book-btn">Next ▶</button>
-      </div>
-      
-      <div class="control-group" style="width: 76px; visibility: hidden;"></div>
-    </div>
-  </div>
-</div>
-
-<div class="viewer-watermark" id="viewer-watermark"></div>
-
 <script>
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -67,14 +13,11 @@
   document.getElementById("viewer-title").textContent = fileName;
   document.title = fileName + " — AgriStudent BD";
 
-  // PDF.js State
   let pdfDoc = null;
   let pageNum = 1;
   let pageRendering = false;
   let pageNumPending = null;
-  
-  // Zoom State
-  let currentZoom = 1; 
+  let isZoomed = false; 
 
   const ALLOWED_HOSTS = [
     window.location.hostname,
@@ -120,38 +63,48 @@
         });
       }
     }
-  } else {
-    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">No file specified.</p>`;
-    loadingMask.classList.add("hidden"); 
   }
 
-  // --- Render and Animation Logic ---
   async function renderPage(num, direction = 'forward') {
     pageRendering = true;
+    isZoomed = false; 
     
     try {
       const page = await pdfDoc.getPage(num);
-      
       const wrapRect = wrap.getBoundingClientRect();
       const viewportUnscaled = page.getViewport({ scale: 1 });
       
-      // Calculate base scale to fit the screen
-      const baseScale = Math.min(
+      // 1. Calculate base scale to fit the container perfectly
+      const scale = Math.min(
         wrapRect.width / viewportUnscaled.width,
         wrapRect.height / viewportUnscaled.height
       );
       
-      // Apply user zoom multiplier
-      const finalScale = (baseScale * 1.2) * currentZoom; 
-      const viewport = page.getViewport({ scale: finalScale });
+      const viewport = page.getViewport({ scale: scale });
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+      
+      // 2. HD QUALITY FIX: Get device pixel ratio (e.g., 2 for Retina displays)
+      // We bump it slightly (Math.max(..., 2)) to guarantee HD even on standard monitors
+      const outputScale = Math.max(window.devicePixelRatio || 1, 2);
+
+      // 3. Set the internal canvas resolution much higher
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      
+      // 4. Force the CSS display size to match the container
+      canvas.style.width = Math.floor(viewport.width) + "px";
+      canvas.style.height = Math.floor(viewport.height) + "px";
+
+      // 5. Scale the drawing context to match the high-res canvas
+      const transform = outputScale !== 1 
+        ? [outputScale, 0, 0, outputScale, 0, 0] 
+        : null;
 
       const renderContext = {
         canvasContext: ctx,
+        transform: transform,
         viewport: viewport
       };
 
@@ -160,12 +113,6 @@
       const pageDiv = document.createElement('div');
       pageDiv.className = 'book-page';
       
-      // If zoomed in, allow scrolling and remove CSS constrains
-      if (currentZoom > 1) {
-        pageDiv.classList.add('is-zoomed');
-      }
-      
-      // If direction is 'none' (used for zooming), don't add sliding classes
       if (direction === 'forward') {
         pageDiv.classList.add('in-right');
       } else if (direction === 'backward') {
@@ -174,31 +121,26 @@
       
       pageDiv.appendChild(canvas);
       wrap.appendChild(pageDiv);
-
       pageDiv.getBoundingClientRect(); // Force reflow
 
       const activePages = wrap.querySelectorAll('.book-page.active');
-
       pageDiv.classList.remove('in-right', 'in-left');
       pageDiv.classList.add('active');
 
       activePages.forEach(oldPage => {
         oldPage.classList.remove('active');
-        if (direction === 'forward') {
-          oldPage.classList.add('out-left');
-        } else if (direction === 'backward') {
-          oldPage.classList.add('out-right');
-        } else {
-          oldPage.style.opacity = '0';
-        }
+        if (direction === 'forward') oldPage.classList.add('out-left');
+        else if (direction === 'backward') oldPage.classList.add('out-right');
+        else oldPage.style.opacity = '0';
         
         setTimeout(() => {
           if (oldPage.parentElement) oldPage.parentElement.removeChild(oldPage);
-        }, direction === 'none' ? 0 : 600); // Remove instantly if just zooming
+        }, 600);
       });
 
       pageInput.value = num;
-      updateButtons();
+      document.getElementById('btn-prev').disabled = num <= 1;
+      document.getElementById('btn-next').disabled = num >= pdfDoc.numPages;
       pageRendering = false;
 
       if (pageNumPending !== null) {
@@ -209,28 +151,31 @@
       }
     } catch (err) {
       pageRendering = false;
-      console.error("Error rendering page:", err);
+      console.error(err);
     }
   }
 
   function queueRenderPage(num, direction) {
-    if (pageRendering) {
-      pageNumPending = num;
+    if (pageRendering) pageNumPending = num;
+    else renderPage(num, direction);
+  }
+
+  // --- Search Input ---
+  pageInput.addEventListener('change', (e) => {
+    let desiredPage = parseInt(e.target.value);
+    if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
+    if (desiredPage > pdfDoc.numPages) desiredPage = pdfDoc.numPages;
+    
+    if (desiredPage !== pageNum) {
+      const direction = desiredPage > pageNum ? 'forward' : 'backward';
+      pageNum = desiredPage;
+      queueRenderPage(pageNum, direction);
     } else {
-      renderPage(num, direction);
+      e.target.value = pageNum;
     }
-  }
+  });
 
-  function updateButtons() {
-    document.getElementById('btn-prev').disabled = pageNum <= 1;
-    document.getElementById('btn-next').disabled = pageNum >= pdfDoc.numPages;
-    document.getElementById('btn-zoom-out').disabled = currentZoom <= 0.5;
-    document.getElementById('btn-zoom-in').disabled = currentZoom >= 3;
-  }
-
-  // --- Interactions ---
-  
-  // Next / Prev Buttons
+  // --- Buttons ---
   document.getElementById('btn-prev').addEventListener('click', () => {
     if (pageNum <= 1) return;
     pageNum--;
@@ -243,47 +188,65 @@
     queueRenderPage(pageNum, 'forward');
   });
 
-  // Specific Page Input
-  pageInput.addEventListener('change', (e) => {
-    let desiredPage = parseInt(e.target.value);
-    if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
-    if (desiredPage > pdfDoc.numPages) desiredPage = pdfDoc.numPages;
+  // --- Double-Click Zoom Toggle ---
+  wrap.addEventListener('dblclick', () => {
+    const activePage = wrap.querySelector('.book-page.active');
+    if (!activePage) return;
     
-    if (desiredPage !== pageNum) {
-      const direction = desiredPage > pageNum ? 'forward' : 'backward';
-      pageNum = desiredPage;
-      queueRenderPage(pageNum, direction);
+    const canvas = activePage.querySelector('canvas');
+    isZoomed = !isZoomed;
+    
+    if (isZoomed) {
+      activePage.style.overflow = 'auto'; 
+      canvas.style.transform = 'scale(2.2)'; 
+      canvas.style.cursor = 'grab';
     } else {
-      e.target.value = pageNum; // Reset if invalid
+      activePage.style.overflow = 'hidden';
+      canvas.style.transform = 'scale(1)';
+      canvas.style.cursor = 'default';
+      activePage.scrollTop = 0; 
+      activePage.scrollLeft = 0;
     }
   });
 
-  // Zoom Controls
-  document.getElementById('btn-zoom-in').addEventListener('click', () => {
-    if (currentZoom >= 3) return;
-    currentZoom += 0.3;
-    renderPage(pageNum, 'none'); // Re-render without sliding animation
+  // --- Panning Logic when Zoomed ---
+  let isDragging = false, startX, startY, scrollLeft, scrollTop;
+  wrap.addEventListener('mousedown', (e) => {
+    if (!isZoomed) return;
+    isDragging = true;
+    const activePage = wrap.querySelector('.book-page.active');
+    activePage.querySelector('canvas').style.cursor = 'grabbing';
+    startX = e.pageX - activePage.offsetLeft;
+    startY = e.pageY - activePage.offsetTop;
+    scrollLeft = activePage.scrollLeft;
+    scrollTop = activePage.scrollTop;
   });
-
-  document.getElementById('btn-zoom-out').addEventListener('click', () => {
-    if (currentZoom <= 0.5) return;
-    currentZoom -= 0.3;
-    renderPage(pageNum, 'none'); 
+  wrap.addEventListener('mouseleave', () => { isDragging = false; });
+  wrap.addEventListener('mouseup', () => { 
+    isDragging = false; 
+    if(isZoomed) {
+      const activeCanvas = wrap.querySelector('.book-page.active canvas');
+      if(activeCanvas) activeCanvas.style.cursor = 'grab';
+    }
+  });
+  wrap.addEventListener('mousemove', (e) => {
+    if (!isDragging || !isZoomed) return;
+    e.preventDefault();
+    const activePage = wrap.querySelector('.book-page.active');
+    const x = e.pageX - activePage.offsetLeft;
+    const y = e.pageY - activePage.offsetTop;
+    activePage.scrollLeft = scrollLeft - (x - startX);
+    activePage.scrollTop = scrollTop - (y - startY);
   });
 
   document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
-      e.preventDefault();
-    }
-    // Only use arrow keys if they aren't typing in the page input box
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) e.preventDefault();
     if (document.activeElement !== pageInput) {
       if (e.key === "ArrowRight" && pdfDoc && pageNum < pdfDoc.numPages) {
-        pageNum++;
-        queueRenderPage(pageNum, 'forward');
+        pageNum++; queueRenderPage(pageNum, 'forward');
       }
       if (e.key === "ArrowLeft" && pdfDoc && pageNum > 1) {
-        pageNum--;
-        queueRenderPage(pageNum, 'backward');
+        pageNum--; queueRenderPage(pageNum, 'backward');
       }
     }
   });
@@ -291,6 +254,3 @@
   document.getElementById("viewer-watermark").textContent =
     "AgriStudent BD · viewed " + new Date().toLocaleString();
 </script>
-
-</body>
-</html>
