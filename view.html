@@ -81,34 +81,54 @@
       } catch (e) { return false; }
     }
 
-    if (fileUrl) {
-      if (!isAllowedUrl(fileUrl)) {
-        wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Source blocked.</p>`;
-        loadingMask.classList.add("hidden"); 
-      } else {
-        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-        if (isImage) {
-          wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
-          loadingMask.classList.add("hidden"); 
-        } else {
-          pdfjs.getDocument(fileUrl).promise.then((pdfDoc_) => {
-            pdfDoc = pdfDoc_;
-            document.getElementById('page-count').textContent = pdfDoc.numPages;
-            pageInput.max = pdfDoc.numPages;
-            controls.style.display = 'flex'; 
-            
-            renderPage(pageNum, 'init').then(() => {
-              loadingMask.classList.add("hidden");
-            });
-          }).catch((err) => {
-            wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error: ${err.message}</p>`;
-            loadingMask.classList.add("hidden"); 
-          });
-        }
-      }
-    } else {
+  if (fileUrl) {
+    if (!isAllowedUrl(fileUrl)) {
+      wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Source blocked.</p>`;
       loadingMask.classList.add("hidden"); 
+    } else {
+      const ext = (fileName.split(".").pop() || "").toLowerCase();
+      const isImage = ["jpg","jpeg","png","gif","webp"].includes(ext);
+      const isOfficeDoc = ["ppt","pptx","doc","docx","xls","xlsx"].includes(ext);
+
+      if (isImage) {
+        wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
+        loadingMask.classList.add("hidden"); 
+      } else if (isOfficeDoc) {
+        // pdf.js can't read PPT/PPTX/DOC/XLS — use Microsoft's Office Online
+        // viewer instead, which renders these formats read-only in an iframe.
+        const officeViewerUrl = "https://view.officeapps.live.com/op/embed.aspx?src=" + encodeURIComponent(fileUrl);
+        const iframe = document.createElement("iframe");
+        iframe.src = officeViewerUrl;
+        iframe.title = fileName;
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.border = "none";
+        iframe.onload = () => loadingMask.classList.add("hidden");
+        wrap.appendChild(iframe);
+        // fallback in case onload doesn't fire (some browsers/cross-origin cases)
+        setTimeout(() => loadingMask.classList.add("hidden"), 4000);
+      } else if (ext === "pdf") {
+        pdfjs.getDocument(fileUrl).promise.then((pdfDoc_) => {
+          pdfDoc = pdfDoc_;
+          document.getElementById('page-count').textContent = pdfDoc.numPages;
+          pageInput.max = pdfDoc.numPages;
+          controls.style.display = 'flex'; 
+          
+          renderPage(pageNum, 'init').then(() => {
+            loadingMask.classList.add("hidden");
+          });
+        }).catch((err) => {
+          wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error: ${err.message}</p>`;
+          loadingMask.classList.add("hidden"); 
+        });
+      } else {
+        wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Unsupported file type: .${ext}</p>`;
+        loadingMask.classList.add("hidden");
+      }
     }
+  } else {
+    loadingMask.classList.add("hidden"); 
+  }
 
     async function renderPage(num, direction = 'forward') {
       pageRendering = true;
