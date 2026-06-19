@@ -119,12 +119,17 @@
         const wrapRect = wrap.getBoundingClientRect();
         
         const containerWidth = wrapRect.width > 0 ? wrapRect.width : 800;
+        const containerHeight = wrapRect.height > 0 ? wrapRect.height : 1000;
 
         const viewportUnscaled = page.getViewport({ scale: 1 });
         
-        // Fix 3: Changed to default "Fit-Width" layout to match requested image behavior
-        const padding = 16; 
-        const scale = (containerWidth - padding) / viewportUnscaled.width;
+        // Fit the page fully inside the box on BOTH axes (like a photo frame),
+        // so landscape (PPT-style) and portrait pages both display completely
+        // with no cropping and no leftover white space.
+        const padding = 16;
+        const scaleByWidth = (containerWidth - padding) / viewportUnscaled.width;
+        const scaleByHeight = (containerHeight - padding) / viewportUnscaled.height;
+        const scale = Math.min(scaleByWidth, scaleByHeight);
         
         const viewport = page.getViewport({ scale: scale });
         const canvas = document.createElement('canvas');
