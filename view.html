@@ -267,8 +267,15 @@
         activePage.classList.add('is-zoomed');
         canvas.style.transform = `scale(${currentScale})`; 
         canvas.style.cursor = 'grab';
-        // with center-origin + flex centering, the browser keeps the zoomed
-        // page centered automatically — no manual scroll offset needed
+
+        // scroll so the clicked point stays roughly under the cursor after zooming
+        const rect = activePage.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        setTimeout(() => {
+          activePage.scrollLeft = clickX * (currentScale - 1);
+          activePage.scrollTop = clickY * (currentScale - 1);
+        }, 50);
       }
     });
 
