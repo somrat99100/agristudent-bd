@@ -20,8 +20,7 @@
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:80px;"></span> 
-</div>
+  <span style="width:80px;"></span> </div>
 
 <div class="viewer-bg">
   <div class="viewer-book">
@@ -34,6 +33,7 @@
       
       <div class="page-indicator">
         Page <input type="number" id="page-input" class="page-search-input" value="0" min="1"> of <span id="page-count">0</span>
+        <button id="btn-go" class="btn-go">Go</button>
       </div>
       
       <button id="btn-next" class="book-btn">Next ▶</button>
@@ -49,6 +49,7 @@
   const controls = document.getElementById("book-controls");
   const loadingMask = document.getElementById("loading-mask");
   const pageInput = document.getElementById("page-input");
+  const btnGo = document.getElementById("btn-go");
 
   const params = new URLSearchParams(window.location.search);
   const fileUrl = params.get("url");
@@ -67,7 +68,7 @@
     let pageNum = 1;
     let pageRendering = false;
     let pageNumPending = null;
-    let currentScale = 1; // Dynamic scale for pinch-to-zoom
+    let currentScale = 1; 
 
     const ALLOWED_HOSTS = [
       window.location.hostname, "raw.githubusercontent.com", 
@@ -188,15 +189,21 @@
       else renderPage(num, direction);
     }
 
-    pageInput.addEventListener('change', (e) => {
-      let desiredPage = parseInt(e.target.value);
+    // --- Inputs & Controls ---
+    function triggerPageSearch() {
+      let desiredPage = parseInt(pageInput.value);
       if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
       if (desiredPage > pdfDoc.numPages) desiredPage = pdfDoc.numPages;
       if (desiredPage !== pageNum) {
         const direction = desiredPage > pageNum ? 'forward' : 'backward';
         pageNum = desiredPage;
         queueRenderPage(pageNum, direction);
-      } else { e.target.value = pageNum; }
+      } else { pageInput.value = pageNum; }
+    }
+
+    btnGo.addEventListener('click', triggerPageSearch);
+    pageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') triggerPageSearch();
     });
 
     document.getElementById('btn-prev').addEventListener('click', () => {
@@ -219,14 +226,12 @@
       const canvas = activePage.querySelector('canvas');
       
       if (currentScale > 1) {
-        // Reset Zoom
         currentScale = 1;
         activePage.classList.remove('is-zoomed');
         canvas.style.transform = `scale(1)`;
         canvas.style.cursor = 'default';
         activePage.scrollTop = 0; activePage.scrollLeft = 0;
       } else {
-        // Apply Zoom
         currentScale = 2.4;
         activePage.classList.add('is-zoomed');
         canvas.style.transform = `scale(${currentScale})`; 
@@ -247,7 +252,7 @@
 
     wrap.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
-        e.preventDefault(); // Prevent native browser scaling
+        e.preventDefault(); 
         initialPinchDist = Math.hypot(
           e.touches[0].pageX - e.touches[1].pageX,
           e.touches[0].pageY - e.touches[1].pageY
@@ -272,7 +277,6 @@
         );
         
         const zoomFactor = currentPinchDist / initialPinchDist;
-        // Limit zoom size from 1x to 4x
         currentScale = Math.min(Math.max(1, initialScale * zoomFactor), 4);
         
         canvas.style.transform = `scale(${currentScale})`;
