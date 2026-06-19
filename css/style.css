@@ -458,6 +458,12 @@ footer{
 /* ============================================
    DOCUMENT VIEWER (3D Book & General)
    ============================================ */
+/* Lock the body specifically for the viewer page to kill the right scrollbar */
+body.viewer-layout { 
+  overflow: hidden; 
+  height: 100vh; 
+}
+
 .viewer-bar{
   display:flex;
   align-items:center;
@@ -465,6 +471,7 @@ footer{
   padding:.85rem 1.5rem;
   background:var(--moss-900);
   color:var(--paper-100);
+  height: 58px; /* Fixed height for calculations */
 }
 .viewer-bar .back-link{
   display:inline-flex;
@@ -493,20 +500,26 @@ footer{
   overflow:hidden;
   text-overflow:ellipsis;
 }
+
+/* Make background take exactly the remaining screen height */
 .viewer-bg{
-  min-height:calc(100vh - 58px);
+  height: calc(100vh - 58px);
   background:
     radial-gradient(circle at 20% 10%, rgba(107,155,94,.08), transparent 45%),
     var(--paper-100);
   display:flex;
   justify-content:center;
-  padding:2.2rem 1.25rem;
+  padding:1.5rem;
+  box-sizing: border-box;
   user-select:none;
   -webkit-user-select:none;
 }
+
+/* Let the book grow to fit the screen */
 .viewer-book{
   width:100%;
-  max-width:840px;
+  max-width: 1400px; /* Increased dramatically from 840px */
+  height: 100%; /* Fill the dynamic background */
   background:#fff;
   border:1px solid var(--line);
   border-radius:4px;
@@ -515,17 +528,17 @@ footer{
     0 18px 40px rgba(31,46,34,.12),
     -6px 0 0 -2px var(--paper-100),
     -7px 0 0 -3px var(--line);
-  overflow:hidden;
   display:flex;
   flex-direction:column;
 }
 .viewer-book .spine{
   height:6px;
+  flex-shrink: 0;
   background:linear-gradient(90deg, var(--moss-700), var(--leaf-500));
 }
 .viewer-watermark{
   position:fixed;
-  bottom:14px; right:18px;
+  bottom:70px; right:18px; /* Moved up slightly to clear controls */
   font-family:var(--font-mono);
   font-size:.7rem;
   color:rgba(31,46,34,.45);
@@ -536,11 +549,11 @@ footer{
 /* 3D PDF Page Turns */
 .viewer-frame-wrap {
   position: relative;
-  overflow: hidden;
+  flex: 1; /* Takes all remaining height dynamically */
+  min-height: 0;
   perspective: 1800px;
   background: #fcfbf8;
-  height: calc(100vh - 58px - 2.2rem - 2.2rem - 6px - 55px); /* Acccounts for controls height */
-  min-height: 520px;
+  overflow: hidden;
 }
 .book-page {
   position: absolute;
@@ -553,34 +566,30 @@ footer{
   opacity: 0;
   z-index: 1;
   transform-style: preserve-3d;
+  overflow: auto; /* Allows panning when zoomed in */
 }
 .book-page canvas {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   box-shadow: 0 0 20px rgba(31, 46, 34, 0.05);
+  transition: width 0.3s, height 0.3s; /* Smooth zoom */
 }
+/* If zoomed, we don't constrain to max-width/height so it can grow and scroll */
+.book-page.is-zoomed canvas {
+  max-width: none;
+  max-height: none;
+}
+
 .book-page.active {
   transform: translateX(0) rotateY(0) scale(1);
   opacity: 1;
   z-index: 5;
 }
-.book-page.out-left {
-  transform: translateX(-40%) rotateY(-25deg) scale(0.95);
-  opacity: 0;
-}
-.book-page.in-right {
-  transform: translateX(40%) rotateY(25deg) scale(0.95);
-  opacity: 0;
-}
-.book-page.out-right {
-  transform: translateX(40%) rotateY(25deg) scale(0.95);
-  opacity: 0;
-}
-.book-page.in-left {
-  transform: translateX(-40%) rotateY(-25deg) scale(0.95);
-  opacity: 0;
-}
+.book-page.out-left { transform: translateX(-40%) rotateY(-25deg) scale(0.95); opacity: 0; }
+.book-page.in-right { transform: translateX(40%) rotateY(25deg) scale(0.95); opacity: 0; }
+.book-page.out-right { transform: translateX(40%) rotateY(25deg) scale(0.95); opacity: 0; }
+.book-page.in-left { transform: translateX(-40%) rotateY(-25deg) scale(0.95); opacity: 0; }
 
 /* Controls UI */
 .book-controls {
@@ -590,18 +599,30 @@ footer{
   padding: 0.8rem 1.5rem;
   border-top: 1px solid var(--line);
   background: var(--paper-50);
+  flex-shrink: 0;
+}
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
 }
 .book-btn {
   background: var(--moss-700);
   color: #fff;
   border: none;
-  padding: 0.6rem 1.2rem;
+  padding: 0.5rem 1.1rem;
   border-radius: 999px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
   font-weight: 700;
+}
+.book-btn.icon-only {
+  width: 32px; height: 32px;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
 }
 .book-btn:hover:not(:disabled) {
   background: var(--moss-900);
@@ -617,7 +638,27 @@ footer{
   font-size: 0.85rem;
   color: var(--moss-700);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
+.page-input {
+  width: 50px;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  outline: none;
+}
+.page-input:focus { border-color: var(--leaf-500); }
+
+/* Remove number input spin arrows */
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.page-input[type=number] { -moz-appearance: textfield; }
+
 
 /* ============================================
    LOADING MASK OVERLAY
