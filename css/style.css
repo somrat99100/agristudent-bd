@@ -544,12 +544,14 @@ body.viewer-layout {
 
 /* Zoom state overrides */
 .book-page.is-zoomed {
-  overflow: auto; -webkit-overflow-scrolling: touch; display: block; 
+  overflow: auto; -webkit-overflow-scrolling: touch;
+  /* keep flex + center origin so toggling zoom doesn't jump/shift the page */
 }
 .book-page.is-zoomed canvas { 
-  transform-origin: top left; 
-  margin: 0; 
+  transform-origin: center center; 
+  margin: 0 auto; 
   max-width: none;
+  max-height: none;
 }
 .is-dragging { cursor: grabbing !important; }
 
