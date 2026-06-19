@@ -5,11 +5,22 @@ const form = document.getElementById("register-form");
 const submitBtn = document.getElementById("submit-btn");
 const statusBox = document.getElementById("form-status");
 const successBox = document.getElementById("form-success");
+const progressWrap = document.getElementById("upload-progress-wrap");
+const progressBar = document.getElementById("progress-ring-bar");
+const progressText = document.getElementById("progress-ring-text");
+const CIRCUMFERENCE = 226.19; // 2 * π * r(36)
+
+function setProgress(pct) {
+  const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
+  progressBar.style.strokeDashoffset = offset;
+  progressText.textContent = pct + "%";
+}
 
 function showStatus(message, isError = false) {
+  progressWrap.classList.remove("hidden");
   statusBox.textContent = message;
   statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-  statusBox.classList.remove("hidden");
+  if (isError) progressWrap.classList.add("hidden");
 }
 
 function uploadToCloudinary(file, onProgress) {
@@ -65,15 +76,17 @@ form.addEventListener("submit", async (e) => {
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Submitting…";
+  setProgress(0);
 
   try {
     let studentIdUrl = null;
     if (idFile) {
-      showStatus("Uploading Student ID photo — 0%");
+      showStatus("Uploading Student ID photo…");
       studentIdUrl = await uploadToCloudinary(idFile, (pct) => {
-        showStatus(`Uploading Student ID photo — ${pct}%`);
+        setProgress(pct);
       });
     }
+    setProgress(100);
     showStatus("Saving your registration…");
 
     const docData = {
