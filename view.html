@@ -20,11 +20,12 @@
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:80px;"></span> </div>
+  <span style="width:80px;"></span> 
+</div>
 
 <div class="viewer-bg">
   <div class="viewer-book">
-    <div class="viewer-frame-wrap" id="viewer-frame-wrap" title="Double-click to magnify">
+    <div class="viewer-frame-wrap" id="viewer-frame-wrap" title="Double-click or pinch to magnify">
       <div class="spine"></div>
       </div>
     
@@ -66,9 +67,8 @@
     let pageNum = 1;
     let pageRendering = false;
     let pageNumPending = null;
-    let isZoomed = false; 
+    let currentScale = 1; // Dynamic scale for pinch-to-zoom
 
-    // Allowlist protection
     const ALLOWED_HOSTS = [
       window.location.hostname, "raw.githubusercontent.com", 
       "drive.google.com", "docs.google.com", "res.cloudinary.com"
@@ -110,16 +110,14 @@
       loadingMask.classList.add("hidden"); 
     }
 
-    // --- Core HD Rendering ---
     async function renderPage(num, direction = 'forward') {
       pageRendering = true;
-      isZoomed = false; 
+      currentScale = 1; // Reset zoom on page turn
       
       try {
         const page = await pdfDoc.getPage(num);
         const wrapRect = wrap.getBoundingClientRect();
         
-        // Dynamic fallback sizing to prevent zero-calc errors
         const containerWidth = wrapRect.width > 0 ? wrapRect.width : 800;
         const containerHeight = wrapRect.height > 0 ? wrapRect.height : 600;
 
@@ -133,7 +131,6 @@
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // Crystal Clear HD rendering
         const outputScale = Math.max(window.devicePixelRatio || 1, 2);
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
@@ -152,7 +149,7 @@
         
         pageDiv.appendChild(canvas);
         wrap.appendChild(pageDiv);
-        pageDiv.getBoundingClientRect(); // Force reflow for animation
+        pageDiv.getBoundingClientRect(); 
 
         const activePages = wrap.querySelectorAll('.book-page.active');
         pageDiv.classList.remove('in-right', 'in-left');
@@ -166,7 +163,7 @@
           
           setTimeout(() => {
             if (oldPage.parentElement) oldPage.parentElement.removeChild(oldPage);
-          }, 750); // Matches the new slower, heavier CSS animation
+          }, 750); 
         });
 
         pageInput.value = num;
@@ -191,7 +188,6 @@
       else renderPage(num, direction);
     }
 
-    // --- Inputs & Controls ---
     pageInput.addEventListener('change', (e) => {
       let desiredPage = parseInt(e.target.value);
       if (isNaN(desiredPage) || desiredPage < 1) desiredPage = 1;
@@ -213,17 +209,27 @@
       pageNum++; queueRenderPage(pageNum, 'forward');
     });
 
-    // --- Premium Double-Click Zoom & Pan ---
+    // --- Premium Double-Click & Touch Zoom Physics ---
+    
+    // 1. Double Click Logic
     wrap.addEventListener('dblclick', (e) => {
       const activePage = wrap.querySelector('.book-page.active');
       if (!activePage) return;
       
       const canvas = activePage.querySelector('canvas');
-      isZoomed = !isZoomed;
       
-      if (isZoomed) {
+      if (currentScale > 1) {
+        // Reset Zoom
+        currentScale = 1;
+        activePage.classList.remove('is-zoomed');
+        canvas.style.transform = `scale(1)`;
+        canvas.style.cursor = 'default';
+        activePage.scrollTop = 0; activePage.scrollLeft = 0;
+      } else {
+        // Apply Zoom
+        currentScale = 2.4;
         activePage.classList.add('is-zoomed');
-        canvas.style.transform = 'scale(2.4)'; 
+        canvas.style.transform = `scale(${currentScale})`; 
         canvas.style.cursor = 'grab';
         
         const clickX = e.clientX - activePage.getBoundingClientRect().left;
@@ -232,18 +238,59 @@
           activePage.scrollLeft = clickX;
           activePage.scrollTop = clickY;
         }, 50);
-
-      } else {
-        activePage.classList.remove('is-zoomed');
-        canvas.style.transform = 'scale(1)';
-        canvas.style.cursor = 'default';
-        activePage.scrollTop = 0; activePage.scrollLeft = 0;
       }
     });
 
+    // 2. Multi-Touch Pinch to Zoom Logic
+    let initialPinchDist = null;
+    let initialScale = 1;
+
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault(); // Prevent native browser scaling
+        initialPinchDist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        initialScale = currentScale;
+        
+        const activePage = wrap.querySelector('.book-page.active');
+        if (activePage) activePage.classList.add('is-zoomed');
+      }
+    }, { passive: false });
+
+    wrap.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const activePage = wrap.querySelector('.book-page.active');
+        if (!activePage) return;
+        const canvas = activePage.querySelector('canvas');
+
+        const currentPinchDist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        
+        const zoomFactor = currentPinchDist / initialPinchDist;
+        // Limit zoom size from 1x to 4x
+        currentScale = Math.min(Math.max(1, initialScale * zoomFactor), 4);
+        
+        canvas.style.transform = `scale(${currentScale})`;
+        
+        if (currentScale === 1) {
+            activePage.classList.remove('is-zoomed');
+        }
+      }
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) initialPinchDist = null;
+    });
+
+    // 3. Desktop Mouse Drag Panning
     let isDragging = false, startX, startY, scrollLeft, scrollTop;
     wrap.addEventListener('mousedown', (e) => {
-      if (!isZoomed || e.pointerType === 'touch') return;
+      if (currentScale <= 1 || e.pointerType === 'touch') return;
       isDragging = true;
       const activePage = wrap.querySelector('.book-page.active');
       const canvas = activePage.querySelector('canvas');
@@ -259,14 +306,14 @@
     
     window.addEventListener('mouseup', () => { 
       isDragging = false; 
-      if(isZoomed) {
+      if(currentScale > 1) {
         const activeCanvas = wrap.querySelector('.book-page.active canvas');
         if(activeCanvas) activeCanvas.classList.remove('is-dragging');
       }
     });
     
     wrap.addEventListener('mousemove', (e) => {
-      if (!isDragging || !isZoomed) return;
+      if (!isDragging || currentScale <= 1) return;
       e.preventDefault();
       const activePage = wrap.querySelector('.book-page.active');
       const x = e.pageX - activePage.offsetLeft;
