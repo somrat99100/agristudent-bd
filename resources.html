@@ -102,7 +102,17 @@
         </div>
 
         <button type="submit" id="upload-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
-        <p id="upload-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
+
+        <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
+          <div class="progress-ring-box">
+            <svg class="progress-ring" viewBox="0 0 84 84">
+              <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+              <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+            </svg>
+            <div class="progress-ring-text" id="progress-ring-text">0%</div>
+          </div>
+          <div class="progress-label" id="upload-status">Uploading…</div>
+        </div>
       </form>
 
       <div id="upload-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
