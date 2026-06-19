@@ -10,13 +10,11 @@
 </head>
 <body>
 
-<!-- ANNOUNCEMENT BAR -->
 <div class="announce-bar">
   <div class="marquee"><span>🚀 Be Registered to Keep Access in Future Updates &amp; Premium Resources — Join the AgriStudent BD community today</span></div>
   <a href="register.html" class="btn-register">Register Now</a>
 </div>
 
-<!-- NAVBAR -->
 <header class="navbar">
   <div class="container inner">
     <a href="index.html" class="brand">🌱 AgriStudent BD</a>
@@ -41,46 +39,89 @@
   <div class="container">
     <div class="crumb"><a href="index.html">Home</a> / Resources</div>
     <h1>📚 Resources</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Browse and upload Slides & Notes and Previous Questions by course.</p>
+    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Browse course materials or submit your own — every upload is reviewed before it goes live.</p>
 
-    <div class="uc-panel">
-      <span class="badge">🚧 Under construction</span>
-      <h3>Resources is being built next</h3>
-      <p>This section will include: course-wise Slides & Notes, searchable Previous Questions by exam type, and an upload form with admin approval.</p>
+    <div class="card-grid" style="margin-bottom:2.5rem;">
+      <a href="slides-notes.html" class="seed-card">
+        <span class="tag">BROWSE</span>
+        <div class="icon">📑</div>
+        <h3>Slides &amp; Notes</h3>
+        <p style="font-size:.88rem;color:var(--moss-600);">Browse lecture materials by course code.</p>
+      </a>
+      <a href="previous-questions.html" class="seed-card">
+        <span class="tag">BROWSE</span>
+        <div class="icon">📝</div>
+        <h3>Previous Questions</h3>
+        <p style="font-size:.88rem;color:var(--moss-600);">Filter exam questions by course, faculty, and exam type.</p>
+      </a>
     </div>
+
+    <div style="max-width:600px;border-top:1px solid var(--line);padding-top:2rem;">
+      <h2 style="font-size:1.3rem;">⬆️ Upload Your Resource</h2>
+      <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">If possible, combine all lecture PDFs or PPTs into a single file before uploading. Max 5 files, 20MB each.</p>
+
+      <form id="upload-form">
+        <div class="form-field">
+          <label for="courseCode">Course Code *</label>
+          <input type="text" id="courseCode" required placeholder="e.g., AGR 101">
+        </div>
+        <div class="form-field">
+          <label for="courseName">Course Name *</label>
+          <input type="text" id="courseName" required placeholder="e.g., Introduction to Agronomy">
+        </div>
+        <div class="form-field">
+          <label for="facultyName">Faculty Name *</label>
+          <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences">
+        </div>
+        <div class="form-field">
+          <label for="resourceType">Resource Type *</label>
+          <select id="resourceType" required>
+            <option value="slides_notes">📚 Slides & Notes</option>
+            <option value="previous_questions">📝 Previous Questions</option>
+          </select>
+        </div>
+        <div class="form-field hidden" id="examType-wrap">
+          <label for="examType">Exam Type</label>
+          <select id="examType">
+            <option value="">— Select —</option>
+            <option value="Midterm">Midterm</option>
+            <option value="Final">Final</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="uploaderName">Uploader Name (optional)</label>
+          <input type="text" id="uploaderName">
+        </div>
+        <div class="form-field">
+          <label for="uploaderEmail">Your Email * (so we can notify you when reviewed)</label>
+          <input type="email" id="uploaderEmail" required>
+        </div>
+        <div class="form-field">
+          <label for="files">Files * (PDF, PPT, PPTX, JPG, PNG — max 5 files, 20MB each)</label>
+          <input type="file" id="files" multiple required accept=".pdf,.ppt,.pptx,.jpg,.jpeg,.png">
+        </div>
+
+        <button type="submit" id="upload-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
+        <p id="upload-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
+      </form>
+
+      <div id="upload-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+        <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+        <h3>Thanks for your upload!</h3>
+        <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
+      </div>
+    </div>
+
   </div>
 </section>
 
-<!-- FOOTER -->
 <footer>
   <div class="container">
-    <div class="footer-grid">
-      <div>
-        <h4>🌱 AgriStudent BD</h4>
-        <p style="opacity:.8;font-size:.88rem;max-width:320px;">Academic resource, knowledge &amp; timeline platform built for agriculture students in Bangladesh.</p>
-      </div>
-      <div>
-        <h4>Quick Links</h4>
-        <ul>
-          <li><a href="resources.html">Resources</a></li>
-          <li><a href="timeline.html">Academic Timeline</a></li>
-          <li><a href="knowledge-hub.html">Knowledge Hub</a></li>
-          <li><a href="calculators.html">Calculators</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>Contact</h4>
-        <ul>
-          <li>WhatsApp</li>
-          <li>Email</li>
-        </ul>
-      </div>
-    </div>
     <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
   </div>
 </footer>
 
+<script type="module" src="js/resources.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
