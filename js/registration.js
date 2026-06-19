@@ -12,14 +12,32 @@ function showStatus(message, isError = false) {
   statusBox.classList.remove("hidden");
 }
 
-async function uploadToCloudinary(file) {
-  const data = new FormData();
-  data.append("file", file);
-  data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: data });
-  if (!res.ok) throw new Error("Cloudinary upload failed");
-  const json = await res.json();
-  return json.secure_url;
+function uploadToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const json = JSON.parse(xhr.responseText);
+        resolve(json.secure_url);
+      } else {
+        reject(new Error("Cloudinary upload failed"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 form.addEventListener("submit", async (e) => {
@@ -47,13 +65,16 @@ form.addEventListener("submit", async (e) => {
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Submitting…";
-  showStatus("Submitting your registration…");
 
   try {
     let studentIdUrl = null;
     if (idFile) {
-      studentIdUrl = await uploadToCloudinary(idFile);
+      showStatus("Uploading Student ID photo — 0%");
+      studentIdUrl = await uploadToCloudinary(idFile, (pct) => {
+        showStatus(`Uploading Student ID photo — ${pct}%`);
+      });
     }
+    showStatus("Saving your registration…");
 
     const docData = {
       fullName,
