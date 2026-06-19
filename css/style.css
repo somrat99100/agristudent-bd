@@ -455,102 +455,108 @@ footer{
   cursor:pointer;
 }
 
+
 /* ============================================
    DOCUMENT VIEWER (3D Book & General)
    ============================================ */
-/* Lock the body specifically for the viewer page to kill the right scrollbar */
-body.viewer-layout { 
+/* Strictly lock the layout to prevent whole-page scrolling */
+body.viewer-layout {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
   overflow: hidden; 
-  height: 100vh; 
 }
 
-.viewer-bar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:.85rem 1.5rem;
-  background:var(--moss-900);
-  color:var(--paper-100);
-  height: 58px; /* Fixed height for calculations */
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1.5rem;
+  background: var(--moss-900);
+  color: var(--paper-100);
+  height: 58px; /* Fixed height */
+  box-sizing: border-box;
 }
-.viewer-bar .back-link{
-  display:inline-flex;
-  align-items:center;
-  gap:.4rem;
-  font-size:.85rem;
-  font-weight:600;
-  color:var(--moss-900);
-  background:var(--wheat-400);
-  padding:.45rem 1rem;
-  border-radius:999px;
-  transition:transform .15s ease, box-shadow .15s ease;
+.viewer-bar .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--moss-900);
+  background: var(--wheat-400);
+  padding: .45rem 1rem;
+  border-radius: 999px;
+  transition: transform .15s ease, box-shadow .15s ease;
 }
-.viewer-bar .back-link:hover{
-  transform:translateX(-2px);
-  box-shadow:0 4px 14px rgba(212,162,76,.35);
+.viewer-bar .back-link:hover {
+  transform: translateX(-2px);
+  box-shadow: 0 4px 14px rgba(212,162,76,.35);
 }
-.viewer-bar .title{
-  font-family:var(--font-mono);
-  font-size:.82rem;
-  opacity:.9;
-  text-align:center;
-  flex:1;
-  margin:0 1rem;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+.viewer-bar .title {
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  opacity: .9;
+  text-align: center;
+  flex: 1;
+  margin: 0 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Make background take exactly the remaining screen height */
-.viewer-bg{
-  height: calc(100vh - 58px);
+/* Background fills exactly the remaining space */
+.viewer-bg {
+  height: calc(100vh - 58px); 
   background:
     radial-gradient(circle at 20% 10%, rgba(107,155,94,.08), transparent 45%),
     var(--paper-100);
-  display:flex;
-  justify-content:center;
-  padding:1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 1.25rem;
   box-sizing: border-box;
-  user-select:none;
-  -webkit-user-select:none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-/* Let the book grow to fit the screen */
-.viewer-book{
-  width:100%;
-  max-width: 1400px; /* Increased dramatically from 840px */
-  height: 100%; /* Fill the dynamic background */
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:4px;
+/* Restored Premium Book Look */
+.viewer-book {
+  width: 100%;
+  max-width: 960px; /* Restored proportional size */
+  height: 100%;     /* Fills the padded container naturally */
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
   box-shadow:
     0 1px 0 rgba(31,46,34,.04),
     0 18px 40px rgba(31,46,34,.12),
     -6px 0 0 -2px var(--paper-100),
     -7px 0 0 -3px var(--line);
-  display:flex;
-  flex-direction:column;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.viewer-book .spine{
-  height:6px;
+.viewer-book .spine {
+  height: 6px;
   flex-shrink: 0;
-  background:linear-gradient(90deg, var(--moss-700), var(--leaf-500));
+  background: linear-gradient(90deg, var(--moss-700), var(--leaf-500));
 }
-.viewer-watermark{
-  position:fixed;
-  bottom:70px; right:18px; /* Moved up slightly to clear controls */
-  font-family:var(--font-mono);
-  font-size:.7rem;
-  color:rgba(31,46,34,.45);
-  pointer-events:none;
-  z-index:5;
+
+.viewer-watermark {
+  position: fixed;
+  bottom: 14px; right: 18px;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: rgba(31,46,34,.45);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* 3D PDF Page Turns */
 .viewer-frame-wrap {
   position: relative;
-  flex: 1; /* Takes all remaining height dynamically */
-  min-height: 0;
+  flex: 1; /* Automatically takes all space between spine and controls */
   perspective: 1800px;
   background: #fcfbf8;
   overflow: hidden;
@@ -566,63 +572,44 @@ body.viewer-layout {
   opacity: 0;
   z-index: 1;
   transform-style: preserve-3d;
-  overflow: auto; /* Allows panning when zoomed in */
+  overflow: hidden; /* Hidden until zoomed */
 }
 .book-page canvas {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   box-shadow: 0 0 20px rgba(31, 46, 34, 0.05);
-  transition: width 0.3s, height 0.3s; /* Smooth zoom */
+  transition: transform 0.3s ease; /* Smooth scaling for double-click zoom */
+  transform-origin: center top;
 }
-/* If zoomed, we don't constrain to max-width/height so it can grow and scroll */
-.book-page.is-zoomed canvas {
-  max-width: none;
-  max-height: none;
-}
-
-.book-page.active {
-  transform: translateX(0) rotateY(0) scale(1);
-  opacity: 1;
-  z-index: 5;
-}
+.book-page.active { transform: translateX(0) rotateY(0) scale(1); opacity: 1; z-index: 5; }
 .book-page.out-left { transform: translateX(-40%) rotateY(-25deg) scale(0.95); opacity: 0; }
 .book-page.in-right { transform: translateX(40%) rotateY(25deg) scale(0.95); opacity: 0; }
 .book-page.out-right { transform: translateX(40%) rotateY(25deg) scale(0.95); opacity: 0; }
 .book-page.in-left { transform: translateX(-40%) rotateY(-25deg) scale(0.95); opacity: 0; }
 
-/* Controls UI */
+/* Restored Minimal Controls */
 .book-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: 1.5rem;
   padding: 0.8rem 1.5rem;
   border-top: 1px solid var(--line);
-  background: var(--paper-50);
+  background: #fff;
   flex-shrink: 0;
-}
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
 }
 .book-btn {
   background: var(--moss-700);
   color: #fff;
   border: none;
-  padding: 0.5rem 1.1rem;
+  padding: 0.5rem 1.2rem;
   border-radius: 999px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
   font-weight: 700;
-}
-.book-btn.icon-only {
-  width: 32px; height: 32px;
-  padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem;
 }
 .book-btn:hover:not(:disabled) {
   background: var(--moss-900);
@@ -633,6 +620,8 @@ body.viewer-layout {
   cursor: not-allowed;
   color: #888;
 }
+
+/* Premium seamless Search Input */
 .page-indicator {
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -640,24 +629,28 @@ body.viewer-layout {
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
-.page-input {
-  width: 50px;
-  padding: 0.3rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+.page-search-input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 1.5px solid var(--moss-600);
+  color: var(--moss-900);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  width: 35px;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  padding: 0.1rem;
+  transition: all 0.2s ease;
   outline: none;
 }
-.page-input:focus { border-color: var(--leaf-500); }
-
-/* Remove number input spin arrows */
-.page-input::-webkit-outer-spin-button,
-.page-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.page-input[type=number] { -moz-appearance: textfield; }
+.page-search-input:focus {
+  border-bottom-color: var(--terracotta-500);
+  width: 45px;
+}
+.page-search-input::-webkit-outer-spin-button,
+.page-search-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 
 /* ============================================
