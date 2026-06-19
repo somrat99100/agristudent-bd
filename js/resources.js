@@ -50,10 +50,22 @@ if (uploadForm) {
     examTypeWrap.classList.toggle("hidden", resourceTypeSelect.value !== "previous_questions");
   });
 
+  const progressWrap = document.getElementById("upload-progress-wrap");
+  const progressBar = document.getElementById("progress-ring-bar");
+  const progressText = document.getElementById("progress-ring-text");
+  const CIRCUMFERENCE = 226.19; // 2 * π * r(36)
+
+  function setProgress(pct) {
+    const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
+    progressBar.style.strokeDashoffset = offset;
+    progressText.textContent = pct + "%";
+  }
+
   function showStatus(msg, isError = false) {
+    progressWrap.classList.remove("hidden");
     statusBox.textContent = msg;
     statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-    statusBox.classList.remove("hidden");
+    if (isError) progressWrap.classList.add("hidden"); // hide ring on validation errors
   }
 
   uploadForm.addEventListener("submit", async (e) => {
@@ -89,18 +101,29 @@ if (uploadForm) {
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Uploading…";
+    setProgress(0);
+    showStatus(`Uploading ${files.length} file(s) in parallel…`);
 
     try {
-      const fileUrls = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        showStatus(`Uploading file ${i + 1} of ${files.length} (${file.name}) — 0%`);
-        const uploaded = await uploadFileToCloudinary(file, (pct) => {
-          showStatus(`Uploading file ${i + 1} of ${files.length} (${file.name}) — ${pct}%`);
-        });
-        fileUrls.push(uploaded);
-      }
+      // Upload all files at once instead of one-by-one — cuts total wait time
+      // roughly to "slowest single file" instead of "sum of all files".
+      const progressByFile = new Array(files.length).fill(0);
+      const updateOverall = () => {
+        const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
+        setProgress(avg);
+      };
+
+      const fileUrls = await Promise.all(
+        files.map((file, i) =>
+          uploadFileToCloudinary(file, (pct) => {
+            progressByFile[i] = pct;
+            updateOverall();
+          })
+        )
+      );
+
       showStatus("Saving details…");
+      setProgress(100);
 
       const docData = {
         courseCode,
