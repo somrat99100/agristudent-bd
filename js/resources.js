@@ -76,6 +76,11 @@ if (uploadForm) {
       showStatus(`Maximum ${MAX_FILES} files allowed.`, true);
       return;
     }
+    const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
+    if (nonPdf) {
+      showStatus(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`, true);
+      return;
+    }
     const oversized = files.find(f => f.size > MAX_SIZE);
     if (oversized) {
       showStatus(`"${oversized.name}" is over 20MB. Please reduce file size.`, true);
