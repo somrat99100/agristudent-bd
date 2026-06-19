@@ -585,7 +585,6 @@ body.viewer-layout {
 .book-btn:disabled { background: #e6e3d8; color: #aaa597; cursor: not-allowed; }
 
 /* --- Editorial Search Input --- */
-/* --- Editorial Search Input --- */
 .page-indicator {
   font-family: var(--font-mono); font-size: 0.9rem;
   color: var(--moss-600); font-weight: 600;
