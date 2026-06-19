@@ -148,7 +148,7 @@ if (courseButtonsWrap) {
             <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)</div>
           </div>
           <div class="resource-row-files">
-            ${item.fileUrls.map(f => `<a href="${f.url}" target="_blank" rel="noopener" class="view-link">View: ${f.name}</a>`).join("")}
+            ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View: ${f.name}</a>`).join("")}
           </div>
         </div>
       `).join("");
@@ -198,7 +198,7 @@ if (pqList) {
         <span class="tag">${item.examType || "Question"}</span>
         <h3>${item.courseCode}</h3>
         <p style="font-size:.85rem;color:var(--moss-600);margin-bottom:.7rem;">${item.facultyName || ""}</p>
-        ${item.fileUrls.map(f => `<a href="${f.url}" target="_blank" rel="noopener" class="view-link">View Question</a>`).join("<br>")}
+        ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View Question</a>`).join("<br>")}
       </div>
     `).join("");
   }
