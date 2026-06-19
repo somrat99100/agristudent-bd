@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Viewing Resource — AgriStudent BD</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body oncontextmenu="return false;" style="margin:0;">
+
+<div class="viewer-bar">
+  <a href="javascript:history.back()" class="back-link">← Back</a>
+  <span class="title" id="viewer-title">Loading…</span>
+  <span style="width:50px;"></span>
+</div>
+
+<div class="viewer-frame-wrap">
+  <iframe id="viewer-frame" src="" title="Resource viewer"></iframe>
+</div>
+
+<div class="viewer-watermark" id="viewer-watermark"></div>
+
+<script>
+  // Read-only viewer: opens files in-page via Google Docs viewer (no native download
+  // toolbar) and disables right-click. NOTE: no web technology can fully block
+  // screenshots or determined downloads — this raises friction, it isn't a hard lock.
+  const params = new URLSearchParams(window.location.search);
+  const fileUrl = params.get("url");
+  const fileName = params.get("name") || "Document";
+
+  document.getElementById("viewer-title").textContent = fileName;
+  document.title = fileName + " — AgriStudent BD";
+
+  if (fileUrl) {
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+    const frame = document.getElementById("viewer-frame");
+    if (isImage) {
+      frame.src = fileUrl; // images render natively, fine as-is
+    } else {
+      // Google Docs Viewer embeds PDFs/PPTs without exposing a download button
+      frame.src = "https://docs.google.com/viewer?url=" + encodeURIComponent(fileUrl) + "&embedded=true";
+    }
+  }
+
+  // Light deterrents — not real protection, just friction:
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "PrintScreen") {
+      navigator.clipboard?.writeText("");
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
+      e.preventDefault();
+    }
+  });
+
+  document.getElementById("viewer-watermark").textContent =
+    "AgriStudent BD · viewed " + new Date().toLocaleString();
+</script>
+
+</body>
+</html>
