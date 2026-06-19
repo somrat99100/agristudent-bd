@@ -6,14 +6,32 @@ import {
 const MAX_FILES = 5;
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
-async function uploadFileToCloudinary(file) {
-  const data = new FormData();
-  data.append("file", file);
-  data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: data });
-  if (!res.ok) throw new Error("Upload failed for " + file.name);
-  const json = await res.json();
-  return { url: json.secure_url, name: file.name };
+function uploadFileToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const json = JSON.parse(xhr.responseText);
+        resolve({ url: json.secure_url, name: file.name });
+      } else {
+        reject(new Error("Upload failed for " + file.name));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error uploading " + file.name));
+
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 // ============================================
@@ -66,14 +84,18 @@ if (uploadForm) {
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Uploading…";
-    showStatus(`Uploading ${files.length} file(s)…`);
 
     try {
       const fileUrls = [];
-      for (const file of files) {
-        const uploaded = await uploadFileToCloudinary(file);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        showStatus(`Uploading file ${i + 1} of ${files.length} (${file.name}) — 0%`);
+        const uploaded = await uploadFileToCloudinary(file, (pct) => {
+          showStatus(`Uploading file ${i + 1} of ${files.length} (${file.name}) — ${pct}%`);
+        });
         fileUrls.push(uploaded);
       }
+      showStatus("Saving details…");
 
       const docData = {
         courseCode,
