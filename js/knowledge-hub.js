@@ -9,7 +9,7 @@ const CIRCUMFERENCE = 226.19;
 let allTerms = [];
 
 // ============================================
-// UI ELEMENTS & MODALS
+// BROWSE + SEARCH + MODAL (with Zoom & Pan)
 // ============================================
 const grid = document.getElementById("term-grid");
 const searchInput = document.getElementById("term-search");
@@ -20,14 +20,72 @@ const modalName = document.getElementById("modal-name");
 const modalDesc = document.getElementById("modal-desc");
 const modalClose = document.getElementById("modal-close");
 
-// Zoom feature logic
+// Zoom & Pan state variables
+let imgScale = 1;
+let isDragging = false;
+let isMoved = false; 
+let startX, startY;
+let translateX = 0, translateY = 0;
+
+function updateImageTransform() {
+  modalImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${imgScale})`;
+}
+
+// Start panning
+modalImg.addEventListener("mousedown", (e) => {
+  e.preventDefault(); 
+  if (imgScale > 1) {
+    isDragging = true;
+    isMoved = false;
+    startX = e.clientX - translateX;
+    startY = e.clientY - translateY;
+    modalImg.classList.add("panning");
+  }
+});
+
+// Panning the image
+window.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  isMoved = true; 
+  translateX = e.clientX - startX;
+  translateY = e.clientY - startY;
+  updateImageTransform();
+});
+
+// Stop panning
+window.addEventListener("mouseup", () => {
+  if (isDragging) {
+    isDragging = false;
+    modalImg.classList.remove("panning");
+  }
+});
+
+// Click to Zoom In/Out
 modalImg.addEventListener("click", () => {
-  modalImg.classList.toggle("zoomed");
+  if (isMoved && imgScale > 1) {
+    isMoved = false;
+    return; 
+  }
+  
+  if (imgScale === 1) {
+    imgScale = 1.8; 
+    modalImg.style.cursor = "grab";
+  } else {
+    imgScale = 1; 
+    translateX = 0;
+    translateY = 0;
+    modalImg.style.cursor = "zoom-in";
+  }
+  updateImageTransform();
 });
 
 function closeTermModal() {
   modal.classList.add("hidden");
-  modalImg.classList.remove("zoomed"); // Reset zoom when closed
+  imgScale = 1;
+  translateX = 0;
+  translateY = 0;
+  updateImageTransform();
+  modalImg.style.cursor = "zoom-in";
 }
 
 modalClose.addEventListener("click", closeTermModal);
@@ -35,9 +93,6 @@ modal.addEventListener("click", (e) => {
   if (e.target === modal) closeTermModal(); 
 });
 
-// ============================================
-// BROWSE + SEARCH 
-// ============================================
 async function loadTerms() {
   try {
     const q = query(collection(db, "terms"), where("status", "==", "approved"));
@@ -74,7 +129,14 @@ function renderGrid(terms) {
 function openModal(term) {
   modalImg.src = term.imageUrl;
   modalImg.alt = term.name;
-  modalImg.classList.remove("zoomed"); // Ensure it opens un-zoomed
+  
+  // Reset zoom properties when a new modal opens
+  imgScale = 1;
+  translateX = 0;
+  translateY = 0;
+  updateImageTransform();
+  modalImg.style.cursor = "zoom-in";
+  
   modalName.textContent = term.name;
   modalDesc.textContent = term.description;
   modal.classList.remove("hidden");
@@ -148,6 +210,7 @@ function uploadImageToCloudinary(file, onProgress) {
   });
 }
 
+// Live duplicate check
 const termNameInput = document.getElementById("termName");
 termNameInput.addEventListener("input", () => {
   const typed = termNameInput.value.trim().toLowerCase();
@@ -211,5 +274,5 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// Load terms ONLY AFTER all UI event listeners are safely attached
+// Load terms at the very end to ensure all UI binds first
 loadTerms();
