@@ -1,33 +1,23 @@
 // js/timeline.js
-// Reads from Firestore collection "timeline". No write access needed from
-// the client — events are added directly via Firebase Console for now.
+// Renders the academic calendar as a table (Activities | Dates | Marks | Remarks),
+// reading from Firestore collection "timeline". Events are added via Firebase
+// Console directly. Rows for the active term are sorted by date; rows with no
+// date (e.g. ongoing assessments) are pinned to the bottom.
 
 const db = firebase.firestore();
 
-let allEvents = [];      // raw events from Firestore, normalized
-let currentView = "list";
-let calendarMonth = new Date().getMonth();
-let calendarYear = new Date().getFullYear();
-
-const CATEGORY_LABELS = {
-  registration: "Registration",
-  class: "Class",
-  midterm: "Midterm",
-  final: "Final",
-  result: "Result",
-  holiday: "Holiday",
-  other: "Other"
-};
+let allEvents = [];
 
 // ---------- Helpers ----------
 
 function parseDate(str) {
-  // Expects "YYYY-MM-DD"
+  if (!str) return null;
   const [y, m, d] = str.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
 function formatDateRange(startStr, endStr) {
+  if (!startStr) return "Throughout semester";
   const start = parseDate(startStr);
   const opts = { day: "numeric", month: "short", year: "numeric" };
   if (!endStr || endStr === startStr) {
@@ -42,6 +32,7 @@ function formatDateRange(startStr, endStr) {
 }
 
 function daysUntil(dateStr) {
+  if (!dateStr) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = parseDate(dateStr);
@@ -49,9 +40,13 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / (1000 * 60 * 60 * 24));
 }
 
-function eventIsUpcoming(ev) {
-  const endStr = ev.endDate || ev.startDate;
-  return daysUntil(endStr) >= 0;
+function getRowStatus(ev) {
+  if (!ev.startDate) return null;
+  const startDays = daysUntil(ev.startDate);
+  const endDays = daysUntil(ev.endDate || ev.startDate);
+  if (startDays <= 0 && endDays >= 0) return "today";   // ongoing right now, includes today
+  if (startDays > 0) return "upcoming";
+  return "past";
 }
 
 // ---------- Fetch ----------
@@ -63,21 +58,21 @@ async function loadEvents() {
       const data = doc.data();
       return {
         id: doc.id,
-        title: data.title || "Untitled Event",
-        description: data.description || "",
+        title: data.title || "Untitled",
         category: data.category || "other",
         term: data.term || "General",
-        startDate: data.startDate,
-        endDate: data.endDate || data.startDate
+        startDate: data.startDate || null,
+        endDate: data.endDate || data.startDate || null,
+        marks: data.marks || "",
+        remarks: data.remarks || ""
       };
     });
-
     populateTermFilter();
-    renderCurrentView();
+    renderTable();
   } catch (err) {
-    console.error("Failed to load timeline events:", err);
-    document.getElementById("timelineList").innerHTML =
-      `<p class="timeline-error">Couldn't load the timeline right now. Please try again later.</p>`;
+    console.error("Failed to load calendar:", err);
+    document.getElementById("calendarTableBody").innerHTML =
+      `<tr><td colspan="4" class="timeline-error">Couldn't load the calendar right now. Please try again later.</td></tr>`;
   }
 }
 
@@ -90,239 +85,86 @@ function populateTermFilter() {
     opt.textContent = term;
     termSelect.appendChild(opt);
   });
+  if (terms.length === 1) {
+    document.getElementById("calendarSubtitle").textContent = terms[0];
+  }
 }
 
 function getFilteredEvents() {
   const term = document.getElementById("termFilter").value;
-  const category = document.getElementById("categoryFilter").value;
-
   return allEvents
     .filter(ev => term === "all" || ev.term === term)
-    .filter(ev => category === "all" || ev.category === category)
-    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+    .sort((a, b) => {
+      if (!a.startDate && !b.startDate) return 0;
+      if (!a.startDate) return 1;   // no-date rows sink to bottom
+      if (!b.startDate) return -1;
+      return parseDate(a.startDate) - parseDate(b.startDate);
+    });
 }
 
-// ---------- List View ----------
+// ---------- Render ----------
 
-function renderListView() {
+function renderTable() {
   const events = getFilteredEvents();
-  const listEl = document.getElementById("timelineList");
-  const emptyEl = document.getElementById("timelineEmpty");
-  const nextCard = document.getElementById("nextEventCard");
-
-  listEl.innerHTML = "";
+  const tbody = document.getElementById("calendarTableBody");
+  const emptyMsg = document.getElementById("timelineEmpty");
+  tbody.innerHTML = "";
 
   if (events.length === 0) {
-    emptyEl.hidden = false;
-    nextCard.hidden = true;
+    emptyMsg.hidden = false;
     return;
   }
-  emptyEl.hidden = true;
+  emptyMsg.hidden = true;
 
-  // Next upcoming event (closest future event, any category/term within filter)
-  const upcoming = events.filter(eventIsUpcoming);
-  if (upcoming.length > 0) {
-    const next = upcoming[0];
-    const days = daysUntil(next.startDate);
-    nextCard.hidden = false;
-    document.getElementById("nextEventTitle").textContent = next.title;
-    document.getElementById("nextEventDate").textContent = formatDateRange(next.startDate, next.endDate);
-    document.getElementById("nextEventCountdown").textContent =
-      days === 0 ? "Today!" : days === 1 ? "Tomorrow" : `In ${days} days`;
-  } else {
-    nextCard.hidden = true;
-  }
+  // Find the next upcoming row to flag as "Up Next"
+  const upcoming = events.filter(ev => getRowStatus(ev) === "upcoming");
+  const nextId = upcoming.length ? upcoming[0].id : null;
 
-  events.forEach(ev => {
-    const isPast = !eventIsUpcoming(ev);
-    const item = document.createElement("div");
-    item.className = `timeline-item cat-${ev.category}${isPast ? " is-past" : ""}`;
+  events.forEach((ev, index) => {
+    const status = getRowStatus(ev);
+    const isHighlightCategory = ev.category === "midterm" || ev.category === "final";
+
+    const tr = document.createElement("tr");
+    tr.className = `cal-row cat-${ev.category}` +
+      (status === "today" ? " row-today" : "") +
+      (status === "past" ? " row-past" : "");
+    tr.style.setProperty("--stagger", `${Math.min(index, 12) * 40}ms`);
 
     let badge = "";
-    if (isPast) {
-      badge = `<span class="day-badge badge-done">Completed</span>`;
-    } else {
-      const startDays = daysUntil(ev.startDate);
-      const endDays = daysUntil(ev.endDate || ev.startDate);
-      if (startDays <= 0 && endDays >= 0) {
-        badge = `<span class="day-badge badge-live">Ongoing</span>`;
-      } else if (startDays === 0) {
-        badge = `<span class="day-badge badge-soon">Today</span>`;
-      } else if (startDays === 1) {
-        badge = `<span class="day-badge badge-soon">Tomorrow</span>`;
-      } else {
-        badge = `<span class="day-badge">${startDays} days left</span>`;
-      }
+    if (status === "today") {
+      badge = `<span class="row-badge badge-today">Today</span>`;
+    } else if (ev.id === nextId) {
+      const d = daysUntil(ev.startDate);
+      badge = `<span class="row-badge badge-next">${d === 1 ? "Tomorrow" : d + " days left"}</span>`;
     }
 
-    item.innerHTML = `
-      <div class="timeline-dot"></div>
-      <div class="timeline-content">
-        <div class="timeline-content-top">
-          <span class="timeline-tag">${CATEGORY_LABELS[ev.category] || "Other"} · ${ev.term}</span>
-          ${badge}
-        </div>
-        <h4>${ev.title}</h4>
-        <p class="timeline-date">${formatDateRange(ev.startDate, ev.endDate)}</p>
-        ${ev.description ? `<p class="timeline-desc">${ev.description}</p>` : ""}
-      </div>
+    tr.innerHTML = `
+      <td class="col-activity${isHighlightCategory ? " highlight-activity" : ""}">
+        ${ev.title}${badge}
+      </td>
+      <td class="col-dates">${formatDateRange(ev.startDate, ev.endDate)}</td>
+      <td class="col-marks${isHighlightCategory ? " highlight-marks" : ""}">${ev.marks || ""}</td>
+      <td class="col-remarks">${ev.remarks || ""}</td>
     `;
-    listEl.appendChild(item);
+    tbody.appendChild(tr);
   });
 }
 
-// ---------- Calendar View ----------
+// ---------- Events ----------
 
-function renderCalendarView() {
-  const grid = document.getElementById("calendarGrid");
-  const label = document.getElementById("calendarMonthLabel");
-  const details = document.getElementById("calendarDayDetails");
-  details.hidden = true;
-  grid.innerHTML = "";
-
-  const monthDate = new Date(calendarYear, calendarMonth, 1);
-  label.textContent = monthDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-
-  const firstDayIndex = monthDate.getDay(); // 0 = Sunday
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  dayNames.forEach(d => {
-    const head = document.createElement("div");
-    head.className = "calendar-day-header";
-    head.textContent = d;
-    grid.appendChild(head);
-  });
-
-  for (let i = 0; i < firstDayIndex; i++) {
-    grid.appendChild(document.createElement("div"));
-  }
-
-  const events = getFilteredEvents();
-
-  // Find the closest upcoming event (today or later) to draw the
-  // "today → next event" countdown path on the calendar.
-  const todayDate = new Date();
-  todayDate.setHours(0, 0, 0, 0);
-  const upcomingSorted = events
-    .filter(eventIsUpcoming)
-    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
-  const nextEvent = upcomingSorted[0] || null;
-  const pathEnd = nextEvent ? parseDate(nextEvent.startDate) : null;
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const cellDate = new Date(calendarYear, calendarMonth, day);
-    const cellEvents = events.filter(ev => {
-      const start = parseDate(ev.startDate);
-      const end = parseDate(ev.endDate || ev.startDate);
-      return cellDate >= start && cellDate <= end;
-    });
-
-    const cell = document.createElement("div");
-    cell.className = "calendar-cell" + (cellEvents.length ? " has-events" : "");
-
-    const isToday = todayDate.toDateString() === cellDate.toDateString();
-    if (isToday) cell.classList.add("is-today");
-
-    if (pathEnd && cellDate >= todayDate && cellDate <= pathEnd) {
-      cell.classList.add("countdown-path");
-      if (cellDate.toDateString() === pathEnd.toDateString()) {
-        cell.classList.add("countdown-target");
-      }
-    }
-
-    let dotsHtml = "";
-    cellEvents.slice(0, 3).forEach(ev => {
-      dotsHtml += `<span class="cal-dot cat-${ev.category}" title="${ev.title}"></span>`;
-    });
-    if (cellEvents.length > 3) {
-      dotsHtml += `<span class="cal-more">+${cellEvents.length - 3}</span>`;
-    }
-
-    cell.innerHTML = `<span class="cal-day-num">${day}</span><div class="cal-dots">${dotsHtml}</div>`;
-
-    if (cellEvents.length) {
-      cell.addEventListener("click", () => showDayDetails(cellDate, cellEvents));
-    }
-
-    grid.appendChild(cell);
-  }
-}
-
-function showDayDetails(date, events) {
-  const details = document.getElementById("calendarDayDetails");
-  details.hidden = false;
-  const dateLabel = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  details.innerHTML = `
-    <h4>${dateLabel}</h4>
-    ${events.map(ev => `
-      <div class="calendar-day-event cat-${ev.category}">
-        <span class="timeline-tag">${CATEGORY_LABELS[ev.category] || "Other"} · ${ev.term}</span>
-        <strong>${ev.title}</strong>
-        ${ev.description ? `<p>${ev.description}</p>` : ""}
-      </div>
-    `).join("")}
-  `;
-}
-
-// ---------- View switching ----------
-
-function renderCurrentView() {
-  if (currentView === "list") {
-    document.getElementById("listView").hidden = false;
-    document.getElementById("calendarView").hidden = true;
-    renderListView();
-  } else {
-    document.getElementById("listView").hidden = true;
-    document.getElementById("calendarView").hidden = false;
-    renderCalendarView();
-  }
-}
-
-// ---------- Event listeners ----------
-
-document.getElementById("listViewBtn").addEventListener("click", () => {
-  currentView = "list";
-  document.getElementById("listViewBtn").classList.add("active");
-  document.getElementById("calendarViewBtn").classList.remove("active");
-  renderCurrentView();
-});
-
-document.getElementById("calendarViewBtn").addEventListener("click", () => {
-  currentView = "calendar";
-  document.getElementById("calendarViewBtn").classList.add("active");
-  document.getElementById("listViewBtn").classList.remove("active");
-  renderCurrentView();
-});
-
-document.getElementById("termFilter").addEventListener("change", renderCurrentView);
-document.getElementById("categoryFilter").addEventListener("change", renderCurrentView);
-
-document.getElementById("prevMonth").addEventListener("click", () => {
-  calendarMonth--;
-  if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
-  renderCalendarView();
-});
-
-document.getElementById("nextMonth").addEventListener("click", () => {
-  calendarMonth++;
-  if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
-  renderCalendarView();
-});
+document.getElementById("termFilter").addEventListener("change", renderTable);
 
 // ---------- Daily auto-refresh ----------
-// Re-renders at the next local midnight so "today" and the countdown path
-// move forward automatically if the page is left open overnight.
 
 function msUntilNextMidnight() {
   const now = new Date();
-  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
-  return nextMidnight - now;
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+  return next - now;
 }
 
 function scheduleDailyRefresh() {
   setTimeout(() => {
-    renderCurrentView();
+    renderTable();
     scheduleDailyRefresh();
   }, msUntilNextMidnight());
 }
