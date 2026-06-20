@@ -1,68 +1,83 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Target Event Deadlines (Based on your system date: June 20, 2026)
-  const currentSystemDate = new Date("2026-06-20");
-  
-  const dates = {
-    midterm: { start: new Date("2026-07-01"), end: new Date("2026-07-08"), totalDays: 30, circleId: "midterm-circle", txtId: "midterm-days" },
-    ct: { start: new Date("2026-08-02"), end: new Date("2026-08-08"), totalDays: 60, circleId: "ct-circle", txtId: "ct-days" },
-    final: { start: new Date("2026-08-02"), end: new Date("2026-08-08"), totalDays: 60, circleId: "final-circle", txtId: "final-days" }
-  };
+    
+    // 1. Establish the current system date coordinates
+    const liveToday = new Date();
 
-  // 1. Calculate and animate countdown rings
-  Object.keys(dates).forEach(key => {
-    const event = dates[key];
-    const diffTime = event.start - currentSystemDate;
-    const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    
-    // Update text
-    document.getElementById(event.txtId).innerText = daysRemaining;
+    // 2. Exact Event Parameters Config Mapping
+    const trackingEvents = {
+        midterm: { start: new Date("2026-07-01"), scale: 30, ringId: "ring-midterm", txtId: "count-midterm" },
+        ct: { start: new Date("2026-08-02"), scale: 30, ringId: "ring-ct", txtId: "count-ct" },
+        final: { start: new Date("2026-09-10"), scale: 45, ringId: "ring-final", txtId: "count-final" }
+    };
 
-    // Animate filled circle calculations
-    const circle = document.getElementById(event.circleId);
-    const radius = circle.r.baseVal.value;
-    const circumference = radius * 2 * Math.PI;
-    
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    
-    // Percent filled decreases as time runs out
-    const percentLeft = Math.min(100, Math.max(0, (daysRemaining / event.totalDays) * 100));
-    const offset = circumference - (percentLeft / 100) * circumference;
-    
-    setTimeout(() => {
-      circle.style.strokeDashoffset = offset;
-    }, 150);
-  });
+    // Find the closest upcoming event target to create the calendar trajectory highlight path
+    let closestUpcomingTarget = null;
+    let shortestDiff = Infinity;
 
-  // 2. Render July 2026 Calendar dynamically with precise highlighting logic
-  renderJuly2026(currentSystemDate, dates.midterm.start);
+    Object.keys(trackingEvents).forEach(key => {
+        const targetConfig = trackingEvents[key];
+        const diffMs = targetConfig.start - liveToday;
+        const remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+        // Output days remaining text value to UI node
+        document.getElementById(targetConfig.txtId).innerText = remainingDays;
+
+        // Animate circular metrics draining math calculations
+        const trackingCircle = document.getElementById(targetConfig.ringId);
+        if (trackingCircle) {
+            const circ = 2 * Math.PI * trackingCircle.r.baseVal.value; // ~339.29
+            const percentageLeft = Math.min(100, Math.max(0, (remainingDays / targetConfig.scale) * 100));
+            const calculatedOffset = circ - (percentageLeft / 100) * circ;
+
+            // Trigger smooth transition fill delay drop matching card animation sequences
+            setTimeout(() => {
+                trackingCircle.style.strokeDashoffset = calculatedOffset;
+            }, 400);
+        }
+
+        // Evaluate closest event selection
+        if (diffMs > 0 && diffMs < shortestDiff) {
+            shortestDiff = diffMs;
+            closestUpcomingTarget = targetConfig.start;
+        }
+    });
+
+    // 3. Render July 2026 Calendar Widget Programmatically
+    generateJuly2026GridMatrix(liveToday, closestUpcomingTarget);
 });
 
-function renderJuly2026(today, targetEventStart) {
-  const container = document.getElementById("calendar-days-container");
-  container.innerHTML = "";
+function generateJuly2026GridMatrix(todayDate, trackingTarget) {
+    const gridContainer = document.getElementById("calendar-days-container");
+    if (!gridContainer) return;
 
-  // July 2026 starts on a Wednesday (3 blank offset padding slots)
-  for (let i = 0; i < 3; i++) {
-    const blank = document.createElement("div");
-    blank.classList.add("day");
-    container.appendChild(blank);
-  }
+    gridContainer.innerHTML = "";
 
-  // Generate 31 days of July
-  for (let dayNum = 1; dayNum <= 31; dayNum++) {
-    const dayDiv = document.createElement("div");
-    dayDiv.classList.add("day");
-    dayDiv.innerText = dayNum;
-
-    const checkingDate = new Date(`2026-07-${dayNum.toString().padStart(2, '0')}`);
-
-    // Highlighting Logic Rules
-    if (today.getMonth() === 6 && today.getDate() === dayNum) {
-      dayDiv.classList.add("today"); // Today's date highlighted
-    } else if (checkingDate > today && checkingDate <= targetEventStart) {
-      dayDiv.classList.add("upcoming-range"); // From today until most recent event in unified style
+    // July 2026 shifts open directly on a Wednesday (Offsets index positions by 3 slots)
+    for (let padOffset = 0; padOffset < 3; padOffset++) {
+        const emptyCell = document.createElement("div");
+        emptyCell.classList.add("day-node");
+        gridContainer.appendChild(emptyCell);
     }
 
-    container.appendChild(dayDiv);
-  }
+    // Build the 31 numeric dates of July
+    for (let scalarDay = 1; scalarDay <= 31; scalarDay++) {
+        const dayElement = document.createElement("div");
+        dayElement.classList.add("day-node");
+        dayElement.innerText = scalarDay;
+
+        // Establish matching date object instances to check highlighted configurations
+        const currentEvaluatingDate = new Date(`2026-07-${scalarDay.toString().padStart(2, '0')}T00:00:00`);
+        const pureTodayComparison = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+
+        // Highlight matching logic check sequences
+        if (todayDate.getMonth() === 6 && todayDate.getDate() === scalarDay) {
+            // Highlights "Today"
+            dayElement.classList.add("node-today");
+        } else if (trackingTarget && currentEvaluatingDate > pureTodayComparison && currentEvaluatingDate <= trackingTarget) {
+            // Highlights path from tomorrow up until the closest upcoming exam block parameter
+            dayElement.classList.add("node-track-path");
+        }
+
+        gridContainer.appendChild(dayElement);
+    }
 }
