@@ -1,7 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // Current Target Reference Point: June 20, 2026
-    const liveNow = new Date("2026-06-20T12:00:00");
+    // 1. Establish precise live system execution parameters (June 2026 Context)
+    const liveNow = new Date();
     
+    // 2. Map absolute structural schedules parameters
     const examSchedules = {
         midterm: { 
             start: new Date("2026-07-01T00:00:00"), 
@@ -23,25 +24,31 @@ document.addEventListener("DOMContentLoaded", () => {
     let nearestUpcomingExamDate = null;
     let baselineDiff = Infinity;
 
+    // 3. Process Live Metrics Status Logic Engine
     Object.keys(examSchedules).forEach(key => {
         const exam = examSchedules[key];
+        const cardNode = document.getElementById(exam.cardId);
         const textNode = document.getElementById(exam.txtId);
         const labelNode = document.getElementById(exam.lblId);
         const ringNode = document.getElementById(exam.ringId);
         
-        const circ = 2 * Math.PI * 58;
+        const circ = 2 * Math.PI * 58; // Radius 58 calculation = 364.42 circumference
 
         if (liveNow >= exam.start && liveNow <= exam.end) {
-            if(textNode) textNode.innerText = "RUN";
-            if(labelNode) labelNode.innerText = "ACTIVE";
+            // STATE B: Exam is happening today/running right now
+            if(cardNode) cardNode.classList.add("ongoing-mode");
+            if(textNode) textNode.innerText = "ACTIVE";
+            if(labelNode) labelNode.innerText = "ONGOING NOW";
             if(ringNode) ringNode.style.strokeDashoffset = 0; 
         } 
         else if (liveNow > exam.end) {
+            // STATE C: Target completed
             if(textNode) textNode.innerText = "DONE";
             if(labelNode) labelNode.innerText = "COMPLETED";
             if(ringNode) ringNode.style.strokeDashoffset = circ; 
         } 
         else {
+            // STATE A: Countdown tracking configuration modes
             const timeDiff = exam.start - liveNow;
             const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
             
@@ -61,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // 4. Generate the real-life system dynamic monthly calendar grid view
     renderRealtimeCalendarGrid(liveNow, nearestUpcomingExamDate);
 });
 
@@ -73,35 +81,39 @@ function renderRealtimeCalendarGrid(currentDate, pathTargetDate) {
 
     const currentYear = currentDate.getFullYear();
     const currentMonthIdx = currentDate.getMonth();
+    const todayDateNum = currentDate.getDate(); // Explicitly grab the day number (e.g., 20)
 
+    // Display localized current real month heading dynamically
     mountHeader.innerText = `${months[currentMonthIdx]} ${currentYear}`;
+    gridContainer.innerHTML = "";
 
-    // Clean up old dynamic items while retaining weekday labels
-    const existingDays = gridContainer.querySelectorAll('.day-node');
-    existingDays.forEach(el => el.remove());
-
+    // Generate accurate weekday baseline indexes mapping parameters
     const originalFirstDayIndex = new Date(currentYear, currentMonthIdx, 1).getDay();
     const totalDaysInMonth = new Date(currentYear, currentMonthIdx + 1, 0).getDate();
 
-    // Insert grid padding nodes directly inside the 7-column frame container
+    // structural alignment spacers mapping blocks loops execution
     for (let pad = 0; pad < originalFirstDayIndex; pad++) {
         const nullCell = document.createElement("div");
-        nullCell.classList.add("day-node");
+        nullCell.classList.add("day-node", "empty-node");
         gridContainer.appendChild(nullCell);
     }
 
-    // Populate numbered dates
+    // Baseline today at midnight to accurately compare future target paths
+    const normalizeToday = new Date(currentYear, currentMonthIdx, todayDateNum, 0, 0, 0);
+
+    // Paint true calendar day numerical nodes
     for (let dayNum = 1; dayNum <= totalDaysInMonth; dayNum++) {
         const dayCell = document.createElement("div");
         dayCell.classList.add("day-node");
         dayCell.innerText = dayNum;
 
         const dateInstance = new Date(currentYear, currentMonthIdx, dayNum, 0, 0, 0);
-        
-        // Exact matching conditions for June 20, 2026
-        if (dayNum === 20 && currentMonthIdx === 5 && currentYear === 2026) {
+
+        // Highlight actual live day vs distance tracking route path
+        if (dayNum === todayDateNum) {
+            // Highlights exactly the current day correctly
             dayCell.classList.add("node-today");
-        } else if (pathTargetDate && dateInstance > currentDate && dateInstance <= pathTargetDate) {
+        } else if (pathTargetDate && dateInstance > normalizeToday && dateInstance <= pathTargetDate) {
             dayCell.classList.add("node-track-path");
         }
 
