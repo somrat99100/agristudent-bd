@@ -1,53 +1,69 @@
 :root {
-  /* Premium Soft Creamy Palette Base */
-  --bg-creamy: #FAF8F5;
-  --panel-creamy: #FFFFFF;
-  --border-creamy: #EFEBE3;
-  --border-hover: #DFD9CE;
+  /* High-Contrast Navy Blue Theme Base */
+  --bg-base: #F0F4F8;
+  --panel-bg: #FFFFFF;
+  --border-light: #D1DCE5;
+  --border-hover: #9FB3C8;
   
-  /* High-Contrast Charcoal Typography for clear visibility */
-  --text-primary: #111111;
-  --text-secondary: #222222;
-  --text-muted: #555555;
+  /* Typography Shades */
+  --text-main: #0B1C2E; /* Deep navy blue, very high contrast */
+  --text-muted: #486581; /* Slate blue for readability */
   
-  /* Accent Colors */
-  --accent-gold: #B39266;
-  --accent-olive: #4D6B53;
-  --accent-terracotta: #C25946;
-  --accent-ongoing: #D946EF;
+  /* Vibrant Premium Accent System Indicators */
+  --accent-midterm: #1976D2; /* Bright Royal Blue */
+  --accent-ct: #00796B; /* Deep Teal */
+  --accent-final: #C2185B; /* Deep Pinkish Red */
+  --accent-ongoing: #D32F2F; /* Strong Alert Red */
+  --accent-path: #E3F2FD; /* Soft icy blue for track paths */
 }
 
+/* Deep Structural Overrides for Parent Containers if required */
 body {
-  background-color: var(--bg-creamy);
-  color: var(--text-primary);
+  background-color: var(--bg-base);
+  color: var(--text-main);
   font-family: 'Plus Jakarta Sans', sans-serif;
-  -webkit-font-smoothing: antialiased;
 }
 
 .timeline-container {
   max-width: 650px;
   margin: 60px auto;
   padding: 0 20px;
+  position: relative;
 }
+
+/* Cool Backlighting Auras */
+.ambient-glow {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  filter: blur(130px);
+  z-index: -1;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.glow-1 { top: -40px; left: -100px; background: #D9E2EC; }
+.glow-2 { bottom: 60px; right: -100px; background: #E4EBF1; }
 
 /* Header Formatting */
 .timeline-header { text-align: center; margin-bottom: 44px; }
 .timeline-main-title {
   font-family: 'Playfair Display', serif;
   font-size: 3.25rem;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   margin-bottom: 6px;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 .semester-subtitle {
-  color: var(--accent-gold);
+  color: var(--text-muted);
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-/* Premium Planner Button */
+/* Premium Planner Button Actions */
 .planner-btn {
   display: inline-flex;
   align-items: center;
@@ -55,100 +71,106 @@ body {
   text-decoration: none;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #FFFFFF;
-  background: var(--text-primary);
-  border: 1px solid var(--text-primary);
+  color: #FFF;
+  background: var(--text-main);
+  border: 1px solid var(--text-main);
   padding: 14px 38px;
   border-radius: 50px;
-  transition: all 0.4s ease;
+  box-shadow: 0 8px 24px rgba(11, 28, 46, 0.15);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .planner-btn:hover {
+  transform: translateY(-3px);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-main);
+  box-shadow: 0 12px 30px rgba(11, 28, 46, 0.1);
 }
-.arrow-icon { width: 18px; height: 18px; stroke: currentColor; }
+.arrow-icon { width: 18px; height: 18px; transition: transform 0.3s ease; }
+.planner-btn:hover .arrow-icon { transform: translateX(6px); }
 
-/* Creamy Panels */
-.card-creamy {
-  background: var(--panel-creamy);
-  border: 1px solid var(--border-creamy);
+/* Luxury Surface Panel Modules */
+.card-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-light);
   border-radius: 28px;
-  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 15px 45px rgba(16, 42, 67, 0.05);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease, box-shadow 0.4s ease;
+}
+.card-panel:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 20px 55px rgba(16, 42, 67, 0.09);
 }
 
-/* Calendar Framing */
+/* Real Calendar Formatting Layouts */
 .calendar-banner { padding: 40px 30px; margin-bottom: 40px; }
-.calendar-widget-title { font-family: 'Playfair Display', serif; font-size: 1.65rem; text-align: center; margin: 0 0 4px 0; color: var(--text-primary); font-weight: 700; }
-.calendar-month-header { font-size: 1.1rem; color: var(--text-primary); text-align: center; font-weight: 800; margin-bottom: 32px; }
+.calendar-widget-title { font-family: 'Playfair Display', serif; font-size: 1.65rem; text-align: center; margin: 0 0 4px 0; color: var(--text-main); }
+.calendar-month-header { font-size: 1.1rem; color: var(--accent-midterm); text-align: center; font-weight: 700; margin-bottom: 32px; letter-spacing: 0.02em; }
 
-/* FIX: The 7-Column Grid Architecture */
-.calendar-grid { 
-  max-width: 350px; 
-  margin: 0 auto; 
-  display: grid; 
-  grid-template-columns: repeat(7, 1fr); 
-  gap: 14px 10px; 
-  justify-items: center;
-  align-items: center;
-}
+/* Calendar Numbers Grid Architecture */
+.calendar-grid { max-width: 340px; margin: 0 auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px 10px; }
 
-.weekday-lbl { 
-  font-size: 0.85rem; 
-  font-weight: 800; 
-  color: var(--text-primary); 
-  text-transform: uppercase;
-  text-align: center;
-  width: 100%;
-}
+/* CRITICAL FIX: Allows generated days to act as direct children of the 7-column CSS grid */
+#calendar-days-container { display: contents; }
 
-.day-node { 
-  width: 36px;
-  height: 36px;
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  font-size: 0.95rem; 
-  font-weight: 700; 
-  color: var(--text-secondary); 
-  border-radius: 50%; 
-  transition: all 0.2s ease; 
-}
+.weekday-lbl { text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+.day-node { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); border-radius: 50%; transition: all 0.2s ease; }
 
-/* Dynamic Highlights */
+/* Real-Time Highlight Rules */
 .day-node.node-today {
-  background: var(--text-primary);
-  color: #FFFFFF;
+  background: var(--text-main);
+  color: var(--panel-bg);
   font-weight: 800;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 15px rgba(11, 28, 46, 0.25);
 }
 .day-node.node-track-path {
-  background: #FDF4E7;
-  color: var(--accent-gold);
-  box-shadow: inset 0 0 0 1px rgba(179, 146, 102, 0.2);
+  background: var(--accent-path);
+  color: var(--text-main);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(25, 118, 210, 0.2);
 }
 
-/* Legend Display */
-.calendar-legend { display: flex; justify-content: center; gap: 24px; margin-top: 32px; font-size: 0.85rem; font-weight: 700; }
-.legend-item { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+/* Legend Info Details */
+.calendar-legend { display: flex; justify-content: center; gap: 24px; margin-top: 32px; font-size: 0.85rem; font-weight: 600; }
+.legend-item { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot-today { background: var(--text-primary); }
-.dot-path { background: #FDF4E7; border: 1px solid var(--accent-gold); }
+.dot-today { background: var(--text-main); }
+.dot-path { background: var(--accent-path); border: 1px solid var(--accent-midterm); }
 
-/* Stacked Tracker Progress Rings */
+/* Tracking Card Stacks */
 .exam-trackers-stack { display: flex; flex-direction: column; gap: 28px; width: 100%; align-items: center; }
 .exam-countdown-card { width: 100%; max-width: 460px; padding: 36px; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; }
-.exam-card-title { font-family: 'Playfair Display', serif; font-size: 1.75rem; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
-.exam-date-tag { font-size: 0.9rem; font-weight: 700; padding: 6px 18px; border-radius: 30px; margin-bottom: 28px; background: #FAF8F5; border: 1px solid var(--border-creamy); color: var(--text-primary); }
+.exam-countdown-card:hover { transform: translateY(-5px); }
+.exam-card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 600; margin-bottom: 12px; color: var(--text-main); }
 
+/* Premium Subtle Pill Badges */
+.exam-date-tag { font-size: 0.85rem; font-weight: 700; padding: 6px 18px; border-radius: 30px; margin-bottom: 28px; background: #FFF; border: 1px solid var(--border-light); color: var(--text-main); }
+
+/* Circular Metrics Hardware Elements */
 .progress-ring-box { position: relative; width: 140px; height: 140px; }
 .ring-svg { transform: rotate(-90deg); }
-.ring-track-bg { fill: none; stroke: rgba(0, 0, 0, 0.04); stroke-width: 8; }
-.ring-track-fill { fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 364.42; stroke-dashoffset: 364.42; transition: stroke-dashoffset 1.2s ease; }
+.ring-track-bg { fill: none; stroke: rgba(11, 28, 46, 0.05); stroke-width: 8; }
+.ring-track-fill { fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 364.42; stroke-dashoffset: 364.42; transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease; }
 
-.fill-midterm { stroke: var(--accent-gold); }
-.fill-ct { stroke: var(--accent-olive); }
-.fill-final { stroke: var(--accent-terracotta); }
+.fill-midterm { stroke: var(--accent-midterm); }
+.fill-ct { stroke: var(--accent-ct); }
+.fill-final { stroke: var(--accent-final); }
 
+/* DYNAMIC REAL-TIME ONGOING STATE OVERRIDES */
+.exam-countdown-card.ongoing-mode {
+  border-color: var(--accent-ongoing);
+  background: linear-gradient(145deg, #FFFFFF, #FFF5F5);
+  box-shadow: 0 20px 50px rgba(211, 47, 47, 0.1);
+}
+.exam-countdown-card.ongoing-mode .ring-track-fill { stroke: var(--accent-ongoing) !important; }
+.exam-countdown-card.ongoing-mode .days-value { color: var(--accent-ongoing) !important; font-size: 1.65rem; animation: pulseGlow 2.5s infinite ease-in-out; }
+
+/* Labels Metrics Output */
 .ring-inner-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.days-value { font-family: 'JetBrains Mono', monospace; font-size: 2.3rem; font-weight: 700; color: var(--text-primary); }
-.days-sub { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.1em; margin-top: 4px; font-weight: 800; }
+.days-value { font-family: 'JetBrains Mono', monospace; font-size: 2.3rem; font-weight: 700; color: var(--text-main); transition: all 0.3s ease; }
+.days-sub { font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.1em; margin-top: 4px; font-weight: 700; }
+
+@keyframes pulseGlow { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+.animate-fade-down { opacity: 0; transform: translateY(-20px); animation: fd 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-fade-up { opacity: 0; transform: translateY(24px); animation: fu 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes fd { to { opacity: 1; transform: translateY(0); } }
+@keyframes fu { to { opacity: 1; transform: translateY(0); } }
