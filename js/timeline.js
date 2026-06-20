@@ -33,7 +33,7 @@ function formatRange(start, end) {
   if (!end || end.toDateString() === start.toDateString()) {
     return start.toLocaleDateString("en-GB", opts);
   }
-  return `${start.toLocaleDateString("en-GB", opts)} to ${end.toLocaleDateString("en-GB", opts)}`;
+  return `${start.toLocaleDateString("en-GB", opts)} - ${end.toLocaleDateString("en-GB", opts)}`;
 }
 
 async function loadSemesterLabel() {
