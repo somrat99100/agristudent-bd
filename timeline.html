@@ -1,21 +1,103 @@
-<section class="calendar-banner card-creamy animate-fade-up" style="animation-delay: 0.1s;">
-    <div class="calendar-inner-content">
-        <h2 class="calendar-widget-title">Academic Calendar</h2>
-        <div class="calendar-month-header" id="calendar-month-year">June 2026</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Timeline — AgriStudent BD</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/timeline.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
 
-        <div class="calendar-grid" id="calendar-days-container">
-            <div class="weekday-lbl">Su</div>
-            <div class="weekday-lbl">Mo</div>
-            <div class="weekday-lbl">Tu</div>
-            <div class="weekday-lbl">We</div>
-            <div class="weekday-lbl">Th</div>
-            <div class="weekday-lbl">Fr</div>
-            <div class="weekday-lbl">Sa</div>
+    <main class="timeline-container">
+        <div class="ambient-glow glow-1"></div>
+        <div class="ambient-glow glow-2"></div>
+
+        <header class="timeline-header animate-fade-down">
+            <h1 class="timeline-main-title">Academic Timeline</h1>
+            <p class="semester-subtitle">Summer Semester 2026</p>
+            
+            <div class="planner-wrapper">
+                <a href="https://iubatagri.github.io/tracker/" target="_blank" class="planner-btn">
+                    <span>Make and follow (planner)</span>
+                    <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </a>
+            </div>
+        </header>
+
+        <section class="calendar-banner card-panel animate-fade-up" style="animation-delay: 0.1s;">
+            <div class="calendar-inner-content">
+                <h2 class="calendar-widget-title">Academic Calendar</h2>
+                <div class="calendar-month-header" id="calendar-month-year">June 2026</div>
+
+                <div class="calendar-grid">
+                    <div class="weekday-lbl">Su</div><div class="weekday-lbl">Mo</div><div class="weekday-lbl">Tu</div><div class="weekday-lbl">We</div><div class="weekday-lbl">Th</div><div class="weekday-lbl">Fr</div><div class="weekday-lbl">Sa</div>
+                    <div id="calendar-days-container" class="days-grid-wrapper"></div>
+                </div>
+
+                <div class="calendar-legend">
+                    <div class="legend-item"><span class="legend-dot dot-today"></span> Today</div>
+                    <div class="legend-item"><span class="legend-dot dot-path"></span> Distance Track</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="exam-trackers-stack">
+            
+            <div class="exam-countdown-card card-panel animate-fade-up" id="card-midterm" style="animation-delay: 0.2s;">
+                <h3 class="exam-card-title">Mid Term Exam</h3>
+                <div class="exam-date-tag tag-midterm">01 July, 2026 to 08 July, 2026</div>
+                
+                <div class="progress-ring-box">
+                    <svg class="ring-svg" width="140" height="140">
+                        <circle class="ring-track-bg" cx="70" cy="70" r="58" />
+                        <circle id="ring-midterm" class="ring-track-fill fill-midterm" cx="70" cy="70" r="58" />
+                    </svg>
+                    <div class="ring-inner-label">
+                        <span class="days-value" id="count-midterm">--</span>
+                        <span class="days-sub" id="label-midterm">Days Left</span>
+                    </div>
+                </div>
             </div>
 
-        <div class="calendar-legend">
-            <div class="legend-item"><span class="legend-dot dot-today"></span> Today</div>
-            <div class="legend-item"><span class="legend-dot dot-path"></span> Distance Track</div>
-        </div>
-    </div>
-</section>
+            <div class="exam-countdown-card card-panel animate-fade-up" id="card-ct" style="animation-delay: 0.3s;">
+                <h3 class="exam-card-title">Class Tests</h3>
+                <div class="exam-date-tag tag-ct">02 August, 2026 to 08 August, 2026</div>
+                
+                <div class="progress-ring-box">
+                    <svg class="ring-svg" width="140" height="140">
+                        <circle class="ring-track-bg" cx="70" cy="70" r="58" />
+                        <circle id="ring-ct" class="ring-track-fill fill-ct" cx="70" cy="70" r="58" />
+                    </svg>
+                    <div class="ring-inner-label">
+                        <span class="days-value" id="count-ct">--</span>
+                        <span class="days-sub" id="label-ct">Days Left</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="exam-countdown-card card-panel animate-fade-up" id="card-final" style="animation-delay: 0.4s;">
+                <h3 class="exam-card-title">Final Exam</h3>
+                <div class="exam-date-tag tag-final">10 September, 2026 to 17 September, 2026</div>
+                
+                <div class="progress-ring-box">
+                    <svg class="ring-svg" width="140" height="140">
+                        <circle class="ring-track-bg" cx="70" cy="70" r="58" />
+                        <circle id="ring-final" class="ring-track-fill fill-final" cx="70" cy="70" r="58" />
+                    </svg>
+                    <div class="ring-inner-label">
+                        <span class="days-value" id="count-final">--</span>
+                        <span class="days-sub" id="label-final">Days Left</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script src="js/timeline.js"></script>
+</body>
+</html>
