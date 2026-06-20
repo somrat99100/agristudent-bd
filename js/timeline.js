@@ -1,8 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Capture current system execution parameters
+    // 1. Establish precise live system execution parameters (June 2026 Context)
     const liveNow = new Date();
     
-    // 2. Define Exam Bounds Configurations
+    // 2. Map absolute structural schedules parameters
     const examSchedules = {
         midterm: { 
             start: new Date("2026-07-01T00:00:00"), 
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let nearestUpcomingExamDate = null;
     let baselineDiff = Infinity;
 
-    // 3. Process States Machine Calculation
+    // 3. Process Live Metrics Status Logic Engine
     Object.keys(examSchedules).forEach(key => {
         const exam = examSchedules[key];
         const cardNode = document.getElementById(exam.cardId);
@@ -32,24 +32,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const labelNode = document.getElementById(exam.lblId);
         const ringNode = document.getElementById(exam.ringId);
         
-        const circ = 2 * Math.PI * 58; // Radius 58 = 364.42 circumference
+        const circ = 2 * Math.PI * 58; // Radius 58 calculation = 364.42 circumference
 
         if (liveNow >= exam.start && liveNow <= exam.end) {
-            // STATE B: Exam is actively happening right now
+            // STATE B: Exam is happening today/running right now
             if(cardNode) cardNode.classList.add("ongoing-mode");
-            if(textNode) textNode.innerText = "RUN";
-            if(labelNode) labelNode.style.color = "#FFB800";
-            if(labelNode) labelNode.innerText = "EXAM ONGOING";
-            if(ringNode) ringNode.style.strokeDashoffset = 0; // Full Ring Glowing Glow
+            if(textNode) textNode.innerText = "ACTIVE";
+            if(labelNode) labelNode.innerText = "ONGOING NOW";
+            if(ringNode) ringNode.style.strokeDashoffset = 0; 
         } 
         else if (liveNow > exam.end) {
-            // STATE C: Exam has finished
+            // STATE C: Target completed
             if(textNode) textNode.innerText = "DONE";
             if(labelNode) labelNode.innerText = "COMPLETED";
-            if(ringNode) ringNode.style.strokeDashoffset = circ; // Empties out cleanly
+            if(ringNode) ringNode.style.strokeDashoffset = circ; 
         } 
         else {
-            // STATE A: Countdown Mode (Exam is in the future)
+            // STATE A: Countdown tracking configuration modes
             const timeDiff = exam.start - liveNow;
             const daysRemaining = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
             
@@ -62,7 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 setTimeout(() => { ringNode.style.strokeDashoffset = offset; }, 300);
             }
 
-            // Track the nearest future event target path trajectory boundary
             if (timeDiff < baselineDiff) {
                 baselineDiff = timeDiff;
                 nearestUpcomingExamDate = exam.start;
@@ -70,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // 4. Run Realtime Dynamic Calendar Generator
+    // 4. Generate the real-life system dynamic monthly calendar grid view
     renderRealtimeCalendarGrid(liveNow, nearestUpcomingExamDate);
 });
 
@@ -84,22 +82,22 @@ function renderRealtimeCalendarGrid(currentDate, pathTargetDate) {
     const currentYear = currentDate.getFullYear();
     const currentMonthIdx = currentDate.getMonth();
 
-    // Display localized title header dynamically based on execution timing context
+    // Display localized current real month heading dynamically
     mountHeader.innerText = `${months[currentMonthIdx]} ${currentYear}`;
     gridContainer.innerHTML = "";
 
-    // Determine calendar alignment coordinates
+    // Generate accurate weekday baseline indexes mapping parameters
     const originalFirstDayIndex = new Date(currentYear, currentMonthIdx, 1).getDay();
     const totalDaysInMonth = new Date(currentYear, currentMonthIdx + 1, 0).getDate();
 
-    // Structural generation loop: pad alignment structural space cells
+    // structural alignment spacers mapping blocks loops execution
     for (let pad = 0; pad < originalFirstDayIndex; pad++) {
         const nullCell = document.createElement("div");
         nullCell.classList.add("day-node");
         gridContainer.appendChild(nullCell);
     }
 
-    // Populate active monthly data matrix
+    // Paint true calendar day numerical nodes
     for (let dayNum = 1; dayNum <= totalDaysInMonth; dayNum++) {
         const dayCell = document.createElement("div");
         dayCell.classList.add("day-node");
@@ -108,7 +106,7 @@ function renderRealtimeCalendarGrid(currentDate, pathTargetDate) {
         const dateInstance = new Date(currentYear, currentMonthIdx, dayNum, 0, 0, 0);
         const normalizeTodayComparison = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
 
-        // Apply realtime visibility highlight traits
+        // Highlight actual live day vs distance tracking route path intervals configurations
         if (currentDate.getDate() === dayNum && currentDate.getMonth() === currentMonthIdx) {
             dayCell.classList.add("node-today");
         } else if (pathTargetDate && dateInstance > normalizeTodayComparison && dateInstance <= pathTargetDate) {
