@@ -1,175 +1,68 @@
-// js/timeline.js
-// Renders the academic calendar as a table (Activities | Dates | Marks | Remarks),
-// reading from Firestore collection "timeline". Events are added via Firebase
-// Console directly. Rows for the active term are sorted by date; rows with no
-// date (e.g. ongoing assessments) are pinned to the bottom.
+document.addEventListener("DOMContentLoaded", () => {
+  // Target Event Deadlines (Based on your system date: June 20, 2026)
+  const currentSystemDate = new Date("2026-06-20");
+  
+  const dates = {
+    midterm: { start: new Date("2026-07-01"), end: new Date("2026-07-08"), totalDays: 30, circleId: "midterm-circle", txtId: "midterm-days" },
+    ct: { start: new Date("2026-08-02"), end: new Date("2026-08-08"), totalDays: 60, circleId: "ct-circle", txtId: "ct-days" },
+    final: { start: new Date("2026-08-02"), end: new Date("2026-08-08"), totalDays: 60, circleId: "final-circle", txtId: "final-days" }
+  };
 
-const db = firebase.firestore();
+  // 1. Calculate and animate countdown rings
+  Object.keys(dates).forEach(key => {
+    const event = dates[key];
+    const diffTime = event.start - currentSystemDate;
+    const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    // Update text
+    document.getElementById(event.txtId).innerText = daysRemaining;
 
-let allEvents = [];
-
-// ---------- Helpers ----------
-
-function parseDate(str) {
-  if (!str) return null;
-  const [y, m, d] = str.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function formatDateRange(startStr, endStr) {
-  if (!startStr) return "Throughout semester";
-  const start = parseDate(startStr);
-  const opts = { day: "numeric", month: "short", year: "numeric" };
-  if (!endStr || endStr === startStr) {
-    return start.toLocaleDateString("en-GB", opts);
-  }
-  const end = parseDate(endStr);
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-  if (sameMonth) {
-    return `${start.getDate()}–${end.getDate()} ${start.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}`;
-  }
-  return `${start.toLocaleDateString("en-GB", opts)} – ${end.toLocaleDateString("en-GB", opts)}`;
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = parseDate(dateStr);
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target - today) / (1000 * 60 * 60 * 24));
-}
-
-function getRowStatus(ev) {
-  if (!ev.startDate) return null;
-  const startDays = daysUntil(ev.startDate);
-  const endDays = daysUntil(ev.endDate || ev.startDate);
-  if (startDays <= 0 && endDays >= 0) return "today";   // ongoing right now, includes today
-  if (startDays > 0) return "upcoming";
-  return "past";
-}
-
-// ---------- Fetch ----------
-
-async function loadEvents() {
-  try {
-    const snap = await db.collection("timeline").get();
-    allEvents = snap.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title || "Untitled",
-        category: data.category || "other",
-        term: data.term || "General",
-        startDate: data.startDate || null,
-        endDate: data.endDate || data.startDate || null,
-        marks: data.marks || "",
-        remarks: data.remarks || ""
-      };
-    });
-    populateTermFilter();
-    renderTable();
-  } catch (err) {
-    console.error("Failed to load calendar:", err);
-    document.getElementById("calendarTableBody").innerHTML =
-      `<tr><td colspan="4" class="timeline-error">Couldn't load the calendar right now. Please try again later.</td></tr>`;
-  }
-}
-
-function populateTermFilter() {
-  const termSelect = document.getElementById("termFilter");
-  const terms = [...new Set(allEvents.map(ev => ev.term))].sort();
-  terms.forEach(term => {
-    const opt = document.createElement("option");
-    opt.value = term;
-    opt.textContent = term;
-    termSelect.appendChild(opt);
+    // Animate filled circle calculations
+    const circle = document.getElementById(event.circleId);
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    
+    // Percent filled decreases as time runs out
+    const percentLeft = Math.min(100, Math.max(0, (daysRemaining / event.totalDays) * 100));
+    const offset = circumference - (percentLeft / 100) * circumference;
+    
+    setTimeout(() => {
+      circle.style.strokeDashoffset = offset;
+    }, 150);
   });
-  if (terms.length === 1) {
-    document.getElementById("calendarSubtitle").textContent = terms[0];
+
+  // 2. Render July 2026 Calendar dynamically with precise highlighting logic
+  renderJuly2026(currentSystemDate, dates.midterm.start);
+});
+
+function renderJuly2026(today, targetEventStart) {
+  const container = document.getElementById("calendar-days-container");
+  container.innerHTML = "";
+
+  // July 2026 starts on a Wednesday (3 blank offset padding slots)
+  for (let i = 0; i < 3; i++) {
+    const blank = document.createElement("div");
+    blank.classList.add("day");
+    container.appendChild(blank);
   }
-}
 
-function getFilteredEvents() {
-  const term = document.getElementById("termFilter").value;
-  return allEvents
-    .filter(ev => term === "all" || ev.term === term)
-    .sort((a, b) => {
-      if (!a.startDate && !b.startDate) return 0;
-      if (!a.startDate) return 1;   // no-date rows sink to bottom
-      if (!b.startDate) return -1;
-      return parseDate(a.startDate) - parseDate(b.startDate);
-    });
-}
+  // Generate 31 days of July
+  for (let dayNum = 1; dayNum <= 31; dayNum++) {
+    const dayDiv = document.createElement("div");
+    dayDiv.classList.add("day");
+    dayDiv.innerText = dayNum;
 
-// ---------- Render ----------
+    const checkingDate = new Date(`2026-07-${dayNum.toString().padStart(2, '0')}`);
 
-function renderTable() {
-  const events = getFilteredEvents();
-  const tbody = document.getElementById("calendarTableBody");
-  const emptyMsg = document.getElementById("timelineEmpty");
-  tbody.innerHTML = "";
-
-  if (events.length === 0) {
-    emptyMsg.hidden = false;
-    return;
-  }
-  emptyMsg.hidden = true;
-
-  // Find the next upcoming row to flag as "Up Next"
-  const upcoming = events.filter(ev => getRowStatus(ev) === "upcoming");
-  const nextId = upcoming.length ? upcoming[0].id : null;
-
-  events.forEach((ev, index) => {
-    const status = getRowStatus(ev);
-    const isHighlightCategory = ev.category === "midterm" || ev.category === "final";
-
-    const tr = document.createElement("tr");
-    tr.className = `cal-row cat-${ev.category}` +
-      (status === "today" ? " row-today" : "") +
-      (status === "past" ? " row-past" : "");
-    tr.style.setProperty("--stagger", `${Math.min(index, 12) * 40}ms`);
-
-    let badge = "";
-    if (status === "today") {
-      badge = `<span class="row-badge badge-today">Today</span>`;
-    } else if (ev.id === nextId) {
-      const d = daysUntil(ev.startDate);
-      badge = `<span class="row-badge badge-next">${d === 1 ? "Tomorrow" : d + " days left"}</span>`;
+    // Highlighting Logic Rules
+    if (today.getMonth() === 6 && today.getDate() === dayNum) {
+      dayDiv.classList.add("today"); // Today's date highlighted
+    } else if (checkingDate > today && checkingDate <= targetEventStart) {
+      dayDiv.classList.add("upcoming-range"); // From today until most recent event in unified style
     }
 
-    tr.innerHTML = `
-      <td class="col-activity${isHighlightCategory ? " highlight-activity" : ""}">
-        ${ev.title}${badge}
-      </td>
-      <td class="col-dates">${formatDateRange(ev.startDate, ev.endDate)}</td>
-      <td class="col-marks${isHighlightCategory ? " highlight-marks" : ""}">${ev.marks || ""}</td>
-      <td class="col-remarks">${ev.remarks || ""}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+    container.appendChild(dayDiv);
+  }
 }
-
-// ---------- Events ----------
-
-document.getElementById("termFilter").addEventListener("change", renderTable);
-
-// ---------- Daily auto-refresh ----------
-
-function msUntilNextMidnight() {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
-  return next - now;
-}
-
-function scheduleDailyRefresh() {
-  setTimeout(() => {
-    renderTable();
-    scheduleDailyRefresh();
-  }, msUntilNextMidnight());
-}
-
-// ---------- Init ----------
-
-loadEvents();
-scheduleDailyRefresh();
