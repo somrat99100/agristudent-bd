@@ -11,25 +11,39 @@
 </head>
 <body>
 
-<section class="section-page">
-  <div class="container" style="max-width:800px;">
-    <h1>🔐 Admin — Resource Review</h1>
-    <p style="color:var(--terracotta-500);font-size:.85rem;margin-bottom:2rem;">
-      Temporary admin page — password-only, not real authentication. Replace with Firebase Auth in Phase 8. Don't link to this page publicly.
-    </p>
+<header class="navbar">
+  <div class="container inner">
+    <a href="index.html" class="brand">🌱 AgriStudent BD — Admin</a>
+    <button id="logout-btn" class="hidden" style="background:var(--terracotta-500);color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;font-weight:600;cursor:pointer;">Log Out</button>
+  </div>
+</header>
 
-    <div id="admin-gate" style="max-width:320px;">
-      <label for="admin-password" style="display:block;font-weight:600;margin-bottom:.4rem;">Admin Password</label>
-      <input type="password" id="admin-password" style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;margin-bottom:.8rem;">
-      <button id="admin-unlock" class="btn-primary" style="width:100%;">Unlock</button>
-      <p id="admin-pw-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin-top:.6rem;">Incorrect password.</p>
+<section class="section-page">
+  <div class="container" style="max-width:900px;">
+
+    <!-- Login gate -->
+    <div id="login-box" style="max-width:340px;margin:2rem auto;">
+      <h1 style="font-size:1.4rem;text-align:center;margin-bottom:1.4rem;">🔐 Admin Login</h1>
+      <div class="form-field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email">
+      </div>
+      <div class="form-field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password">
+      </div>
+      <button id="login-btn" class="btn-primary" style="width:100%;">Log In</button>
+      <p id="login-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin-top:.8rem;text-align:center;"></p>
     </div>
 
+    <!-- Admin panel (shown after successful login) -->
     <div id="admin-panel" class="hidden">
       <div style="display:flex;gap:.6rem;margin-bottom:1.4rem;flex-wrap:wrap;">
         <button id="tab-resources" class="course-btn" style="background:var(--moss-700);color:#fff;">📚 Resources</button>
         <button id="tab-terms" class="course-btn">📖 Terms</button>
         <button id="tab-timeline" class="course-btn">📅 Timeline</button>
+        <button id="tab-registrations" class="course-btn">📝 Registrations</button>
+        <button id="tab-messages" class="course-btn">💬 Messages</button>
       </div>
 
       <div id="resources-panel">
@@ -44,7 +58,6 @@
 
       <div id="timeline-panel" class="hidden">
         <h2 style="font-size:1.1rem;margin-bottom:1rem;">Academic Timeline Events</h2>
-
         <form id="add-event-form" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.6rem;border:1px solid var(--line);padding:1rem;border-radius:8px;background:#fff;">
           <div>
             <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Title</label>
@@ -55,7 +68,7 @@
             <input type="date" id="event-date" required style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
           </div>
           <div>
-            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">End Date (optional — for date ranges like exam weeks)</label>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">End Date (optional)</label>
             <input type="date" id="event-end-date" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
           </div>
           <div>
@@ -73,13 +86,23 @@
           </div>
           <button type="submit" class="btn-primary">+ Add Event</button>
         </form>
-
         <div id="admin-timeline-list"></div>
       </div>
+
+      <div id="registrations-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Student Registrations — Verify ID</h2>
+        <div id="admin-registrations-list"></div>
+      </div>
+
+      <div id="messages-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Help Messages</h2>
+        <div id="admin-messages-list"></div>
+      </div>
     </div>
+
   </div>
 </section>
 
-<script type="module" src="js/admin-temp.js"></script>
+<script type="module" src="js/admin.js"></script>
 </body>
 </html>
