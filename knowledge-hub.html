@@ -42,55 +42,63 @@
     <p style="color:var(--moss-600);max-width:560px;">Browse agriculture terms with images and descriptions, or contribute one yourself.</p>
     <p id="term-count" style="font-family:var(--font-mono);font-size:.85rem;color:var(--leaf-500);margin-top:.6rem;margin-bottom:1.6rem;">📖 Loading term count…</p>
 
-    <input type="text" id="term-search" placeholder="Search any agriculture term…" style="width:100%;max-width:420px;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-size:.95rem;margin-bottom:.5rem;">
+    <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.6rem;">
+      <input type="text" id="term-search" placeholder="Search any agriculture term…" style="flex:1;min-width:220px;max-width:420px;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-size:.95rem;">
+      <button id="open-term-form" class="btn-primary">⬆️ Submit a Term</button>
+    </div>
 
     <div id="term-grid" class="term-grid">
       <p style="color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;">Loading terms…</p>
     </div>
 
-    <!-- Upload Term -->
-    <div style="max-width:500px;border-top:1px solid var(--line);padding-top:2rem;margin-top:3rem;">
-      <h2 style="font-size:1.3rem;">⬆️ Submit a Term</h2>
-      <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Every submission is reviewed before it appears publicly.</p>
+    <!-- Upload Term (modal) -->
+    <div id="term-form-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:520px;">
+        <button class="modal-close" id="term-form-close">✕</button>
+        <div class="modal-body">
+          <h2 style="font-size:1.3rem;">⬆️ Submit a Term</h2>
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Every submission is reviewed before it appears publicly.</p>
 
-      <div id="duplicate-warning" class="duplicate-warning hidden"></div>
+          <div id="duplicate-warning" class="duplicate-warning hidden"></div>
 
-      <form id="term-form">
-        <div class="form-field">
-          <label for="termName">Term Name *</label>
-          <input type="text" id="termName" required placeholder="e.g., Wilt">
-        </div>
-        <div class="form-field">
-          <label for="termImage">Image * (JPG or PNG, max 5MB)</label>
-          <input type="file" id="termImage" required accept=".jpg,.jpeg,.png">
-        </div>
-        <div class="form-field">
-          <label for="termDescription">Description *</label>
-          <textarea id="termDescription" required rows="4" style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;"></textarea>
-        </div>
-        <div class="form-field">
-          <label for="termUploaderEmail">Your Email * (so we can notify you when reviewed)</label>
-          <input type="email" id="termUploaderEmail" required>
-        </div>
+          <form id="term-form">
+            <div class="form-field">
+              <label for="termName">Term Name *</label>
+              <input type="text" id="termName" required placeholder="e.g., Wilt">
+            </div>
+            <div class="form-field">
+              <label for="termImage">Image * (JPG or PNG, max 5MB)</label>
+              <input type="file" id="termImage" required accept=".jpg,.jpeg,.png">
+            </div>
+            <div class="form-field">
+              <label for="termDescription">Description *</label>
+              <textarea id="termDescription" required rows="4" style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;"></textarea>
+            </div>
+            <div class="form-field">
+              <label for="termUploaderEmail">Your Email * (so we can notify you when reviewed)</label>
+              <input type="email" id="termUploaderEmail" required>
+            </div>
 
-        <button type="submit" id="term-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
+            <button type="submit" id="term-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
 
-        <div id="term-progress-wrap" class="upload-progress-wrap hidden">
-          <div class="progress-ring-box">
-            <svg class="progress-ring" viewBox="0 0 84 84">
-              <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
-              <circle id="term-progress-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
-            </svg>
-            <div class="progress-ring-text" id="term-progress-text">0%</div>
+            <div id="term-progress-wrap" class="upload-progress-wrap hidden">
+              <div class="progress-ring-box">
+                <svg class="progress-ring" viewBox="0 0 84 84">
+                  <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+                  <circle id="term-progress-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+                </svg>
+                <div class="progress-ring-text" id="term-progress-text">0%</div>
+              </div>
+              <div class="progress-label" id="term-status">Uploading…</div>
+            </div>
+          </form>
+
+          <div id="term-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+            <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+            <h3>Thanks for your contribution!</h3>
+            <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
           </div>
-          <div class="progress-label" id="term-status">Uploading…</div>
         </div>
-      </form>
-
-      <div id="term-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
-        <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
-        <h3>Thanks for your contribution!</h3>
-        <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
       </div>
     </div>
 
