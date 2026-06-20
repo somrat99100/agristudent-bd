@@ -26,8 +26,20 @@
     </div>
 
     <div id="admin-panel" class="hidden">
-      <h2 style="font-size:1.1rem;margin-bottom:1rem;">Resources — Pending / Approved / Rejected</h2>
-      <div id="admin-resource-list"></div>
+      <div style="display:flex;gap:.6rem;margin-bottom:1.4rem;">
+        <button id="tab-resources" class="course-btn" style="background:var(--moss-700);color:#fff;">📚 Resources</button>
+        <button id="tab-terms" class="course-btn">📖 Terms</button>
+      </div>
+
+      <div id="resources-panel">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Resources — Pending / Approved / Rejected</h2>
+        <div id="admin-resource-list"></div>
+      </div>
+
+      <div id="terms-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Terms — Pending / Approved / Rejected</h2>
+        <div id="admin-term-list"></div>
+      </div>
     </div>
   </div>
 </section>
