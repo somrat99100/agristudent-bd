@@ -6,18 +6,17 @@
   --border-hover: #9FB3C8;
   
   /* Typography Shades */
-  --text-main: #0B1C2E; /* Deep navy blue, very high contrast */
-  --text-muted: #486581; /* Slate blue for readability */
+  --text-main: #0B1C2E;
+  --text-muted: #486581;
   
   /* Vibrant Premium Accent System Indicators */
-  --accent-midterm: #1976D2; /* Bright Royal Blue */
-  --accent-ct: #00796B; /* Deep Teal */
-  --accent-final: #C2185B; /* Deep Pinkish Red */
-  --accent-ongoing: #D32F2F; /* Strong Alert Red */
-  --accent-path: #E3F2FD; /* Soft icy blue for track paths */
+  --accent-midterm: #1976D2;
+  --accent-ct: #00796B;
+  --accent-final: #C2185B;
+  --accent-ongoing: #D32F2F;
+  --accent-path: #E3F2FD;
 }
 
-/* Deep Structural Overrides for Parent Containers if required */
 body {
   background-color: var(--bg-base);
   color: var(--text-main);
@@ -31,7 +30,6 @@ body {
   position: relative;
 }
 
-/* Cool Backlighting Auras */
 .ambient-glow {
   position: absolute;
   width: 400px;
@@ -45,7 +43,6 @@ body {
 .glow-1 { top: -40px; left: -100px; background: #D9E2EC; }
 .glow-2 { bottom: 60px; right: -100px; background: #E4EBF1; }
 
-/* Header Formatting */
 .timeline-header { text-align: center; margin-bottom: 44px; }
 .timeline-main-title {
   font-family: 'Playfair Display', serif;
@@ -63,7 +60,6 @@ body {
   text-transform: uppercase;
 }
 
-/* Premium Planner Button Actions */
 .planner-btn {
   display: inline-flex;
   align-items: center;
@@ -88,7 +84,6 @@ body {
 .arrow-icon { width: 18px; height: 18px; transition: transform 0.3s ease; }
 .planner-btn:hover .arrow-icon { transform: translateX(6px); }
 
-/* Luxury Surface Panel Modules */
 .card-panel {
   background: var(--panel-bg);
   border: 1px solid var(--border-light);
@@ -101,21 +96,30 @@ body {
   box-shadow: 0 20px 55px rgba(16, 42, 67, 0.09);
 }
 
-/* Real Calendar Formatting Layouts */
 .calendar-banner { padding: 40px 30px; margin-bottom: 40px; }
 .calendar-widget-title { font-family: 'Playfair Display', serif; font-size: 1.65rem; text-align: center; margin: 0 0 4px 0; color: var(--text-main); }
 .calendar-month-header { font-size: 1.1rem; color: var(--accent-midterm); text-align: center; font-weight: 700; margin-bottom: 32px; letter-spacing: 0.02em; }
 
-/* Calendar Numbers Grid Architecture */
-.calendar-grid { max-width: 340px; margin: 0 auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px 10px; }
+/* CRITICAL FIX: Two separate, perfectly aligned 7-column grids */
+.calendar-weekdays {
+  max-width: 340px;
+  margin: 0 auto 12px auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+}
 
-/* CRITICAL FIX: Allows generated days to act as direct children of the 7-column CSS grid */
-#calendar-days-container { display: contents; }
+.calendar-days-grid {
+  max-width: 340px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px 10px;
+}
 
 .weekday-lbl { text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
 .day-node { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); border-radius: 50%; transition: all 0.2s ease; }
 
-/* Real-Time Highlight Rules */
 .day-node.node-today {
   background: var(--text-main);
   color: var(--panel-bg);
@@ -129,23 +133,19 @@ body {
   box-shadow: inset 0 0 0 1px rgba(25, 118, 210, 0.2);
 }
 
-/* Legend Info Details */
 .calendar-legend { display: flex; justify-content: center; gap: 24px; margin-top: 32px; font-size: 0.85rem; font-weight: 600; }
 .legend-item { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 .dot-today { background: var(--text-main); }
 .dot-path { background: var(--accent-path); border: 1px solid var(--accent-midterm); }
 
-/* Tracking Card Stacks */
 .exam-trackers-stack { display: flex; flex-direction: column; gap: 28px; width: 100%; align-items: center; }
 .exam-countdown-card { width: 100%; max-width: 460px; padding: 36px; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; }
 .exam-countdown-card:hover { transform: translateY(-5px); }
 .exam-card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 600; margin-bottom: 12px; color: var(--text-main); }
 
-/* Premium Subtle Pill Badges */
 .exam-date-tag { font-size: 0.85rem; font-weight: 700; padding: 6px 18px; border-radius: 30px; margin-bottom: 28px; background: #FFF; border: 1px solid var(--border-light); color: var(--text-main); }
 
-/* Circular Metrics Hardware Elements */
 .progress-ring-box { position: relative; width: 140px; height: 140px; }
 .ring-svg { transform: rotate(-90deg); }
 .ring-track-bg { fill: none; stroke: rgba(11, 28, 46, 0.05); stroke-width: 8; }
@@ -155,7 +155,6 @@ body {
 .fill-ct { stroke: var(--accent-ct); }
 .fill-final { stroke: var(--accent-final); }
 
-/* DYNAMIC REAL-TIME ONGOING STATE OVERRIDES */
 .exam-countdown-card.ongoing-mode {
   border-color: var(--accent-ongoing);
   background: linear-gradient(145deg, #FFFFFF, #FFF5F5);
@@ -164,7 +163,6 @@ body {
 .exam-countdown-card.ongoing-mode .ring-track-fill { stroke: var(--accent-ongoing) !important; }
 .exam-countdown-card.ongoing-mode .days-value { color: var(--accent-ongoing) !important; font-size: 1.65rem; animation: pulseGlow 2.5s infinite ease-in-out; }
 
-/* Labels Metrics Output */
 .ring-inner-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .days-value { font-family: 'JetBrains Mono', monospace; font-size: 2.3rem; font-weight: 700; color: var(--text-main); transition: all 0.3s ease; }
 .days-sub { font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.1em; margin-top: 4px; font-weight: 700; }
