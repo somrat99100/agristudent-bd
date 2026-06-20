@@ -1,61 +1,103 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Academic Timeline — AgriStudent BD</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-</head>
-<body>
+<div class="timeline-container">
+  
+  <!-- Header & Planner Link Section -->
+  <header class="timeline-header">
+    <div class="header-meta">
+      <span class="semester-tag">Summer Semester 2026</span>
+      <h1>Academic Timeline</h1>
+    </div>
+    <!-- Premium Interactive Link Button -->
+    <a href="YOUR_PLANNER_LINK_HERE" target="_blank" class="planner-btn">
+      <span>Make and follow (planner)</span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+      </svg>
+    </a>
+  </header>
 
-  <!-- ============================================================ -->
-  <!-- PASTE YOUR EXISTING MARQUEE BAR + HEADER + NAV HERE           -->
-  <!-- ============================================================ -->
+  <!-- Main Grid Layout -->
+  <div class="timeline-grid">
+    
+    <!-- Left Column: Calendar Component -->
+    <section class="grid-card calendar-card">
+      <div class="card-header">
+        <h2>Academic Calendar</h2>
+        <div id="current-month-year" class="month-label">July 2026</div>
+      </div>
+      
+      <!-- Calendar Photo/Illustration Area -->
+      <div class="calendar-photo-wrapper">
+        <div class="photo-overlay"></div>
+        <img src="https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=600&q=80" alt="Academic Calendar" class="calendar-img">
+      </div>
 
-  <main class="timeline-page">
-
-    <section class="page-hero seed-packet-hero">
-      <h1 id="calendarTitle">Academic Calendar</h1>
-      <p id="calendarSubtitle">Summer Semester 2026</p>
+      <!-- Days Grid -->
+      <div class="calendar-grid-days">
+        <!-- Weekdays Header -->
+        <div class="weekday">Su</div><div class="weekday">Mo</div><div class="weekday">Tu</div><div class="weekday">We</div><div class="weekday">Th</div><div class="weekday">Fr</div><div class="weekday">Sa</div>
+        <!-- Days will be dynamically injected by JS -->
+        <div id="calendar-days-container" class="days-container"></div>
+      </div>
     </section>
 
-    <section class="control-group" style="max-width:220px; margin-bottom:1.2rem;">
-      <label for="termFilter">Term</label>
-      <select id="termFilter">
-        <option value="all">All Terms</option>
-      </select>
+    <!-- Right Column: Exam Countdown Trackers -->
+    <section class="events-trackers">
+      
+      <!-- Card 1: Mid Term Exam -->
+      <div class="grid-card event-card" id="midterm-card">
+        <div class="event-info">
+          <span class="event-badge badge-midterm">Mid Term Exam</span>
+          <p class="event-date">01 July, 2026 — 08 July, 2026</p>
+        </div>
+        <div class="countdown-wrapper">
+          <svg class="progress-ring" width="100" height="100">
+            <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+            <circle class="progress-ring__circle" id="midterm-circle" stroke="#10B981" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+          </svg>
+          <div class="countdown-text">
+            <span class="days-num" id="midterm-days">--</span>
+            <span class="days-label">Days Left</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Class Tests -->
+      <div class="grid-card event-card" id="ct-card">
+        <div class="event-info">
+          <span class="event-badge badge-ct">Class Tests</span>
+          <p class="event-date">02 August, 2026 — 08 August, 2026</p>
+        </div>
+        <div class="countdown-wrapper">
+          <svg class="progress-ring" width="100" height="100">
+            <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+            <circle class="progress-ring__circle" id="ct-circle" stroke="#06B6D4" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+          </svg>
+          <div class="countdown-text">
+            <span class="days-num" id="ct-days">--</span>
+            <span class="days-label">Days Left</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Final Exam -->
+      <div class="grid-card event-card" id="final-card">
+        <div class="event-info">
+          <span class="event-badge badge-final">Final Exam</span>
+          <p class="event-date">02 August, 2026 — 08 August, 2026</p>
+        </div>
+        <div class="countdown-wrapper">
+          <svg class="progress-ring" width="100" height="100">
+            <circle class="progress-ring__background" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+            <circle class="progress-ring__circle" id="final-circle" stroke="#3B82F6" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+          </svg>
+          <div class="countdown-text">
+            <span class="days-num" id="final-days">--</span>
+            <span class="days-label">Days Left</span>
+          </div>
+        </div>
+      </div>
+
     </section>
 
-    <section class="calendar-table-wrap">
-      <table class="calendar-table">
-        <thead>
-          <tr>
-            <th>Activities</th>
-            <th>Dates</th>
-            <th>Marks</th>
-            <th>Remarks</th>
-          </tr>
-        </thead>
-        <tbody id="calendarTableBody">
-          <!-- rows injected by timeline.js -->
-        </tbody>
-      </table>
-    </section>
-
-    <p id="timelineEmpty" class="timeline-empty" hidden>
-      No calendar entries yet — check back soon 🌱
-    </p>
-
-  </main>
-
-  <!-- ============================================================ -->
-  <!-- PASTE YOUR EXISTING FOOTER HERE                                -->
-  <!-- ============================================================ -->
-
-  <script src="js/firebase-config.js"></script>
-  <script src="js/main.js"></script>
-  <script src="js/timeline.js"></script>
-</body>
-</html>
+  </div>
+</div>
