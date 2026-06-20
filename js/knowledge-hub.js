@@ -9,7 +9,7 @@ const CIRCUMFERENCE = 226.19;
 let allTerms = [];
 
 // ============================================
-// BROWSE + SEARCH + MODAL
+// UI ELEMENTS & MODALS
 // ============================================
 const grid = document.getElementById("term-grid");
 const searchInput = document.getElementById("term-search");
@@ -20,12 +20,35 @@ const modalName = document.getElementById("modal-name");
 const modalDesc = document.getElementById("modal-desc");
 const modalClose = document.getElementById("modal-close");
 
+// Zoom feature logic
+modalImg.addEventListener("click", () => {
+  modalImg.classList.toggle("zoomed");
+});
+
+function closeTermModal() {
+  modal.classList.add("hidden");
+  modalImg.classList.remove("zoomed"); // Reset zoom when closed
+}
+
+modalClose.addEventListener("click", closeTermModal);
+modal.addEventListener("click", (e) => { 
+  if (e.target === modal) closeTermModal(); 
+});
+
+// ============================================
+// BROWSE + SEARCH 
+// ============================================
 async function loadTerms() {
-  const q = query(collection(db, "terms"), where("status", "==", "approved"));
-  const snap = await getDocs(q);
-  allTerms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  countLabel.textContent = `📖 Total Terms Uploaded: ${allTerms.length}`;
-  renderGrid(allTerms);
+  try {
+    const q = query(collection(db, "terms"), where("status", "==", "approved"));
+    const snap = await getDocs(q);
+    allTerms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    countLabel.textContent = `📖 Total Terms Uploaded: ${allTerms.length}`;
+    renderGrid(allTerms);
+  } catch (err) {
+    console.error("Failed to load terms:", err);
+    grid.innerHTML = `<p style="color:var(--terracotta-500);font-family:var(--font-mono);font-size:.85rem;grid-column:1/-1;">Could not load terms. Please check your connection.</p>`;
+  }
 }
 
 function renderGrid(terms) {
@@ -51,20 +74,17 @@ function renderGrid(terms) {
 function openModal(term) {
   modalImg.src = term.imageUrl;
   modalImg.alt = term.name;
+  modalImg.classList.remove("zoomed"); // Ensure it opens un-zoomed
   modalName.textContent = term.name;
   modalDesc.textContent = term.description;
   modal.classList.remove("hidden");
 }
-modalClose.addEventListener("click", () => modal.classList.add("hidden"));
-modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
 
 searchInput.addEventListener("input", () => {
   const term = searchInput.value.trim().toLowerCase();
   const filtered = term ? allTerms.filter(t => t.name.toLowerCase().includes(term)) : allTerms;
   renderGrid(filtered);
 });
-
-loadTerms();
 
 // ============================================
 // UPLOAD TERM FORM (modal)
@@ -94,7 +114,7 @@ function setProgress(pct) {
 
 function showError(msg) {
   progressWrap.classList.add("hidden");
-  alert(msg); // simple, since this form has no separate error slot
+  alert(msg);
 }
 
 function showStatus(msg, isError = false) {
@@ -128,7 +148,6 @@ function uploadImageToCloudinary(file, onProgress) {
   });
 }
 
-// Live duplicate check as the person types a term name
 const termNameInput = document.getElementById("termName");
 termNameInput.addEventListener("input", () => {
   const typed = termNameInput.value.trim().toLowerCase();
@@ -166,7 +185,6 @@ form.addEventListener("submit", async (e) => {
 
     showStatus("Saving details…");
 
-    // Re-check for duplicates right before saving (data may have changed since page load)
     const dupQuery = query(collection(db, "terms"), where("status", "==", "approved"));
     const dupSnap = await getDocs(dupQuery);
     const isDuplicate = dupSnap.docs.some(d => (d.data().name || "").toLowerCase() === name.toLowerCase());
@@ -192,3 +210,6 @@ form.addEventListener("submit", async (e) => {
     submitBtn.textContent = "Submit for Review";
   }
 });
+
+// Load terms ONLY AFTER all UI event listeners are safely attached
+loadTerms();
