@@ -10,13 +10,11 @@
 </head>
 <body>
 
-<!-- ANNOUNCEMENT BAR -->
 <div class="announce-bar">
   <div class="marquee"><span>🚀 Be Registered to Keep Access in Future Updates &amp; Premium Resources — Join the AgriStudent BD community today</span></div>
   <a href="register.html" class="btn-register">Register Now</a>
 </div>
 
-<!-- NAVBAR -->
 <header class="navbar">
   <div class="container inner">
     <a href="index.html" class="brand">🌱 AgriStudent BD</a>
@@ -41,46 +39,83 @@
   <div class="container">
     <div class="crumb"><a href="index.html">Home</a> / Knowledge Hub</div>
     <h1>📖 Knowledge Hub</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Searchable agriculture terms with images and descriptions.</p>
+    <p style="color:var(--moss-600);max-width:560px;">Browse agriculture terms with images and descriptions, or contribute one yourself.</p>
+    <p id="term-count" style="font-family:var(--font-mono);font-size:.85rem;color:var(--leaf-500);margin-top:.6rem;margin-bottom:1.6rem;">📖 Loading term count…</p>
 
-    <div class="uc-panel">
-      <span class="badge">🚧 Under construction</span>
-      <h3>Knowledge Hub is being built next</h3>
-      <p>This section will include: a searchable term grid, term detail popups, and a running count of uploaded terms.</p>
+    <input type="text" id="term-search" placeholder="Search any agriculture term…" style="width:100%;max-width:420px;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-size:.95rem;margin-bottom:.5rem;">
+
+    <div id="term-grid" class="term-grid">
+      <p style="color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;">Loading terms…</p>
     </div>
+
+    <!-- Upload Term -->
+    <div style="max-width:500px;border-top:1px solid var(--line);padding-top:2rem;margin-top:3rem;">
+      <h2 style="font-size:1.3rem;">⬆️ Submit a Term</h2>
+      <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Every submission is reviewed before it appears publicly.</p>
+
+      <div id="duplicate-warning" class="duplicate-warning hidden"></div>
+
+      <form id="term-form">
+        <div class="form-field">
+          <label for="termName">Term Name *</label>
+          <input type="text" id="termName" required placeholder="e.g., Wilt">
+        </div>
+        <div class="form-field">
+          <label for="termImage">Image * (JPG or PNG, max 5MB)</label>
+          <input type="file" id="termImage" required accept=".jpg,.jpeg,.png">
+        </div>
+        <div class="form-field">
+          <label for="termDescription">Description *</label>
+          <textarea id="termDescription" required rows="4" style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;"></textarea>
+        </div>
+        <div class="form-field">
+          <label for="termUploaderEmail">Your Email * (so we can notify you when reviewed)</label>
+          <input type="email" id="termUploaderEmail" required>
+        </div>
+
+        <button type="submit" id="term-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
+
+        <div id="term-progress-wrap" class="upload-progress-wrap hidden">
+          <div class="progress-ring-box">
+            <svg class="progress-ring" viewBox="0 0 84 84">
+              <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+              <circle id="term-progress-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+            </svg>
+            <div class="progress-ring-text" id="term-progress-text">0%</div>
+          </div>
+          <div class="progress-label" id="term-status">Uploading…</div>
+        </div>
+      </form>
+
+      <div id="term-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+        <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+        <h3>Thanks for your contribution!</h3>
+        <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
+      </div>
+    </div>
+
   </div>
 </section>
 
-<!-- FOOTER -->
+<!-- Term detail modal -->
+<div id="term-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close">✕</button>
+    <img id="modal-img" src="" alt="">
+    <div class="modal-body">
+      <h3 id="modal-name"></h3>
+      <div id="modal-desc" class="modal-desc"></div>
+    </div>
+  </div>
+</div>
+
 <footer>
   <div class="container">
-    <div class="footer-grid">
-      <div>
-        <h4>🌱 AgriStudent BD</h4>
-        <p style="opacity:.8;font-size:.88rem;max-width:320px;">Academic resource, knowledge &amp; timeline platform built for agriculture students in Bangladesh.</p>
-      </div>
-      <div>
-        <h4>Quick Links</h4>
-        <ul>
-          <li><a href="resources.html">Resources</a></li>
-          <li><a href="timeline.html">Academic Timeline</a></li>
-          <li><a href="knowledge-hub.html">Knowledge Hub</a></li>
-          <li><a href="calculators.html">Calculators</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>Contact</h4>
-        <ul>
-          <li>WhatsApp</li>
-          <li>Email</li>
-        </ul>
-      </div>
-    </div>
     <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
   </div>
 </footer>
 
+<script type="module" src="js/knowledge-hub.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
