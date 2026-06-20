@@ -12,84 +12,41 @@
 
   <!-- ============================================================ -->
   <!-- PASTE YOUR EXISTING MARQUEE BAR + HEADER + NAV HERE           -->
-  <!-- (copy exactly from resources.html or any other built page)    -->
   <!-- ============================================================ -->
 
   <main class="timeline-page">
 
     <section class="page-hero seed-packet-hero">
-      <h1>Academic Timeline</h1>
-      <p>Registration windows, exams, results, and holidays — all in one place.</p>
+      <h1 id="calendarTitle">Academic Calendar</h1>
+      <p id="calendarSubtitle">Summer Semester 2026</p>
     </section>
 
-    <section class="timeline-controls">
-      <div class="control-group">
-        <label for="termFilter">Term</label>
-        <select id="termFilter">
-          <option value="all">All Terms</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <label for="categoryFilter">Category</label>
-        <select id="categoryFilter">
-          <option value="all">All Categories</option>
-          <option value="registration">Registration</option>
-          <option value="class">Class</option>
-          <option value="midterm">Midterm</option>
-          <option value="final">Final</option>
-          <option value="result">Result</option>
-          <option value="holiday">Holiday</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-
-      <div class="view-toggle" role="group" aria-label="Switch view">
-        <button class="view-btn active" data-view="list" id="listViewBtn">List View</button>
-        <button class="view-btn" data-view="calendar" id="calendarViewBtn">Calendar View</button>
-      </div>
+    <section class="control-group" style="max-width:220px; margin-bottom:1.2rem;">
+      <label for="termFilter">Term</label>
+      <select id="termFilter">
+        <option value="all">All Terms</option>
+      </select>
     </section>
 
-    <section class="timeline-legend" aria-hidden="false">
-      <span class="legend-item"><i class="legend-swatch swatch-today"></i> Today</span>
-      <span class="legend-item"><i class="legend-swatch swatch-path"></i> Countdown to next event</span>
-      <span class="legend-item"><i class="legend-dot cat-registration"></i> Registration</span>
-      <span class="legend-item"><i class="legend-dot cat-class"></i> Class</span>
-      <span class="legend-item"><i class="legend-dot cat-midterm"></i> Midterm</span>
-      <span class="legend-item"><i class="legend-dot cat-final"></i> Final</span>
-      <span class="legend-item"><i class="legend-dot cat-result"></i> Result</span>
-      <span class="legend-item"><i class="legend-dot cat-holiday"></i> Holiday</span>
-      <span class="legend-item"><i class="legend-dot cat-other"></i> Other</span>
+    <section class="calendar-table-wrap">
+      <table class="calendar-table">
+        <thead>
+          <tr>
+            <th>Activities</th>
+            <th>Dates</th>
+            <th>Marks</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="calendarTableBody">
+          <!-- rows injected by timeline.js -->
+        </tbody>
+      </table>
     </section>
 
-    <!-- LIST VIEW -->
-    <section id="listView" class="timeline-list-view">
-      <div id="nextEventCard" class="next-event-card" hidden>
-        <span class="next-event-label">Up Next</span>
-        <h3 id="nextEventTitle"></h3>
-        <p id="nextEventDate"></p>
-        <p id="nextEventCountdown" class="countdown"></p>
-      </div>
-
-      <div id="timelineEmpty" class="timeline-empty" hidden>
-        No events to show for this filter yet — check back soon 🌱
-      </div>
-
-      <div id="timelineList" class="timeline-vertical"></div>
-    </section>
-
-    <!-- CALENDAR VIEW -->
-    <section id="calendarView" class="timeline-calendar-view" hidden>
-      <div class="calendar-nav">
-        <button id="prevMonth" aria-label="Previous month">‹</button>
-        <h2 id="calendarMonthLabel"></h2>
-        <button id="nextMonth" aria-label="Next month">›</button>
-      </div>
-
-      <div class="calendar-grid" id="calendarGrid"></div>
-
-      <div id="calendarDayDetails" class="calendar-day-details" hidden></div>
-    </section>
+    <p id="timelineEmpty" class="timeline-empty" hidden>
+      No calendar entries yet — check back soon 🌱
+    </p>
 
   </main>
 
