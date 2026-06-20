@@ -26,9 +26,10 @@
     </div>
 
     <div id="admin-panel" class="hidden">
-      <div style="display:flex;gap:.6rem;margin-bottom:1.4rem;">
+      <div style="display:flex;gap:.6rem;margin-bottom:1.4rem;flex-wrap:wrap;">
         <button id="tab-resources" class="course-btn" style="background:var(--moss-700);color:#fff;">📚 Resources</button>
         <button id="tab-terms" class="course-btn">📖 Terms</button>
+        <button id="tab-timeline" class="course-btn">📅 Timeline</button>
       </div>
 
       <div id="resources-panel">
@@ -39,6 +40,41 @@
       <div id="terms-panel" class="hidden">
         <h2 style="font-size:1.1rem;margin-bottom:1rem;">Terms — Pending / Approved / Rejected</h2>
         <div id="admin-term-list"></div>
+      </div>
+
+      <div id="timeline-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Academic Timeline Events</h2>
+
+        <form id="add-event-form" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.6rem;border:1px solid var(--line);padding:1rem;border-radius:8px;background:#fff;">
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Title</label>
+            <input type="text" id="event-title" required placeholder="e.g., Final Examination" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Start Date</label>
+            <input type="date" id="event-date" required style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">End Date (optional — for date ranges like exam weeks)</label>
+            <input type="date" id="event-end-date" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Type</label>
+            <select id="event-type" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+              <option value="registration">Registration</option>
+              <option value="advising">Advising</option>
+              <option value="add_drop">Add/Drop Deadline</option>
+              <option value="class_test">Class Test (ring card)</option>
+              <option value="midterm">Midterm Examination (ring card)</option>
+              <option value="final">Final Examination (ring card)</option>
+              <option value="break">Semester Break</option>
+              <option value="semester_end">Semester Ends</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">+ Add Event</button>
+        </form>
+
+        <div id="admin-timeline-list"></div>
       </div>
     </div>
   </div>
