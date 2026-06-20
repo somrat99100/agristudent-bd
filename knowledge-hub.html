@@ -20,7 +20,12 @@
     z-index: 10;
   }
   
-  /* Removes the transition delay while dragging so it sticks to the mouse */
+  /* Stops native screen scrolling on mobile when the image is zoomed */
+  #modal-img.zoomed {
+    touch-action: none; 
+  }
+
+  /* Removes the transition delay while dragging so it sticks to the mouse/finger */
   #modal-img.panning {
     transition: none; 
     cursor: grabbing !important;
@@ -29,6 +34,13 @@
   /* Keeps the zoomed image contained inside the modal */
   #term-modal .modal-box {
     overflow: hidden; 
+    position: relative;
+  }
+
+  /* FIX: Forces the close button to ALWAYS sit above the zoomed image */
+  #term-modal .modal-close {
+    position: absolute;
+    z-index: 50 !important; 
   }
 </style>
 </head>
