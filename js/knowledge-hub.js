@@ -67,8 +67,16 @@ searchInput.addEventListener("input", () => {
 loadTerms();
 
 // ============================================
-// UPLOAD TERM FORM
+// UPLOAD TERM FORM (modal)
 // ============================================
+const formModal = document.getElementById("term-form-modal");
+const openFormBtn = document.getElementById("open-term-form");
+const closeFormBtn = document.getElementById("term-form-close");
+
+openFormBtn.addEventListener("click", () => formModal.classList.remove("hidden"));
+closeFormBtn.addEventListener("click", () => formModal.classList.add("hidden"));
+formModal.addEventListener("click", (e) => { if (e.target === formModal) formModal.classList.add("hidden"); });
+
 const form = document.getElementById("term-form");
 const submitBtn = document.getElementById("term-submit");
 const successBox = document.getElementById("term-success");
