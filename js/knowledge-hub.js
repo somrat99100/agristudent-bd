@@ -31,34 +31,57 @@ function updateImageTransform() {
   modalImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${imgScale})`;
 }
 
-// Start panning
-modalImg.addEventListener("mousedown", (e) => {
-  e.preventDefault(); 
+// --- Unified Drag Handlers for Mouse & Touch ---
+function handleDragStart(clientX, clientY) {
   if (imgScale > 1) {
     isDragging = true;
     isMoved = false;
-    startX = e.clientX - translateX;
-    startY = e.clientY - translateY;
+    startX = clientX - translateX;
+    startY = clientY - translateY;
     modalImg.classList.add("panning");
   }
-});
+}
 
-// Panning the image
-window.addEventListener("mousemove", (e) => {
+function handleDragMove(clientX, clientY) {
   if (!isDragging) return;
   isMoved = true; 
-  translateX = e.clientX - startX;
-  translateY = e.clientY - startY;
+  translateX = clientX - startX;
+  translateY = clientY - startY;
   updateImageTransform();
-});
+}
 
-// Stop panning
-window.addEventListener("mouseup", () => {
+function handleDragEnd() {
   if (isDragging) {
     isDragging = false;
     modalImg.classList.remove("panning");
   }
+}
+
+// Mouse Events (Laptop/Desktop)
+modalImg.addEventListener("mousedown", (e) => {
+  e.preventDefault(); 
+  handleDragStart(e.clientX, e.clientY);
 });
+window.addEventListener("mousemove", (e) => {
+  handleDragMove(e.clientX, e.clientY);
+});
+window.addEventListener("mouseup", handleDragEnd);
+
+// Touch Events (Mobile/Tablet)
+modalImg.addEventListener("touchstart", (e) => {
+  if (imgScale > 1) {
+    handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: true });
+
+window.addEventListener("touchmove", (e) => {
+  if (isDragging) {
+    e.preventDefault(); // Stop the whole page from scrolling while panning
+    handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: false });
+
+window.addEventListener("touchend", handleDragEnd);
 
 // Click to Zoom In/Out
 modalImg.addEventListener("click", () => {
@@ -70,11 +93,13 @@ modalImg.addEventListener("click", () => {
   if (imgScale === 1) {
     imgScale = 1.8; 
     modalImg.style.cursor = "grab";
+    modalImg.classList.add("zoomed"); // Adds touch-action: none for mobile
   } else {
     imgScale = 1; 
     translateX = 0;
     translateY = 0;
     modalImg.style.cursor = "zoom-in";
+    modalImg.classList.remove("zoomed");
   }
   updateImageTransform();
 });
@@ -86,6 +111,7 @@ function closeTermModal() {
   translateY = 0;
   updateImageTransform();
   modalImg.style.cursor = "zoom-in";
+  modalImg.classList.remove("zoomed");
 }
 
 modalClose.addEventListener("click", closeTermModal);
@@ -136,6 +162,7 @@ function openModal(term) {
   translateY = 0;
   updateImageTransform();
   modalImg.style.cursor = "zoom-in";
+  modalImg.classList.remove("zoomed");
   
   modalName.textContent = term.name;
   modalDesc.textContent = term.description;
