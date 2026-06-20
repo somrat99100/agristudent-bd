@@ -1,0 +1,194 @@
+:root {
+  --bg-main: #0B0F19;
+  --card-bg: rgba(22, 28, 45, 0.4);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --text-primary: #F3F4F6;
+  --text-secondary: #9CA3AF;
+  --accent-emerald: #10B981;
+  --accent-cyan: #06B6D4;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Container */
+.timeline-container {
+  max-width: 1100px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+/* Header & Premium Planner Button */
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.semester-tag {
+  color: var(--accent-emerald);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.planner-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 10px 20px;
+  border-radius: 12px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.planner-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-cyan);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+}
+.btn-icon { width: 16px; height: 16px; }
+
+/* Grid Dashboard Layout */
+.timeline-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 768px) {
+  .timeline-grid { grid-template-columns: 1fr; }
+}
+
+/* Premium Card Bases */
+.grid-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+.grid-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Photo Container inside Calendar */
+.calendar-photo-wrapper {
+  position: relative;
+  height: 120px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(11, 15, 25, 0.2), var(--bg-main));
+  z-index: 1;
+}
+.calendar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Calendar Days Styling */
+.calendar-grid-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+.weekday {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding-bottom: 8px;
+}
+.day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+/* 🟥 Calendar Color Requirements: Today vs Upcoming Range */
+.day.today {
+  background: var(--accent-emerald);
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+.day.upcoming-range {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--accent-cyan);
+  font-weight: 600;
+  border: 1px dashed rgba(6, 182, 212, 0.4);
+}
+
+/* Trackers List Layout */
+.events-trackers {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.event-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.event-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.badge-midterm { background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); }
+.badge-ct { background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); }
+.badge-final { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
+.event-date { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+/* ⭕ Circular Countdown Styling */
+.countdown-wrapper {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+.progress-ring {
+  transform: rotate(-90deg);
+}
+.progress-ring__circle {
+  transition: stroke-dashoffset 0.5s ease-in-out;
+}
+.countdown-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.days-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.days-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
