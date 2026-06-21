@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Resources — AgriStudent BD</title>
+<script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -45,17 +46,21 @@
 
     <div class="card-grid" style="margin-bottom:2.5rem;">
       <a href="slides-notes.html" class="seed-card reveal">
-        <span class="tag">BROWSE</span>
-        <div class="icon">📑</div>
-        <h3>All Slides</h3>
-        <p style="font-size:.88rem;color:var(--moss-600);">Browse lecture materials by course code.</p>
+        <div class="tag-strip"><span class="tag-dot"></span><span class="tag">BROWSE</span></div>
+        <div class="card-body">
+          <div class="icon">📑</div>
+          <h3>All Slides</h3>
+          <p style="font-size:.88rem;color:var(--moss-600);">Browse lecture materials by course code.</p>
+        </div>
       </a>
       <a href="previous-questions.html" class="seed-card reveal">
-        <span class="tag">BROWSE</span>
-        <div class="icon">💡</div>
-        <h3>Suggestions</h3>
-        <p style="font-size:.88rem;color:var(--moss-600);">Filter exam questions by course, faculty, and exam type.</p>
-        <div class="lock-badge">🔒 Login Required</div>
+        <div class="tag-strip"><span class="tag-dot"></span><span class="tag">BROWSE</span></div>
+        <div class="card-body">
+          <div class="icon">💡</div>
+          <h3>Suggestions</h3>
+          <p style="font-size:.88rem;color:var(--moss-600);">Filter exam questions by course, faculty, and exam type.</p>
+          <div class="lock-badge">🔒 Login Required</div>
+        </div>
       </a>
     </div>
 
