@@ -42,4 +42,29 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Search will be connected once Resources, Terms, and FAQ data are live.');
     });
   }
+
+  // Scroll-triggered reveal animation — fades + lifts elements with the
+  // ".reveal" class into view as they enter the viewport. Staggers slightly
+  // by index so groups (cards, stats) don't all pop in at once.
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const revealEls = document.querySelectorAll('.reveal');
+  if (revealEls.length) {
+    if (prefersReducedMotion || !('IntersectionObserver' in window)) {
+      revealEls.forEach(el => el.classList.add('is-visible'));
+    } else {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      revealEls.forEach((el, i) => {
+        el.style.transitionDelay = `${Math.min(i % 6, 5) * 70}ms`;
+        observer.observe(el);
+      });
+    }
+  }
 });
