@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Register — AgriStudent BD</title>
+<script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -74,13 +75,13 @@
       </div>
 
       <div style="border:1.5px dashed var(--moss-600);border-radius:8px;padding:1rem;background:#fff;">
-        <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Student Verification — provide at least one:</p>
+        <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Student Verification</p>
 
-        <label for="studentIdPhoto" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Photo / Scan (JPG, PNG, or PDF — max 5MB)</label>
-        <input type="file" id="studentIdPhoto" accept=".jpg,.jpeg,.png,.pdf" style="width:100%;margin-bottom:.9rem;font-size:.85rem;">
+        <label for="studentIdNumber" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Number *</label>
+        <input type="text" id="studentIdNumber" required placeholder="e.g., 21-AGR-045" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;margin-bottom:.9rem;">
 
-        <label for="studentIdNumber" style="display:block;font-size:.88rem;margin-bottom:.3rem;">— or — Student ID Number</label>
-        <input type="text" id="studentIdNumber" placeholder="e.g., 21-AGR-045" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
+        <label for="studentIdPhoto" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Photo / Scan (optional — JPG, PNG, or PDF, max 5MB)</label>
+        <input type="file" id="studentIdPhoto" accept=".jpg,.jpeg,.png,.pdf" style="width:100%;font-size:.85rem;">
       </div>
 
       <button type="submit" id="submit-btn" style="background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Register</button>
