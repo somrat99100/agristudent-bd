@@ -368,10 +368,12 @@ if (pqList) {
 
     pqList.innerHTML = items.map(item => `
       <div class="seed-card" style="cursor:default;">
-        <span class="tag">${item.examType || "Question"}</span>
-        <h3>${item.courseCode}</h3>
-        <p style="font-size:.85rem;color:var(--moss-600);margin-bottom:.7rem;">${item.facultyName || ""}</p>
-        ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View Question</a>`).join("<br>")}
+        <div class="tag-strip"><span class="tag-dot"></span><span class="tag">${item.examType || "Question"}</span></div>
+        <div class="card-body">
+          <h3>${item.courseCode}</h3>
+          <p style="font-size:.85rem;color:var(--moss-600);margin-bottom:.7rem;">${item.facultyName || ""}</p>
+          ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View Question</a>`).join("<br>")}
+        </div>
       </div>
     `).join("");
   }
