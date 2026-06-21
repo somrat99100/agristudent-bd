@@ -74,9 +74,9 @@ form.addEventListener("submit", async (e) => {
   const studentIdNumber = document.getElementById("studentIdNumber").value.trim();
   const idFile = document.getElementById("studentIdPhoto").files[0];
 
-  // Validation: at least one of photo or number required
-  if (!studentIdNumber && !idFile) {
-    showError("Please provide either a Student ID photo or a Student ID number (at least one is required).");
+  // Validation: Student ID number is mandatory; photo is optional
+  if (!studentIdNumber) {
+    showError("Student ID number is required.");
     return;
   }
 
@@ -107,11 +107,11 @@ form.addEventListener("submit", async (e) => {
       whatsapp,
       email,
       institution,
+      studentIdNumber,
       status: "unverified",
       submittedAt: serverTimestamp()
     };
     if (studentIdUrl) docData.studentIdUrl = studentIdUrl;
-    if (studentIdNumber) docData.studentIdNumber = studentIdNumber;
 
     await addDoc(collection(db, "registrations"), docData);
 
