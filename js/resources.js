@@ -37,6 +37,32 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
+// UPLOAD FORM MODAL (resources.html) — opens just like "Submit a Term"
+// ============================================
+const openUploadBtn = document.getElementById("open-upload-form");
+const uploadModal = document.getElementById("upload-form-modal");
+const uploadModalClose = document.getElementById("upload-form-close");
+
+function openUploadModal() {
+  if (uploadModal) uploadModal.classList.remove("hidden");
+}
+function closeUploadModal() {
+  if (uploadModal) uploadModal.classList.add("hidden");
+}
+if (openUploadBtn) openUploadBtn.addEventListener("click", openUploadModal);
+if (uploadModalClose) uploadModalClose.addEventListener("click", closeUploadModal);
+if (uploadModal) {
+  uploadModal.addEventListener("click", (e) => {
+    if (e.target === uploadModal) closeUploadModal();
+  });
+}
+// Pages like All Slides / Suggestions link here with #upload so the
+// "Upload Resource" button at their top jumps straight into the modal.
+if (uploadModal && window.location.hash === "#upload") {
+  openUploadModal();
+}
+
+// ============================================
 // UPLOAD FORM (resources.html)
 // ============================================
 const uploadForm = document.getElementById("upload-form");
@@ -233,13 +259,92 @@ if (courseButtonsWrap) {
 }
 
 // ============================================
-// PREVIOUS QUESTIONS BROWSING (previous-questions.html)
+// SUGGESTIONS ACCESS GATE (previous-questions.html)
+// Restricted: must enter a registered Student ID before viewing.
 // ============================================
 const pqList = document.getElementById("pq-list");
 const pqSearchBtn = document.getElementById("pq-search-btn");
+const pqGate = document.getElementById("pq-gate");
+const pqContent = document.getElementById("pq-content");
+let loadPQ; // assigned below once we know pqList exists; gate's grantAccess() calls it
 
+if (pqList && pqGate && pqContent) {
+  const gateInput = document.getElementById("pq-gate-input");
+  const gateSubmit = document.getElementById("pq-gate-submit");
+  const gateStatus = document.getElementById("pq-gate-status");
+
+  function showGateStatus(html, stateClass) {
+    gateStatus.innerHTML = html;
+    gateStatus.className = "access-status " + stateClass;
+    gateStatus.classList.remove("hidden");
+  }
+
+  function grantAccess() {
+    pqGate.classList.add("hidden");
+    pqContent.classList.remove("hidden");
+    loadPQ();
+  }
+
+  // Already verified earlier this session — skip re-asking.
+  if (sessionStorage.getItem("pq_access") === "granted") {
+    grantAccess();
+  } else {
+    gateSubmit.addEventListener("click", async () => {
+      const studentId = gateInput.value.trim();
+      if (!studentId) {
+        showGateStatus("Please enter your Student ID.", "is-unknown");
+        return;
+      }
+
+      gateSubmit.disabled = true;
+      gateSubmit.textContent = "Checking…";
+      showGateStatus("Checking your registration…", "is-unknown");
+
+      try {
+        const q = query(collection(db, "registrations"), where("studentIdNumber", "==", studentId));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          showGateStatus(
+            `❌ NOT REGISTERED<div class="access-status-note">We couldn't find that Student ID. Please register first with the correct information.</div>`,
+            "is-rejected"
+          );
+        } else {
+          const reg = snap.docs[0].data();
+          const status = reg.status || "unverified";
+
+          if (status === "verified") {
+            sessionStorage.setItem("pq_access", "granted");
+            showGateStatus("✅ ACCESS GRANTED", "is-granted");
+            setTimeout(grantAccess, 700);
+          } else if (status === "rejected") {
+            showGateStatus(
+              `❌ REJECTED<div class="access-status-note">Your registration was rejected. Please register again with correct information.</div>`,
+              "is-rejected"
+            );
+          } else {
+            showGateStatus(
+              `⏳ PENDING APPROVAL<div class="access-status-note">Your registration is awaiting admin review. Please wait for approval and check back later.</div>`,
+              "is-pending"
+            );
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        showGateStatus("Something went wrong. Please try again.", "is-unknown");
+      } finally {
+        gateSubmit.disabled = false;
+        gateSubmit.textContent = "Check Access";
+      }
+    });
+  }
+}
+
+// ============================================
+// PREVIOUS QUESTIONS BROWSING (previous-questions.html)
+// ============================================
 if (pqList) {
-  async function loadPQ() {
+  loadPQ = async function loadPQ() {
     const facultyFilter = document.getElementById("pq-faculty").value.trim();
     const courseFilter = document.getElementById("pq-course").value.trim().toUpperCase();
     const examFilter = document.getElementById("pq-exam").value;
@@ -272,5 +377,5 @@ if (pqList) {
   }
 
   pqSearchBtn.addEventListener("click", loadPQ);
-  loadPQ();
+  if (!pqGate) loadPQ();
 }
