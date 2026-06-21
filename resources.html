@@ -39,87 +39,95 @@
   <div class="container">
     <div class="crumb"><a href="index.html">Home</a> / Resources</div>
     <h1>📚 Resources</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Browse course materials or submit your own — every upload is reviewed before it goes live.</p>
+    <p style="color:var(--moss-600);max-width:560px;margin-bottom:1.4rem;">Browse course materials or submit your own — every upload is reviewed before it goes live.</p>
+
+    <button id="open-upload-form" class="btn-primary" style="margin-bottom:2rem;">⬆️ Upload Your Resource</button>
 
     <div class="card-grid" style="margin-bottom:2.5rem;">
-      <a href="slides-notes.html" class="seed-card">
+      <a href="slides-notes.html" class="seed-card reveal">
         <span class="tag">BROWSE</span>
         <div class="icon">📑</div>
-        <h3>Slides &amp; Notes</h3>
+        <h3>All Slides</h3>
         <p style="font-size:.88rem;color:var(--moss-600);">Browse lecture materials by course code.</p>
       </a>
-      <a href="previous-questions.html" class="seed-card">
+      <a href="previous-questions.html" class="seed-card reveal">
         <span class="tag">BROWSE</span>
-        <div class="icon">📝</div>
-        <h3>Previous Questions</h3>
+        <div class="icon">💡</div>
+        <h3>Suggestions</h3>
         <p style="font-size:.88rem;color:var(--moss-600);">Filter exam questions by course, faculty, and exam type.</p>
+        <div class="lock-badge">🔒 Login Required</div>
       </a>
     </div>
 
-    <div style="max-width:600px;border-top:1px solid var(--line);padding-top:2rem;">
-      <h2 style="font-size:1.3rem;">⬆️ Upload Your Resource</h2>
-      <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">If possible, combine all lecture content into a single PDF before uploading. Max 5 files, 20MB each, PDF only.</p>
+    <div id="upload-form-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:520px;">
+        <button class="modal-close" id="upload-form-close">✕</button>
+        <div class="modal-body">
+          <h2 style="font-size:1.3rem;">⬆️ Upload Your Resource</h2>
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">If possible, combine all lecture content into a single PDF before uploading. Max 5 files, 20MB each, PDF only.</p>
 
-      <form id="upload-form">
-        <div class="form-field">
-          <label for="courseCode">Course Code *</label>
-          <input type="text" id="courseCode" required placeholder="e.g., AGR 101">
-        </div>
-        <div class="form-field">
-          <label for="courseName">Course Name *</label>
-          <input type="text" id="courseName" required placeholder="e.g., Introduction to Agronomy">
-        </div>
-        <div class="form-field">
-          <label for="facultyName">Faculty Name *</label>
-          <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences">
-        </div>
-        <div class="form-field">
-          <label for="resourceType">Resource Type *</label>
-          <select id="resourceType" required>
-            <option value="slides_notes">📚 Slides & Notes</option>
-            <option value="previous_questions">📝 Previous Questions</option>
-          </select>
-        </div>
-        <div class="form-field hidden" id="examType-wrap">
-          <label for="examType">Exam Type</label>
-          <select id="examType">
-            <option value="">— Select —</option>
-            <option value="Class Test">Class Test</option>
-            <option value="Midterm">Midterm</option>
-            <option value="Final">Final</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label for="uploaderName">Uploader Name (optional)</label>
-          <input type="text" id="uploaderName">
-        </div>
-        <div class="form-field">
-          <label for="uploaderEmail">Your Email * (so we can notify you when reviewed)</label>
-          <input type="email" id="uploaderEmail" required>
-        </div>
-        <div class="form-field">
-          <label for="files">Files * (PDF only — max 5 files, 20MB each)</label>
-          <input type="file" id="files" multiple required accept=".pdf,application/pdf">
-        </div>
+          <form id="upload-form">
+            <div class="form-field">
+              <label for="courseCode">Course Code *</label>
+              <input type="text" id="courseCode" required placeholder="e.g., AGR 101">
+            </div>
+            <div class="form-field">
+              <label for="courseName">Course Name *</label>
+              <input type="text" id="courseName" required placeholder="e.g., Introduction to Agronomy">
+            </div>
+            <div class="form-field">
+              <label for="facultyName">Faculty Name *</label>
+              <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences">
+            </div>
+            <div class="form-field">
+              <label for="resourceType">Resource Type *</label>
+              <select id="resourceType" required>
+                <option value="slides_notes">📚 All Slides</option>
+                <option value="previous_questions">💡 Suggestions</option>
+              </select>
+            </div>
+            <div class="form-field hidden" id="examType-wrap">
+              <label for="examType">Exam Type</label>
+              <select id="examType">
+                <option value="">— Select —</option>
+                <option value="Class Test">Class Test</option>
+                <option value="Midterm">Midterm</option>
+                <option value="Final">Final</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="uploaderName">Uploader Name (optional)</label>
+              <input type="text" id="uploaderName">
+            </div>
+            <div class="form-field">
+              <label for="uploaderEmail">Your Email * (so we can notify you when reviewed)</label>
+              <input type="email" id="uploaderEmail" required>
+            </div>
+            <div class="form-field">
+              <label for="files">Files * (PDF only — max 5 files, 20MB each)</label>
+              <input type="file" id="files" multiple required accept=".pdf,application/pdf">
+            </div>
 
-        <button type="submit" id="upload-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
+            <button type="submit" id="upload-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>
 
-        <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
-          <div class="progress-ring-box">
-            <svg class="progress-ring" viewBox="0 0 84 84">
-              <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
-              <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
-            </svg>
-            <div class="progress-ring-text" id="progress-ring-text">0%</div>
+            <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
+              <div class="progress-ring-box">
+                <svg class="progress-ring" viewBox="0 0 84 84">
+                  <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+                  <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+                </svg>
+                <div class="progress-ring-text" id="progress-ring-text">0%</div>
+              </div>
+              <div class="progress-label" id="upload-status">Uploading…</div>
+            </div>
+          </form>
+
+          <div id="upload-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+            <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+            <h3>Thanks for your upload!</h3>
+            <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
           </div>
-          <div class="progress-label" id="upload-status">Uploading…</div>
         </div>
-      </form>
-
-      <div id="upload-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
-        <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
-        <h3>Thanks for your upload!</h3>
-        <p>It's now pending admin review. We'll email you once it's approved or if changes are needed.</p>
       </div>
     </div>
 
