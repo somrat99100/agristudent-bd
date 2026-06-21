@@ -40,10 +40,10 @@
 <!-- HERO -->
 <section class="hero">
   <div class="container">
-    <div class="eyebrow">College of Agricultural Sciences · Bangladesh</div>
-    <h1>Your complete academic companion for agriculture studies</h1>
-    <p class="sub">Slides, previous questions, academic timelines, terms, and calculators — all in one place, built by and for agriculture students.</p>
-    <form class="search-bar" role="search">
+    <div class="eyebrow reveal">College of Agricultural Sciences · Bangladesh</div>
+    <h1 class="reveal">Your complete academic companion for agriculture studies</h1>
+    <p class="sub reveal">Slides, previous questions, academic timelines, terms, and calculators — all in one place, built by and for agriculture students.</p>
+    <form class="search-bar reveal" role="search">
       <input type="text" placeholder="Search resources, terms, questions, or events…" aria-label="Universal search">
       <button type="submit">Search</button>
     </form>
@@ -55,20 +55,20 @@
   <div class="container">
     <div class="label">🌱 Growing Agriculture Learning Community</div>
     <div class="stats-grid">
-      <div class="stat-card">
-        <span class="num" data-count="1254">0+</span>
+      <div class="stat-card reveal">
+        <span class="num" id="stat-users">—</span>
         <span class="desc">👥 Registered Users</span>
       </div>
-      <div class="stat-card">
-        <span class="num" data-count="542">0+</span>
+      <div class="stat-card reveal">
+        <span class="num" id="stat-resources">—</span>
         <span class="desc">📚 Resources Shared</span>
       </div>
-      <div class="stat-card">
-        <span class="num" data-count="287">0+</span>
-        <span class="desc">📝 Previous Questions</span>
+      <div class="stat-card reveal">
+        <span class="num" id="stat-suggestions">—</span>
+        <span class="desc">💡 Suggestions</span>
       </div>
-      <div class="stat-card">
-        <span class="num" data-count="1250">0+</span>
+      <div class="stat-card reveal">
+        <span class="num" id="stat-terms">—</span>
         <span class="desc">📖 Terms Uploaded</span>
       </div>
     </div>
@@ -78,32 +78,32 @@
 <!-- DASHBOARD -->
 <section class="dashboard">
   <div class="container">
-    <h2>Everything you need, in six places</h2>
-    <p class="sub">Pick a section below — each one is being built one at a time.</p>
+    <h2 class="reveal">Everything you need, in six places</h2>
+    <p class="sub reveal">Pick a section below — each one is being built one at a time.</p>
     <div class="card-grid">
 
-      <a href="resources.html" class="seed-card">
+      <a href="resources.html" class="seed-card reveal">
         <span class="tag">SECTION 01</span>
         <div class="icon">📚</div>
         <h3>Resources</h3>
-        <ul><li>Slides &amp; Notes</li><li>Previous Questions</li><li>Upload Resource</li></ul>
+        <ul><li>All Slides</li><li>Suggestions</li><li>Upload Resource</li></ul>
       </a>
 
-      <a href="timeline.html" class="seed-card">
+      <a href="timeline.html" class="seed-card reveal">
         <span class="tag">SECTION 02</span>
         <div class="icon">📅</div>
         <h3>Academic Timeline</h3>
         <ul><li>Academic Calendar</li><li>Upcoming Events</li><li>Countdown Cards</li></ul>
       </a>
 
-      <a href="knowledge-hub.html" class="seed-card">
+      <a href="knowledge-hub.html" class="seed-card reveal">
         <span class="tag">SECTION 03</span>
         <div class="icon">📖</div>
         <h3>Knowledge Hub</h3>
         <ul><li>Agriculture Terms</li><li>Search Terms</li><li>Total Terms Uploaded</li></ul>
       </a>
 
-      <a href="calculators.html" class="seed-card">
+      <a href="calculators.html" class="seed-card reveal">
         <span class="tag">SECTION 04</span>
         <div class="icon">🧮</div>
         <h3>Agriculture Calculators</h3>
@@ -111,7 +111,7 @@
         <div class="construction">🚧 Under construction</div>
       </a>
 
-      <a href="faq.html" class="seed-card">
+      <a href="faq.html" class="seed-card reveal">
         <span class="tag">SECTION 05</span>
         <div class="icon">❓</div>
         <h3>FAQ</h3>
@@ -119,7 +119,7 @@
         <div class="construction">🚧 Under construction</div>
       </a>
 
-      <a href="help.html" class="seed-card">
+      <a href="help.html" class="seed-card reveal">
         <span class="tag">SECTION 06</span>
         <div class="icon">💬</div>
         <h3>Ask For Help</h3>
@@ -160,6 +160,7 @@
   </div>
 </footer>
 
+<script type="module" src="js/stats.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
