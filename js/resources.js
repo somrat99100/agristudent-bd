@@ -114,15 +114,20 @@ if (uploadForm) {
   const courseNameInput = document.getElementById("courseName");
   const facultyNameInput = document.getElementById("facultyName");
 
-  // Auto-fill logic (Allows brand new text safely)
+  // SMART AUTO-FILL: Will not fight you if you type a different name
   if (courseCodeInput) {
-    courseCodeInput.addEventListener("input", (e) => {
+    courseCodeInput.addEventListener("change", (e) => {
       const val = e.target.value.trim().toUpperCase();
       const info = existingCoursesMap[val];
 
       if (info) {
-        courseNameInput.value = info.name;
-        facultyNameInput.value = info.faculty;
+        // Only fills the boxes if you haven't typed anything in them yet
+        if (courseNameInput.value.trim() === "") {
+          courseNameInput.value = info.name;
+        }
+        if (facultyNameInput.value.trim() === "") {
+          facultyNameInput.value = info.faculty;
+        }
       }
     });
   }
@@ -143,7 +148,6 @@ if (uploadForm) {
   }
 
   function showError(msg) {
-    console.warn("Upload Blocked by Error:", msg);
     progressWrap.classList.remove("hidden"); 
     const ringBox = progressWrap.querySelector(".progress-ring-box");
     if (ringBox) ringBox.style.display = "none"; 
@@ -165,19 +169,16 @@ if (uploadForm) {
 
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    console.log("Submit button clicked. Gathering form data...");
 
     try {
-      const courseCode = courseCodeInput.value.trim().toUpperCase();
-      const courseName = courseNameInput.value.trim();
-      const facultyName = facultyNameInput.value.trim();
+      const courseCode = document.getElementById("courseCode").value.trim().toUpperCase();
+      const courseName = document.getElementById("courseName").value.trim();
+      const facultyName = document.getElementById("facultyName").value.trim();
       const resourceType = resourceTypeSelect.value;
       const examType = document.getElementById("examType") ? document.getElementById("examType").value : "";
       const uploaderName = document.getElementById("uploaderName") ? document.getElementById("uploaderName").value.trim() : "";
       const uploaderEmail = document.getElementById("uploaderEmail") ? document.getElementById("uploaderEmail").value.trim() : "";
       const files = Array.from(fileInput.files);
-
-      console.log("Attempting upload for Course Code:", courseCode);
 
       if (files.length === 0) return showError("Please choose at least one file.");
       if (files.length > MAX_FILES) return showError(`Maximum ${MAX_FILES} files allowed.`);
@@ -229,16 +230,13 @@ if (uploadForm) {
       if (uploaderName) docData.uploaderName = uploaderName;
       if (resourceType === "previous_questions" && examType) docData.examType = examType;
 
-      console.log("Saving document to Firebase:", docData);
       await addDoc(collection(db, "resources"), docData);
 
-      console.log("Upload successful!");
       uploadForm.classList.add("hidden");
       statusBox.classList.add("hidden");
       successBox.classList.remove("hidden");
       
     } catch (err) {
-      console.error("Upload failed in catch block:", err);
       showStatus("Something went wrong: " + err.message, true);
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Review";
