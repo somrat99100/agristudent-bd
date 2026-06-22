@@ -10,7 +10,7 @@ function uploadFileToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
-    xhr.timeout = 120000; // 2 min — large files can take a while to send + process
+    xhr.timeout = 120000; 
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && onProgress) {
@@ -37,16 +37,16 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
-// UPLOAD FORM MODAL (resources.html) — opens just like "Submit a Term"
+// UPLOAD FORM MODAL (resources.html)
 // ============================================
 const openUploadBtn = document.getElementById("open-upload-form");
 const uploadModal = document.getElementById("upload-form-modal");
 const uploadModalClose = document.getElementById("upload-form-close");
 
-// NEW: Object to store existing courses temporarily
+// Object to store existing courses temporarily for the auto-fill
 let existingCoursesMap = {};
 
-// NEW: Function to pull existing courses from the database
+// Function to pull existing courses from the database
 async function loadExistingCoursesForForm() {
   try {
     const q = query(collection(db, "resources"), where("status", "==", "approved"));
@@ -95,8 +95,6 @@ if (uploadModal) {
   });
 }
 
-// Pages like All Slides / Suggestions link here with #upload so the
-// "Upload Resource" button at their top jumps straight into the modal.
 if (uploadModal && window.location.hash === "#upload") {
   openUploadModal();
 }
@@ -114,32 +112,21 @@ if (uploadForm) {
   const submitBtn = document.getElementById("upload-submit");
   const successBox = document.getElementById("upload-success");
   
-  // NEW: Auto-fill fields
+  // Input fields
   const courseCodeInput = document.getElementById("courseCode");
   const courseNameInput = document.getElementById("courseName");
   const facultyNameInput = document.getElementById("facultyName");
 
+  // Pure Auto-fill logic (No locking, no blocking)
   if (courseCodeInput) {
     courseCodeInput.addEventListener("input", (e) => {
       const val = e.target.value.trim().toUpperCase();
       const info = existingCoursesMap[val];
 
       if (info) {
-        // Course exists: Auto-fill and lock the fields
+        // Just fill the text in. The user can still edit it, and the form will submit perfectly.
         courseNameInput.value = info.name;
         facultyNameInput.value = info.faculty;
-        courseNameInput.readOnly = true;
-        facultyNameInput.readOnly = true;
-        
-        // Visually indicate the fields are locked
-        courseNameInput.style.opacity = "0.7";
-        facultyNameInput.style.opacity = "0.7";
-      } else {
-        // New Course: Unlock the fields so the user can type
-        courseNameInput.readOnly = false;
-        facultyNameInput.readOnly = false;
-        courseNameInput.style.opacity = "1";
-        facultyNameInput.style.opacity = "1";
       }
     });
   }
@@ -151,7 +138,7 @@ if (uploadForm) {
   const progressWrap = document.getElementById("upload-progress-wrap");
   const progressBar = document.getElementById("progress-ring-bar");
   const progressText = document.getElementById("progress-ring-text");
-  const CIRCUMFERENCE = 226.19; // 2 * π * r(36)
+  const CIRCUMFERENCE = 226.19; 
 
   function setProgress(pct) {
     const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
@@ -246,6 +233,7 @@ if (uploadForm) {
       if (uploaderName) docData.uploaderName = uploaderName;
       if (resourceType === "previous_questions" && examType) docData.examType = examType;
 
+      // This safely adds a NEW record even if data matches perfectly
       await addDoc(collection(db, "resources"), docData);
 
       uploadForm.classList.add("hidden");
