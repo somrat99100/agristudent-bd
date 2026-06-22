@@ -3,8 +3,8 @@ import {
   collection, addDoc, serverTimestamp, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const MAX_FILES = 5;
-const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_FILES = 20;
+const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 function uploadFileToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -134,7 +134,7 @@ if (uploadForm) {
     }
     const oversized = files.find(f => f.size > MAX_SIZE);
     if (oversized) {
-      showError(`"${oversized.name}" is over 20MB. Please reduce file size.`);
+      showError(`"${oversized.name}" is over 50MB. Please reduce file size.`);
       return;
     }
 
