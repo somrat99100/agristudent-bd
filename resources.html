@@ -74,8 +74,7 @@
           <form id="upload-form">
             <div class="form-field">
               <label for="courseCode">Course Code *</label>
-              <input type="text" id="courseCode" list="existing-courses" required placeholder="e.g., AGR 101" autocomplete="off">
-              <datalist id="existing-courses"></datalist>
+              <input type="text" id="courseCode" required placeholder="e.g., AGR 101">
             </div>
             <div class="form-field">
               <label for="courseName">Course Name *</label>
@@ -84,6 +83,7 @@
             <div class="form-field">
               <label for="facultyName">Faculty Name *</label>
               <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences">
+              <small style="display:block;margin-top:0.4rem;color:var(--moss-600);font-size:0.85rem;">Different faculty/section uploading for the same course code? Just enter your own faculty name here.</small>
             </div>
             <div class="form-field">
               <label for="resourceType">Resource Type *</label>
