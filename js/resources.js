@@ -1,6 +1,6 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  collection, addDoc, serverTimestamp, query, where, getDocs
+  collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const MAX_FILES = 20;
@@ -37,54 +37,18 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
-// UPLOAD FORM MODAL
+// UPLOAD FORM MODAL (resources.html)
 // ============================================
 const openUploadBtn = document.getElementById("open-upload-form");
 const uploadModal = document.getElementById("upload-form-modal");
 const uploadModalClose = document.getElementById("upload-form-close");
 
-let existingCoursesMap = {};
-
-async function loadExistingCoursesForForm() {
-  try {
-    const q = query(collection(db, "resources"), where("status", "==", "approved"));
-    const snap = await getDocs(q);
-    existingCoursesMap = {};
-
-    snap.forEach(doc => {
-      const data = doc.data();
-      if (data.courseCode) {
-        const code = data.courseCode.toUpperCase();
-        if (!existingCoursesMap[code]) {
-          existingCoursesMap[code] = {
-            name: data.courseName || "",
-            faculty: data.facultyName || ""
-          };
-        }
-      }
-    });
-
-    const courseDatalist = document.getElementById("existing-courses");
-    if (courseDatalist) {
-      courseDatalist.innerHTML = Object.keys(existingCoursesMap)
-        .sort()
-        .map(code => `<option value="${code}">`)
-        .join("");
-    }
-  } catch (err) {
-    console.error("Failed to load courses for autocomplete:", err);
-  }
-}
-
 function openUploadModal() {
   if (uploadModal) uploadModal.classList.remove("hidden");
-  loadExistingCoursesForForm(); 
 }
-
 function closeUploadModal() {
   if (uploadModal) uploadModal.classList.add("hidden");
 }
-
 if (openUploadBtn) openUploadBtn.addEventListener("click", openUploadModal);
 if (uploadModalClose) uploadModalClose.addEventListener("click", closeUploadModal);
 if (uploadModal) {
@@ -92,16 +56,14 @@ if (uploadModal) {
     if (e.target === uploadModal) closeUploadModal();
   });
 }
-
 if (uploadModal && window.location.hash === "#upload") {
   openUploadModal();
 }
 
 // ============================================
-// UPLOAD FORM
+// UPLOAD FORM (resources.html)
 // ============================================
 const uploadForm = document.getElementById("upload-form");
-
 if (uploadForm) {
   const resourceTypeSelect = document.getElementById("resourceType");
   const examTypeWrap = document.getElementById("examType-wrap");
@@ -114,23 +76,32 @@ if (uploadForm) {
   const courseNameInput = document.getElementById("courseName");
   const facultyNameInput = document.getElementById("facultyName");
 
-  // SMART AUTO-FILL: Will not fight you if you type a different name
-  if (courseCodeInput) {
-    courseCodeInput.addEventListener("change", (e) => {
-      const val = e.target.value.trim().toUpperCase();
-      const info = existingCoursesMap[val];
+  let matchedCourse = null;
 
-      if (info) {
-        // Only fills the boxes if you haven't typed anything in them yet
-        if (courseNameInput.value.trim() === "") {
-          courseNameInput.value = info.name;
-        }
-        if (facultyNameInput.value.trim() === "") {
-          facultyNameInput.value = info.faculty;
-        }
+  // Canonical course checking logic
+  courseCodeInput.addEventListener("blur", async () => {
+    const code = courseCodeInput.value.trim().toUpperCase();
+    if (!code) {
+      matchedCourse = null;
+      courseNameInput.readOnly = false;
+      courseNameInput.value = "";
+      return;
+    }
+    try {
+      const courseSnap = await getDoc(doc(db, "courses", code));
+      if (courseSnap.exists()) {
+        matchedCourse = courseSnap.data();
+        courseNameInput.value = matchedCourse.courseName;
+        courseNameInput.readOnly = true;
+        facultyNameInput.readOnly = false; // Faculty is strictly open
+      } else {
+        matchedCourse = null;
+        courseNameInput.readOnly = false;
       }
-    });
-  }
+    } catch (err) {
+      console.error("Error checking canonical course:", err);
+    }
+  });
 
   resourceTypeSelect.addEventListener("change", () => {
     examTypeWrap.classList.toggle("hidden", resourceTypeSelect.value !== "previous_questions");
@@ -148,10 +119,7 @@ if (uploadForm) {
   }
 
   function showError(msg) {
-    progressWrap.classList.remove("hidden"); 
-    const ringBox = progressWrap.querySelector(".progress-ring-box");
-    if (ringBox) ringBox.style.display = "none"; 
-
+    progressWrap.classList.add("hidden");
     statusBox.textContent = msg;
     statusBox.style.color = "var(--terracotta-500)";
     statusBox.classList.remove("hidden");
@@ -159,41 +127,52 @@ if (uploadForm) {
 
   function showStatus(msg, isError = false) {
     progressWrap.classList.remove("hidden");
-    const ringBox = progressWrap.querySelector(".progress-ring-box");
-    if (ringBox) ringBox.style.display = "flex"; 
-
     statusBox.textContent = msg;
     statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-    if (isError && progressBar) progressBar.style.stroke = "var(--terracotta-500)";
+    if (isError) progressBar.style.stroke = "var(--terracotta-500)";
   }
 
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    const rawCourseCode = courseCodeInput.value.trim().toUpperCase();
+    const rawCourseName = courseNameInput.value.trim();
+    const facultyName = facultyNameInput.value.trim();
+    const resourceType = resourceTypeSelect.value;
+    const examType = document.getElementById("examType").value;
+    const uploaderName = document.getElementById("uploaderName").value.trim();
+    const uploaderEmail = document.getElementById("uploaderEmail").value.trim();
+    const files = Array.from(fileInput.files);
+
+    if (files.length === 0) {
+      showError("Please choose at least one file.");
+      return;
+    }
+    if (files.length > MAX_FILES) {
+      showError(`Maximum ${MAX_FILES} files allowed.`);
+      return;
+    }
+    const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
+    if (nonPdf) {
+      showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`);
+      return;
+    }
+    const oversized = files.find(f => f.size > MAX_SIZE);
+    if (oversized) {
+      showError(`"${oversized.name}" is over 50MB. Please reduce file size.`);
+      return;
+    }
+
+    // Assign canonical overrides
+    const finalCourseCode = matchedCourse ? matchedCourse.courseCode : rawCourseCode;
+    const finalCourseName = matchedCourse ? matchedCourse.courseName : rawCourseName;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Uploading…";
+    setProgress(0);
+    showStatus(`Uploading ${files.length} file(s) in parallel…`);
+
     try {
-      const courseCode = document.getElementById("courseCode").value.trim().toUpperCase();
-      const courseName = document.getElementById("courseName").value.trim();
-      const facultyName = document.getElementById("facultyName").value.trim();
-      const resourceType = resourceTypeSelect.value;
-      const examType = document.getElementById("examType") ? document.getElementById("examType").value : "";
-      const uploaderName = document.getElementById("uploaderName") ? document.getElementById("uploaderName").value.trim() : "";
-      const uploaderEmail = document.getElementById("uploaderEmail") ? document.getElementById("uploaderEmail").value.trim() : "";
-      const files = Array.from(fileInput.files);
-
-      if (files.length === 0) return showError("Please choose at least one file.");
-      if (files.length > MAX_FILES) return showError(`Maximum ${MAX_FILES} files allowed.`);
-      
-      const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
-      if (nonPdf) return showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`);
-      
-      const oversized = files.find(f => f.size > MAX_SIZE);
-      if (oversized) return showError(`"${oversized.name}" is over 50MB. Please reduce file size.`);
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Uploading…";
-      setProgress(0);
-      showStatus(`Uploading ${files.length} file(s) in parallel…`);
-
       const progressByFile = new Array(files.length).fill(0);
       const updateOverall = () => {
         const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
@@ -217,10 +196,19 @@ if (uploadForm) {
       showStatus("Saving details…");
       setProgress(100);
 
+      // Create new canonical course if it doesn't exist, strictly dropping facultyName
+      if (!matchedCourse) {
+        await setDoc(doc(db, "courses", finalCourseCode), {
+          courseCode: finalCourseCode,
+          courseName: finalCourseName
+        });
+      }
+
+      // Write resource payload
       const docData = {
-        courseCode,
-        courseName,
-        facultyName,
+        courseCode: finalCourseCode,
+        courseName: finalCourseName,
+        facultyName: facultyName, // Never overridden
         resourceType,
         uploaderEmail,
         fileUrls,
@@ -232,11 +220,17 @@ if (uploadForm) {
 
       await addDoc(collection(db, "resources"), docData);
 
+      uploadForm.reset();
       uploadForm.classList.add("hidden");
       statusBox.classList.add("hidden");
       successBox.classList.remove("hidden");
       
+      // Reset state 
+      matchedCourse = null;
+      courseNameInput.readOnly = false;
+      
     } catch (err) {
+      console.error(err);
       showStatus("Something went wrong: " + err.message, true);
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Review";
@@ -245,7 +239,7 @@ if (uploadForm) {
 }
 
 // ============================================
-// SLIDES & NOTES BROWSING 
+// SLIDES & NOTES BROWSING (slides-notes.html)
 // ============================================
 const courseButtonsWrap = document.getElementById("course-buttons");
 const slidesList = document.getElementById("slides-list");
@@ -315,7 +309,7 @@ if (courseButtonsWrap) {
 }
 
 // ============================================
-// SUGGESTIONS ACCESS GATE 
+// SUGGESTIONS ACCESS GATE (previous-questions.html)
 // ============================================
 const pqList = document.getElementById("pq-list");
 const pqSearchBtn = document.getElementById("pq-search-btn");
@@ -395,7 +389,7 @@ if (pqList && pqGate && pqContent) {
 }
 
 // ============================================
-// PREVIOUS QUESTIONS BROWSING
+// PREVIOUS QUESTIONS BROWSING (previous-questions.html)
 // ============================================
 if (pqList) {
   loadPQ = async function loadPQ() {
