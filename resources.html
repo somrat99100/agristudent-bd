@@ -74,7 +74,8 @@
           <form id="upload-form">
             <div class="form-field">
               <label for="courseCode">Course Code *</label>
-              <input type="text" id="courseCode" required placeholder="e.g., AGR 101">
+              <input type="text" id="courseCode" list="existing-courses" required placeholder="e.g., AGR 101" autocomplete="off">
+              <datalist id="existing-courses"></datalist>
             </div>
             <div class="form-field">
               <label for="courseName">Course Name *</label>
