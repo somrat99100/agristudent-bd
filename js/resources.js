@@ -223,9 +223,17 @@ if (courseButtonsWrap) {
       courseButtonsWrap.innerHTML = `<p style="color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;">No approved course materials yet — check back soon.</p>`;
       return;
     }
-    courseButtonsWrap.innerHTML = codes.map(code =>
-      `<button class="course-btn" data-code="${code}">${code}</button>`
-    ).join("");
+    courseButtonsWrap.innerHTML = codes.map(code => {
+      const faculty = [...new Set(
+        items.filter(i => i.courseCode === code).map(i => i.facultyName).filter(Boolean)
+      )].join(", ");
+      return `
+        <button class="course-btn" data-code="${code}">
+          ${code}
+          ${faculty ? `<div style="font-size:.7rem;font-weight:400;color:inherit;opacity:.75;margin-top:.2rem;">${faculty}</div>` : ""}
+        </button>
+      `;
+    }).join("");
     courseButtonsWrap.querySelectorAll(".course-btn").forEach(btn => {
       btn.addEventListener("click", () => renderResourceList(btn.dataset.code));
     });
@@ -239,7 +247,7 @@ if (courseButtonsWrap) {
         <div class="resource-row">
           <div>
             <strong>${item.courseName || code}</strong>
-            <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)${item.facultyName ? " · " + item.facultyName : ""}</div>
+            <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)</div>
           </div>
           <div class="resource-row-files">
             ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View: ${f.name}</a>`).join("")}
