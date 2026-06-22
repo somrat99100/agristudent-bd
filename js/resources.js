@@ -37,16 +37,14 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
-// UPLOAD FORM MODAL (resources.html)
+// UPLOAD FORM MODAL
 // ============================================
 const openUploadBtn = document.getElementById("open-upload-form");
 const uploadModal = document.getElementById("upload-form-modal");
 const uploadModalClose = document.getElementById("upload-form-close");
 
-// Object to store existing courses temporarily for the auto-fill
 let existingCoursesMap = {};
 
-// Function to pull existing courses from the database
 async function loadExistingCoursesForForm() {
   try {
     const q = query(collection(db, "resources"), where("status", "==", "approved"));
@@ -80,7 +78,7 @@ async function loadExistingCoursesForForm() {
 
 function openUploadModal() {
   if (uploadModal) uploadModal.classList.remove("hidden");
-  loadExistingCoursesForForm(); // Fetch courses when modal opens
+  loadExistingCoursesForForm(); 
 }
 
 function closeUploadModal() {
@@ -100,7 +98,7 @@ if (uploadModal && window.location.hash === "#upload") {
 }
 
 // ============================================
-// UPLOAD FORM (resources.html)
+// UPLOAD FORM
 // ============================================
 const uploadForm = document.getElementById("upload-form");
 
@@ -112,19 +110,17 @@ if (uploadForm) {
   const submitBtn = document.getElementById("upload-submit");
   const successBox = document.getElementById("upload-success");
   
-  // Input fields
   const courseCodeInput = document.getElementById("courseCode");
   const courseNameInput = document.getElementById("courseName");
   const facultyNameInput = document.getElementById("facultyName");
 
-  // Pure Auto-fill logic (No locking, no blocking)
+  // Auto-fill logic (Allows brand new text safely)
   if (courseCodeInput) {
     courseCodeInput.addEventListener("input", (e) => {
       const val = e.target.value.trim().toUpperCase();
       const info = existingCoursesMap[val];
 
       if (info) {
-        // Just fill the text in. The user can still edit it, and the form will submit perfectly.
         courseNameInput.value = info.name;
         facultyNameInput.value = info.faculty;
       }
@@ -147,7 +143,11 @@ if (uploadForm) {
   }
 
   function showError(msg) {
-    progressWrap.classList.add("hidden");
+    console.warn("Upload Blocked by Error:", msg);
+    progressWrap.classList.remove("hidden"); 
+    const ringBox = progressWrap.querySelector(".progress-ring-box");
+    if (ringBox) ringBox.style.display = "none"; 
+
     statusBox.textContent = msg;
     statusBox.style.color = "var(--terracotta-500)";
     statusBox.classList.remove("hidden");
@@ -155,48 +155,44 @@ if (uploadForm) {
 
   function showStatus(msg, isError = false) {
     progressWrap.classList.remove("hidden");
+    const ringBox = progressWrap.querySelector(".progress-ring-box");
+    if (ringBox) ringBox.style.display = "flex"; 
+
     statusBox.textContent = msg;
     statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-    if (isError) progressBar.style.stroke = "var(--terracotta-500)";
+    if (isError && progressBar) progressBar.style.stroke = "var(--terracotta-500)";
   }
 
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-
-    const courseCode = courseCodeInput.value.trim().toUpperCase();
-    const courseName = courseNameInput.value.trim();
-    const facultyName = facultyNameInput.value.trim();
-    const resourceType = resourceTypeSelect.value;
-    const examType = document.getElementById("examType").value;
-    const uploaderName = document.getElementById("uploaderName").value.trim();
-    const uploaderEmail = document.getElementById("uploaderEmail").value.trim();
-    const files = Array.from(fileInput.files);
-
-    if (files.length === 0) {
-      showError("Please choose at least one file.");
-      return;
-    }
-    if (files.length > MAX_FILES) {
-      showError(`Maximum ${MAX_FILES} files allowed.`);
-      return;
-    }
-    const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
-    if (nonPdf) {
-      showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`);
-      return;
-    }
-    const oversized = files.find(f => f.size > MAX_SIZE);
-    if (oversized) {
-      showError(`"${oversized.name}" is over 50MB. Please reduce file size.`);
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Uploading…";
-    setProgress(0);
-    showStatus(`Uploading ${files.length} file(s) in parallel…`);
+    console.log("Submit button clicked. Gathering form data...");
 
     try {
+      const courseCode = courseCodeInput.value.trim().toUpperCase();
+      const courseName = courseNameInput.value.trim();
+      const facultyName = facultyNameInput.value.trim();
+      const resourceType = resourceTypeSelect.value;
+      const examType = document.getElementById("examType") ? document.getElementById("examType").value : "";
+      const uploaderName = document.getElementById("uploaderName") ? document.getElementById("uploaderName").value.trim() : "";
+      const uploaderEmail = document.getElementById("uploaderEmail") ? document.getElementById("uploaderEmail").value.trim() : "";
+      const files = Array.from(fileInput.files);
+
+      console.log("Attempting upload for Course Code:", courseCode);
+
+      if (files.length === 0) return showError("Please choose at least one file.");
+      if (files.length > MAX_FILES) return showError(`Maximum ${MAX_FILES} files allowed.`);
+      
+      const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
+      if (nonPdf) return showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`);
+      
+      const oversized = files.find(f => f.size > MAX_SIZE);
+      if (oversized) return showError(`"${oversized.name}" is over 50MB. Please reduce file size.`);
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading…";
+      setProgress(0);
+      showStatus(`Uploading ${files.length} file(s) in parallel…`);
+
       const progressByFile = new Array(files.length).fill(0);
       const updateOverall = () => {
         const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
@@ -233,14 +229,16 @@ if (uploadForm) {
       if (uploaderName) docData.uploaderName = uploaderName;
       if (resourceType === "previous_questions" && examType) docData.examType = examType;
 
-      // This safely adds a NEW record even if data matches perfectly
+      console.log("Saving document to Firebase:", docData);
       await addDoc(collection(db, "resources"), docData);
 
+      console.log("Upload successful!");
       uploadForm.classList.add("hidden");
       statusBox.classList.add("hidden");
       successBox.classList.remove("hidden");
+      
     } catch (err) {
-      console.error(err);
+      console.error("Upload failed in catch block:", err);
       showStatus("Something went wrong: " + err.message, true);
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Review";
@@ -249,7 +247,7 @@ if (uploadForm) {
 }
 
 // ============================================
-// SLIDES & NOTES BROWSING (slides-notes.html)
+// SLIDES & NOTES BROWSING 
 // ============================================
 const courseButtonsWrap = document.getElementById("course-buttons");
 const slidesList = document.getElementById("slides-list");
@@ -319,7 +317,7 @@ if (courseButtonsWrap) {
 }
 
 // ============================================
-// SUGGESTIONS ACCESS GATE (previous-questions.html)
+// SUGGESTIONS ACCESS GATE 
 // ============================================
 const pqList = document.getElementById("pq-list");
 const pqSearchBtn = document.getElementById("pq-search-btn");
@@ -399,7 +397,7 @@ if (pqList && pqGate && pqContent) {
 }
 
 // ============================================
-// PREVIOUS QUESTIONS BROWSING (previous-questions.html)
+// PREVIOUS QUESTIONS BROWSING
 // ============================================
 if (pqList) {
   loadPQ = async function loadPQ() {
