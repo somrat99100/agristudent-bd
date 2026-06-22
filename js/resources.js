@@ -239,7 +239,7 @@ if (courseButtonsWrap) {
         <div class="resource-row">
           <div>
             <strong>${item.courseName || code}</strong>
-            <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)</div>
+            <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)${item.facultyName ? " · " + item.facultyName : ""}</div>
           </div>
           <div class="resource-row-files">
             ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View: ${f.name}</a>`).join("")}
