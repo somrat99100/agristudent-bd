@@ -43,12 +43,50 @@ const openUploadBtn = document.getElementById("open-upload-form");
 const uploadModal = document.getElementById("upload-form-modal");
 const uploadModalClose = document.getElementById("upload-form-close");
 
+// NEW: Object to store existing courses temporarily
+let existingCoursesMap = {};
+
+// NEW: Function to pull existing courses from the database
+async function loadExistingCoursesForForm() {
+  try {
+    const q = query(collection(db, "resources"), where("status", "==", "approved"));
+    const snap = await getDocs(q);
+    existingCoursesMap = {};
+
+    snap.forEach(doc => {
+      const data = doc.data();
+      if (data.courseCode) {
+        const code = data.courseCode.toUpperCase();
+        if (!existingCoursesMap[code]) {
+          existingCoursesMap[code] = {
+            name: data.courseName || "",
+            faculty: data.facultyName || ""
+          };
+        }
+      }
+    });
+
+    const courseDatalist = document.getElementById("existing-courses");
+    if (courseDatalist) {
+      courseDatalist.innerHTML = Object.keys(existingCoursesMap)
+        .sort()
+        .map(code => `<option value="${code}">`)
+        .join("");
+    }
+  } catch (err) {
+    console.error("Failed to load courses for autocomplete:", err);
+  }
+}
+
 function openUploadModal() {
   if (uploadModal) uploadModal.classList.remove("hidden");
+  loadExistingCoursesForForm(); // Fetch courses when modal opens
 }
+
 function closeUploadModal() {
   if (uploadModal) uploadModal.classList.add("hidden");
 }
+
 if (openUploadBtn) openUploadBtn.addEventListener("click", openUploadModal);
 if (uploadModalClose) uploadModalClose.addEventListener("click", closeUploadModal);
 if (uploadModal) {
@@ -56,6 +94,7 @@ if (uploadModal) {
     if (e.target === uploadModal) closeUploadModal();
   });
 }
+
 // Pages like All Slides / Suggestions link here with #upload so the
 // "Upload Resource" button at their top jumps straight into the modal.
 if (uploadModal && window.location.hash === "#upload") {
@@ -66,6 +105,7 @@ if (uploadModal && window.location.hash === "#upload") {
 // UPLOAD FORM (resources.html)
 // ============================================
 const uploadForm = document.getElementById("upload-form");
+
 if (uploadForm) {
   const resourceTypeSelect = document.getElementById("resourceType");
   const examTypeWrap = document.getElementById("examType-wrap");
@@ -73,6 +113,36 @@ if (uploadForm) {
   const statusBox = document.getElementById("upload-status");
   const submitBtn = document.getElementById("upload-submit");
   const successBox = document.getElementById("upload-success");
+  
+  // NEW: Auto-fill fields
+  const courseCodeInput = document.getElementById("courseCode");
+  const courseNameInput = document.getElementById("courseName");
+  const facultyNameInput = document.getElementById("facultyName");
+
+  if (courseCodeInput) {
+    courseCodeInput.addEventListener("input", (e) => {
+      const val = e.target.value.trim().toUpperCase();
+      const info = existingCoursesMap[val];
+
+      if (info) {
+        // Course exists: Auto-fill and lock the fields
+        courseNameInput.value = info.name;
+        facultyNameInput.value = info.faculty;
+        courseNameInput.readOnly = true;
+        facultyNameInput.readOnly = true;
+        
+        // Visually indicate the fields are locked
+        courseNameInput.style.opacity = "0.7";
+        facultyNameInput.style.opacity = "0.7";
+      } else {
+        // New Course: Unlock the fields so the user can type
+        courseNameInput.readOnly = false;
+        facultyNameInput.readOnly = false;
+        courseNameInput.style.opacity = "1";
+        facultyNameInput.style.opacity = "1";
+      }
+    });
+  }
 
   resourceTypeSelect.addEventListener("change", () => {
     examTypeWrap.classList.toggle("hidden", resourceTypeSelect.value !== "previous_questions");
@@ -89,8 +159,6 @@ if (uploadForm) {
     progressText.textContent = pct + "%";
   }
 
-  // Pre-submit validation errors (file too big, wrong type, etc.) — shown
-  // without the progress ring, since no upload has started yet.
   function showError(msg) {
     progressWrap.classList.add("hidden");
     statusBox.textContent = msg;
@@ -98,8 +166,6 @@ if (uploadForm) {
     statusBox.classList.remove("hidden");
   }
 
-  // In-progress / outcome messages — ring + label stay visible together,
-  // including on failure, so the person can actually see what happened.
   function showStatus(msg, isError = false) {
     progressWrap.classList.remove("hidden");
     statusBox.textContent = msg;
@@ -110,9 +176,9 @@ if (uploadForm) {
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const courseCode = document.getElementById("courseCode").value.trim().toUpperCase();
-    const courseName = document.getElementById("courseName").value.trim();
-    const facultyName = document.getElementById("facultyName").value.trim();
+    const courseCode = courseCodeInput.value.trim().toUpperCase();
+    const courseName = courseNameInput.value.trim();
+    const facultyName = facultyNameInput.value.trim();
     const resourceType = resourceTypeSelect.value;
     const examType = document.getElementById("examType").value;
     const uploaderName = document.getElementById("uploaderName").value.trim();
@@ -144,8 +210,6 @@ if (uploadForm) {
     showStatus(`Uploading ${files.length} file(s) in parallel…`);
 
     try {
-      // Upload all files at once instead of one-by-one — cuts total wait time
-      // roughly to "slowest single file" instead of "sum of all files".
       const progressByFile = new Array(files.length).fill(0);
       const updateOverall = () => {
         const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
@@ -268,13 +332,12 @@ if (courseButtonsWrap) {
 
 // ============================================
 // SUGGESTIONS ACCESS GATE (previous-questions.html)
-// Restricted: must enter a registered Student ID before viewing.
 // ============================================
 const pqList = document.getElementById("pq-list");
 const pqSearchBtn = document.getElementById("pq-search-btn");
 const pqGate = document.getElementById("pq-gate");
 const pqContent = document.getElementById("pq-content");
-let loadPQ; // assigned below once we know pqList exists; gate's grantAccess() calls it
+let loadPQ; 
 
 if (pqList && pqGate && pqContent) {
   const gateInput = document.getElementById("pq-gate-input");
@@ -293,7 +356,6 @@ if (pqList && pqGate && pqContent) {
     loadPQ();
   }
 
-  // Already verified earlier this session — skip re-asking.
   if (sessionStorage.getItem("pq_access") === "granted") {
     grantAccess();
   } else {
