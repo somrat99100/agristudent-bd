@@ -1,6 +1,6 @@
 import { db, auth } from "./firebase-config.js";
 import {
-  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch
+  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -57,6 +57,7 @@ const tabs = {
   timeline: { btn: document.getElementById("tab-timeline"), panel: document.getElementById("timeline-panel"), load: loadTimeline },
   registrations: { btn: document.getElementById("tab-registrations"), panel: document.getElementById("registrations-panel"), load: loadRegistrations },
   messages: { btn: document.getElementById("tab-messages"), panel: document.getElementById("messages-panel"), load: loadMessages },
+  alumni: { btn: document.getElementById("tab-alumni"), panel: document.getElementById("alumni-panel"), load: loadAlumni },
   danger: { btn: document.getElementById("tab-danger"), panel: document.getElementById("danger-panel"), load: () => {} }
 };
 
@@ -73,7 +74,7 @@ Object.entries(tabs).forEach(([key, tab]) => {
 });
 
 // ============================================
-// RESOURCES
+// RESOURCES (with per-file delete)
 // ============================================
 async function loadResources() {
   list.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
@@ -87,15 +88,26 @@ async function loadResources() {
     const item = d.data();
     const row = document.createElement("div");
     row.className = "resource-row";
+
+    const filesHtml = (item.fileUrls || []).map((f, idx) => `
+      <div style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem;">
+        <a href="${f.url}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);flex:1;">${f.name}</a>
+        <button class="delete-file-btn" data-docid="${d.id}" data-idx="${idx}"
+          style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.2rem .5rem;border-radius:5px;font-size:.7rem;cursor:pointer;white-space:nowrap;">
+          🗑 Remove
+        </button>
+      </div>
+    `).join("");
+
     row.innerHTML = `
-      <div>
+      <div style="flex:1;">
         <strong>${item.courseCode} — ${item.courseName || ""}</strong>
         <div style="font-size:.8rem;color:var(--moss-600);">
           ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 All Slides"}
           ${item.examType ? " · " + item.examType : ""} · ${item.facultyName || ""}
         </div>
         <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${item.uploaderName || "—"} (${item.uploaderEmail || "no email"})</div>
-        <div style="margin-top:.4rem;">${(item.fileUrls || []).map(f => `<a href="${f.url}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);">${f.name}</a>`).join(" · ")}</div>
+        <div style="margin-top:.3rem;">${filesHtml}</div>
       </div>
       <div>
         <select data-id="${d.id}" class="status-select">
@@ -117,13 +129,104 @@ async function loadResources() {
       finally { e.target.disabled = false; }
     });
   });
+
+  // Per-file delete
+  list.querySelectorAll(".delete-file-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const { docid, idx } = btn.dataset;
+      if (!confirm("Remove this file from the resource? This cannot be undone.")) return;
+      btn.disabled = true;
+      btn.textContent = "Removing…";
+      try {
+        const ref = doc(db, "resources", docid);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error("Resource not found.");
+        const fileUrls = [...(snap.data().fileUrls || [])];
+        fileUrls.splice(Number(idx), 1);
+        await updateDoc(ref, { fileUrls });
+        loadResources();
+      } catch (err) {
+        alert("Failed to remove file: " + err.message);
+        btn.disabled = false;
+        btn.textContent = "🗑 Remove";
+      }
+    });
+  });
 }
 
 // ============================================
-// TERMS
+// TERMS (with inline edit for name & description)
 // ============================================
+
+// Shared edit modal — injected once into DOM
+function ensureTermEditModal() {
+  if (document.getElementById("admin-term-edit-modal")) return;
+  const modal = document.createElement("div");
+  modal.id = "admin-term-edit-modal";
+  modal.style.cssText = "display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;";
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:2rem;width:90%;max-width:500px;position:relative;">
+      <button id="term-edit-close" style="position:absolute;top:.8rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;">✕</button>
+      <h3 style="margin-bottom:1.2rem;font-size:1.1rem;">✏️ Edit Term</h3>
+      <input type="hidden" id="term-edit-id">
+      <div style="margin-bottom:.9rem;">
+        <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:.3rem;">Term Name</label>
+        <input type="text" id="term-edit-name" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div style="margin-bottom:.9rem;">
+        <label style="display:block;font-weight:600;font-size:.88rem;margin-bottom:.3rem;">Description</label>
+        <p style="font-size:.75rem;color:var(--moss-600);margin:0 0 .3rem;font-family:var(--font-mono);">Use **double asterisks** for <strong>bold</strong> text.</p>
+        <textarea id="term-edit-desc" rows="6" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:var(--font-body);resize:vertical;"></textarea>
+      </div>
+      <button id="term-edit-save" class="btn-primary" style="width:100%;">Save Changes</button>
+      <p id="term-edit-status" style="text-align:center;font-size:.85rem;margin-top:.6rem;display:none;"></p>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById("term-edit-close").addEventListener("click", () => {
+    modal.style.display = "none";
+  });
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
+
+  document.getElementById("term-edit-save").addEventListener("click", async () => {
+    const id = document.getElementById("term-edit-id").value;
+    const name = document.getElementById("term-edit-name").value.trim();
+    const description = document.getElementById("term-edit-desc").value.trim();
+    const statusEl = document.getElementById("term-edit-status");
+    const saveBtn = document.getElementById("term-edit-save");
+
+    if (!name || !description) {
+      statusEl.textContent = "Name and description are required.";
+      statusEl.style.color = "var(--terracotta-500)";
+      statusEl.style.display = "block";
+      return;
+    }
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    statusEl.style.display = "none";
+    try {
+      await updateDoc(doc(db, "terms", id), { name, description, editedAt: new Date() });
+      statusEl.textContent = "✅ Saved!";
+      statusEl.style.color = "var(--leaf-500)";
+      statusEl.style.display = "block";
+      setTimeout(() => {
+        modal.style.display = "none";
+        loadTerms();
+      }, 800);
+    } catch (err) {
+      statusEl.textContent = "Failed: " + err.message;
+      statusEl.style.color = "var(--terracotta-500)";
+      statusEl.style.display = "block";
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Changes";
+    }
+  });
+}
+
 async function loadTerms() {
   termList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
+  ensureTermEditModal();
   const q = query(collection(db, "terms"), orderBy("submittedAt", "desc"));
   const snap = await getDocs(q);
 
@@ -135,13 +238,17 @@ async function loadTerms() {
     const row = document.createElement("div");
     row.className = "resource-row";
     row.innerHTML = `
-      <div style="display:flex;gap:.8rem;align-items:flex-start;">
+      <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
         <img src="${item.imageUrl}" alt="${item.name}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;">
-        <div>
+        <div style="flex:1;">
           <strong>${item.name}</strong>
           ${item.possibleDuplicate ? '<span style="color:var(--terracotta-500);font-size:.75rem;margin-left:.4rem;">⚠️ possible duplicate</span>' : ''}
           <div style="font-size:.8rem;color:var(--moss-600);max-width:380px;margin-top:.2rem;">${(item.description || "").slice(0, 140)}${(item.description || "").length > 140 ? "…" : ""}</div>
           <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${item.uploaderEmail || "—"}</div>
+          <button class="edit-term-btn" data-id="${d.id}" data-name="${encodeURIComponent(item.name)}" data-desc="${encodeURIComponent(item.description || "")}"
+            style="margin-top:.5rem;background:none;border:1px solid var(--moss-600);color:var(--moss-700);padding:.25rem .65rem;border-radius:6px;font-size:.75rem;cursor:pointer;">
+            ✏️ Edit Name & Description
+          </button>
         </div>
       </div>
       <div>
@@ -162,6 +269,16 @@ async function loadTerms() {
         e.target.style.borderColor = "var(--leaf-500)";
       } catch (err) { alert("Failed: " + err.message); }
       finally { e.target.disabled = false; }
+    });
+  });
+
+  termList.querySelectorAll(".edit-term-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("term-edit-id").value = btn.dataset.id;
+      document.getElementById("term-edit-name").value = decodeURIComponent(btn.dataset.name);
+      document.getElementById("term-edit-desc").value = decodeURIComponent(btn.dataset.desc);
+      document.getElementById("term-edit-status").style.display = "none";
+      document.getElementById("admin-term-edit-modal").style.display = "flex";
     });
   });
 }
@@ -301,6 +418,71 @@ async function loadMessages() {
 }
 
 // ============================================
+// ALUMNI
+// ============================================
+const alumniList = document.getElementById("admin-alumni-list");
+
+async function loadAlumni() {
+  alumniList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
+  const q = query(collection(db, "alumni"), orderBy("submittedAt", "desc"));
+  const snap = await getDocs(q);
+
+  if (snap.empty) { alumniList.innerHTML = `<p style="color:var(--moss-600);">No alumni profiles submitted yet.</p>`; return; }
+
+  alumniList.innerHTML = "";
+  snap.forEach(d => {
+    const item = d.data();
+    const row = document.createElement("div");
+    row.className = "resource-row";
+    row.innerHTML = `
+      <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
+        ${item.photoUrl ? `<img src="${item.photoUrl}" alt="${item.fullName}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--paper-100);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🎓</div>`}
+        <div style="flex:1;">
+          <strong>${item.fullName}</strong>
+          <span style="font-size:.75rem;color:var(--moss-600);margin-left:.5rem;">Batch ${item.batch || "—"}</span><br>
+          <span style="font-size:.8rem;color:var(--moss-600);">ID: ${item.studentId} · ${item.email}</span><br>
+          ${item.phone ? `<span style="font-size:.78rem;color:var(--moss-600);">📞 ${item.phone}</span><br>` : ""}
+          <span style="font-size:.8rem;color:var(--moss-700);margin-top:.2rem;display:block;">💼 ${item.currentJob || "No job info"}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
+        <select data-id="${d.id}" class="status-select-alumni" style="font-size:.82rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;">
+          <option value="pending" ${(!item.status || item.status === "pending") ? "selected" : ""}>🕓 Pending</option>
+          <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
+          <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
+        </select>
+        <button class="delete-alumni-btn" data-id="${d.id}"
+          style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.25rem .65rem;border-radius:6px;font-size:.75rem;cursor:pointer;">
+          🗑 Delete
+        </button>
+      </div>`;
+    alumniList.appendChild(row);
+  });
+
+  alumniList.querySelectorAll(".status-select-alumni").forEach(sel => {
+    sel.addEventListener("change", async (e) => {
+      e.target.disabled = true;
+      try {
+        await updateDoc(doc(db, "alumni", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
+        e.target.style.borderColor = "var(--leaf-500)";
+      } catch (err) { alert("Failed: " + err.message); }
+      finally { e.target.disabled = false; }
+    });
+  });
+
+  alumniList.querySelectorAll(".delete-alumni-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Permanently delete this alumni profile?")) return;
+      btn.disabled = true;
+      try {
+        await deleteDoc(doc(db, "alumni", btn.dataset.id));
+        loadAlumni();
+      } catch (err) { alert("Failed: " + err.message); btn.disabled = false; }
+    });
+  });
+}
+
+// ============================================
 // DANGER ZONE — bulk delete (clear test data)
 // ============================================
 const dangerResult = document.getElementById("danger-result");
@@ -347,6 +529,7 @@ document.querySelectorAll(".danger-delete-btn").forEach(btn => {
       if (collectionName === "registrations") loadRegistrations();
       if (collectionName === "timeline") loadTimeline();
       if (collectionName === "messages") loadMessages();
+      if (collectionName === "alumni") loadAlumni();
     } catch (err) {
       dangerResult.textContent = "❌ Failed: " + err.message;
       dangerResult.style.color = "var(--terracotta-500)";
