@@ -275,7 +275,7 @@ form.addEventListener("submit", async (e) => {
   const photoFile = document.getElementById("alumni-photo").files[0];
 
   if (!photoFile) { showError("Please select a photo."); return; }
-  if (photoFile.size > 5 * 1024 * 1024) { showError("Photo must be under 5MB."); return; }
+  if (photoFile.size > 10 * 1024 * 1024) { showError("Photo must be under 10MB."); return; }
 
   // Check for duplicate studentId
   try {
