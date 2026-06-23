@@ -132,6 +132,19 @@ async function loadTerms() {
   }
 }
 
+// Renders **bold** markdown syntax in description text safely
+function renderDescription(text) {
+  if (!text) return "";
+  // Escape HTML first, then convert **text** to <strong>
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
+}
+
 function renderGrid(terms) {
   if (terms.length === 0) {
     grid.innerHTML = `<p style="color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;grid-column:1/-1;">No terms yet — be the first to add one below.</p>`;
@@ -165,7 +178,7 @@ function openModal(term) {
   modalImg.classList.remove("zoomed");
   
   modalName.textContent = term.name;
-  modalDesc.textContent = term.description;
+  modalDesc.innerHTML = renderDescription(term.description);
   modal.classList.remove("hidden");
 }
 
