@@ -78,18 +78,39 @@
   }
 
   /* Profile detail modal */
-  .alumni-modal-avatar {
-    width: 100px;
-    height: 100px;
+  /* Override global modal-box styles for alumni profile modal */
+  #alumni-profile-modal .modal-box {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  #alumni-profile-modal .modal-box img {
+    width: 110px;
+    height: 110px;
+    min-width: 110px;
+    min-height: 110px;
+    max-width: 110px;
     border-radius: 50%;
     object-fit: cover;
+    object-position: center top;
+  }
+  .alumni-modal-avatar {
+    width: 110px;
+    height: 110px;
+    min-width: 110px;
+    min-height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
     border: 3px solid var(--leaf-500);
     display: block;
     margin: 0 auto 1rem;
+    flex-shrink: 0;
   }
   .alumni-modal-avatar-placeholder {
-    width: 100px;
-    height: 100px;
+    width: 110px;
+    height: 110px;
+    min-width: 110px;
+    min-height: 110px;
     border-radius: 50%;
     background: var(--paper-100);
     border: 3px solid var(--leaf-500);
@@ -98,6 +119,7 @@
     justify-content: center;
     font-size: 2.5rem;
     margin: 0 auto 1rem;
+    flex-shrink: 0;
   }
   .job-history {
     margin-top: .8rem;
