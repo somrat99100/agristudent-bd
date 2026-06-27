@@ -1,14 +1,26 @@
 // ============================================
-// AGRISTUDENT BD — alumni.js
+// AGRISTUDENT BD — alumni.js  (security-hardened)
 // ============================================
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs,
-  doc, updateDoc, arrayUnion
+  doc, updateDoc, arrayUnion, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const CIRCUMFERENCE = 226.19;
 let allAlumni = [];
+
+// ============================================
+// XSS ESCAPE HELPER — used on ALL user data
+// ============================================
+function esc(val) {
+  return String(val ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
 
 // ============================================
 // CLOUDINARY UPLOAD
@@ -25,7 +37,7 @@ function uploadPhoto(file, onProgress) {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText).secure_url);
       } else {
-        reject(new Error(`Photo upload failed (${xhr.status})`));
+        reject(new Error("Photo upload failed. Please try again."));
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload."));
@@ -47,11 +59,15 @@ async function loadAlumni() {
   try {
     const q = query(collection(db, "alumni"), where("status", "==", "approved"));
     const snap = await getDocs(q);
-    allAlumni = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Only keep fields needed for display — never expose studentId to JS memory
+    allAlumni = snap.docs.map(d => {
+      const { studentId, ...safeData } = d.data(); // strip studentId from client memory
+      return { id: d.id, ...safeData };
+    });
     countLabel.textContent = `🎓 ${allAlumni.length} Alumni Profile${allAlumni.length !== 1 ? "s" : ""}`;
     renderGrid(allAlumni);
   } catch (err) {
-    console.error("Failed to load alumni:", err);
+    console.error("[Alumni] load failed:", err);
     grid.innerHTML = `<p style="color:var(--terracotta-500);font-family:var(--font-mono);font-size:.85rem;grid-column:1/-1;">Could not load alumni. Please check your connection.</p>`;
   }
 }
@@ -62,23 +78,24 @@ function renderGrid(list) {
     grid.innerHTML = `<p style="color:var(--moss-600);font-family:var(--font-mono);font-size:.85rem;grid-column:1/-1;">No alumni profiles yet — be the first to register!</p>`;
     return;
   }
+  // All user data escaped with esc() before entering innerHTML
   grid.innerHTML = list.map(a => `
-    <div class="alumni-card" data-id="${a.id}">
+    <div class="alumni-card" data-id="${esc(a.id)}">
       ${a.photoUrl
-        ? `<img class="alumni-avatar" src="${a.photoUrl}" alt="${a.fullName}">`
+        ? `<img class="alumni-avatar" src="${esc(a.photoUrl)}" alt="${esc(a.fullName)}" loading="lazy">`
         : `<div class="alumni-avatar-placeholder">🎓</div>`}
-      <div class="alumni-name">${a.fullName}</div>
-      <div class="alumni-batch">Batch ${a.batch || "—"}</div>
-      <div class="alumni-job">${a.currentJob || ""}</div>
-      ${a.phone ? `<div class="alumni-contact">📞 ${a.phone}</div>` : ""}
-      <div class="alumni-contact" style="color:var(--moss-600);">✉️ ${a.email}</div>
+      <div class="alumni-name">${esc(a.fullName)}</div>
+      <div class="alumni-batch">Batch ${esc(a.batch || "—")}</div>
+      <div class="alumni-job">${esc(a.currentJob || "")}</div>
+      ${a.phone ? `<div class="alumni-contact">📞 ${esc(a.phone)}</div>` : ""}
+      <div class="alumni-contact" style="color:var(--moss-600);">✉️ ${esc(a.email)}</div>
     </div>
   `).join("");
 
   grid.querySelectorAll(".alumni-card").forEach(card => {
     card.addEventListener("click", () => {
       const alum = allAlumni.find(a => a.id === card.dataset.id);
-      openProfileModal(alum);
+      if (alum) openProfileModal(alum);
     });
   });
 }
@@ -95,57 +112,60 @@ function openProfileModal(alum) {
         <p style="font-weight:600;font-size:.85rem;margin-bottom:.5rem;color:var(--moss-700);">Previous Roles</p>
         ${alum.jobHistory.map(h => `
           <div class="job-history-item">
-            ${h.job}${h.org ? ` — ${h.org}` : ""}
-            <div class="job-date">${h.date || ""}</div>
+            ${esc(h.job)}${h.org ? ` — ${esc(h.org)}` : ""}
+            <div class="job-date">${esc(h.date || "")}</div>
           </div>`).join("")}
       </div>`
     : "";
 
+  // All fields escaped — alum object comes from Firestore user-submitted data
   body.innerHTML = `
     ${alum.photoUrl
-      ? `<img class="alumni-modal-avatar" src="${alum.photoUrl}" alt="${alum.fullName}">`
+      ? `<img class="alumni-modal-avatar" src="${esc(alum.photoUrl)}" alt="${esc(alum.fullName)}">`
       : `<div class="alumni-modal-avatar-placeholder">🎓</div>`}
-    <h3 style="text-align:center;margin-bottom:.2rem;">${alum.fullName}</h3>
-    <p style="text-align:center;font-family:var(--font-mono);font-size:.75rem;color:var(--terracotta-500);margin-bottom:.8rem;">Batch ${alum.batch || "—"}</p>
+    <h3 style="text-align:center;margin-bottom:.2rem;">${esc(alum.fullName)}</h3>
+    <p style="text-align:center;font-family:var(--font-mono);font-size:.75rem;color:var(--terracotta-500);margin-bottom:.8rem;">Batch ${esc(alum.batch || "—")}</p>
 
     <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.8rem;">
-      <div style="font-size:.88rem;"><strong>💼 Current Role:</strong> ${alum.currentJob || "—"}${alum.organization ? ` at ${alum.organization}` : ""}</div>
-      <div style="font-size:.88rem;">✉️ ${alum.email}</div>
-      ${alum.phone ? `<div style="font-size:.88rem;">📞 ${alum.phone}</div>` : ""}
+      <div style="font-size:.88rem;"><strong>💼 Current Role:</strong> ${esc(alum.currentJob || "—")}${alum.organization ? ` at ${esc(alum.organization)}` : ""}</div>
+      <div style="font-size:.88rem;">✉️ ${esc(alum.email)}</div>
+      ${alum.phone ? `<div style="font-size:.88rem;">📞 ${esc(alum.phone)}</div>` : ""}
     </div>
 
     ${historyHtml}
 
     <div class="edit-section">
       <p style="font-weight:600;font-size:.88rem;margin-bottom:.7rem;color:var(--moss-700);">✏️ Update Your Job Details</p>
-      <p style="font-size:.8rem;color:var(--moss-600);margin-bottom:.8rem;">Enter your Student ID and Email to verify identity before editing.</p>
-      <div class="edit-gate" id="edit-gate-${alum.id}">
-        <input type="text" id="edit-sid-${alum.id}" placeholder="Your Student ID">
-        <input type="email" id="edit-email-${alum.id}" placeholder="Your Email">
-        <button class="btn-primary verify-edit-btn" data-id="${alum.id}" style="padding:.6rem;">Verify & Edit</button>
-        <p class="edit-gate-status" id="edit-gate-status-${alum.id}" style="font-size:.8rem;display:none;"></p>
+      <p style="font-size:.8rem;color:var(--moss-600);margin-bottom:.8rem;">Enter your Student ID and Email to verify identity.</p>
+      <div class="edit-gate" id="edit-gate">
+        <input type="text" id="edit-sid" placeholder="Your Student ID" autocomplete="off">
+        <input type="email" id="edit-email" placeholder="Your Email" autocomplete="off">
+        <button class="btn-primary" id="verify-edit-btn" style="padding:.6rem;">Verify & Edit</button>
+        <p id="edit-gate-status" style="font-size:.8rem;display:none;"></p>
       </div>
-      <div id="edit-form-${alum.id}" style="display:none;">
+      <div id="edit-form" style="display:none;">
         <div class="form-field" style="margin-bottom:.8rem;">
           <label style="font-size:.85rem;">New Job Title / Position *</label>
-          <input type="text" id="edit-job-${alum.id}" placeholder="e.g., Senior Agronomist" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.9rem;">
+          <input type="text" id="edit-job" placeholder="e.g., Senior Agronomist" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.9rem;">
         </div>
         <div class="form-field" style="margin-bottom:.8rem;">
           <label style="font-size:.85rem;">Organization</label>
-          <input type="text" id="edit-org-${alum.id}" placeholder="Company / Organization" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.9rem;">
+          <input type="text" id="edit-org" placeholder="Company / Organization" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.9rem;">
         </div>
-        <button class="btn-primary save-job-btn" data-id="${alum.id}" style="width:100%;padding:.65rem;">Save Job Update</button>
-        <p id="save-job-status-${alum.id}" style="font-size:.8rem;text-align:center;margin-top:.5rem;display:none;"></p>
+        <button class="btn-primary" id="save-job-btn" style="width:100%;padding:.65rem;">Save Job Update</button>
+        <p id="save-job-status" style="font-size:.8rem;text-align:center;margin-top:.5rem;display:none;"></p>
       </div>
     </div>`;
 
   modal.classList.remove("hidden");
 
-  // Verify identity before showing edit form
-  body.querySelector(`.verify-edit-btn`)?.addEventListener("click", async () => {
-    const sid = document.getElementById(`edit-sid-${alum.id}`).value.trim();
-    const email = document.getElementById(`edit-email-${alum.id}`).value.trim().toLowerCase();
-    const statusEl = document.getElementById(`edit-gate-status-${alum.id}`);
+  // ── VERIFY: re-fetch from Firestore server to check studentId + email ──
+  // This means the clientside allAlumni object never needs to hold studentId,
+  // and DevTools manipulation of allAlumni cannot bypass the gate.
+  document.getElementById("verify-edit-btn").addEventListener("click", async () => {
+    const sid = document.getElementById("edit-sid").value.trim();
+    const email = document.getElementById("edit-email").value.trim().toLowerCase();
+    const statusEl = document.getElementById("edit-gate-status");
 
     if (!sid || !email) {
       statusEl.textContent = "Please enter both fields.";
@@ -154,21 +174,44 @@ function openProfileModal(alum) {
       return;
     }
 
-    if (sid === alum.studentId && email === alum.email.toLowerCase()) {
-      document.getElementById(`edit-gate-${alum.id}`).style.display = "none";
-      document.getElementById(`edit-form-${alum.id}`).style.display = "block";
-    } else {
-      statusEl.textContent = "❌ Student ID or Email does not match this profile.";
+    const btn = document.getElementById("verify-edit-btn");
+    btn.disabled = true;
+    btn.textContent = "Verifying…";
+    statusEl.style.display = "none";
+
+    try {
+      // Re-fetch the actual document from Firestore — never use client memory for auth
+      const snap = await getDoc(doc(db, "alumni", alum.id));
+      if (!snap.exists()) throw new Error("Profile not found.");
+
+      const serverData = snap.data();
+      const sidMatch = serverData.studentId === sid;
+      const emailMatch = (serverData.email || "").toLowerCase() === email;
+
+      if (sidMatch && emailMatch) {
+        document.getElementById("edit-gate").style.display = "none";
+        document.getElementById("edit-form").style.display = "block";
+      } else {
+        statusEl.textContent = "❌ Student ID or Email does not match.";
+        statusEl.style.color = "var(--terracotta-500)";
+        statusEl.style.display = "block";
+      }
+    } catch (err) {
+      console.error("[Alumni] verify failed:", err);
+      statusEl.textContent = "Verification failed. Please try again.";
       statusEl.style.color = "var(--terracotta-500)";
       statusEl.style.display = "block";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Verify & Edit";
     }
   });
 
-  // Save job update and archive old job to history
-  body.querySelector(`.save-job-btn`)?.addEventListener("click", async () => {
-    const newJob = document.getElementById(`edit-job-${alum.id}`).value.trim();
-    const newOrg = document.getElementById(`edit-org-${alum.id}`).value.trim();
-    const statusEl = document.getElementById(`save-job-status-${alum.id}`);
+  // ── SAVE: update job details ──
+  document.getElementById("save-job-btn").addEventListener("click", async () => {
+    const newJob = document.getElementById("edit-job").value.trim();
+    const newOrg = document.getElementById("edit-org").value.trim();
+    const statusEl = document.getElementById("save-job-status");
 
     if (!newJob) {
       statusEl.textContent = "Please enter a job title.";
@@ -176,6 +219,10 @@ function openProfileModal(alum) {
       statusEl.style.display = "block";
       return;
     }
+
+    const btn = document.getElementById("save-job-btn");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
 
     try {
       const historyEntry = {
@@ -195,7 +242,6 @@ function openProfileModal(alum) {
       statusEl.style.color = "var(--leaf-500)";
       statusEl.style.display = "block";
 
-      // Update local state and refresh grid
       alum.jobHistory = [...(alum.jobHistory || []), historyEntry];
       alum.currentJob = newJob;
       alum.organization = newOrg;
@@ -203,9 +249,13 @@ function openProfileModal(alum) {
 
       setTimeout(() => modal.classList.add("hidden"), 1200);
     } catch (err) {
-      statusEl.textContent = "Failed: " + err.message;
+      console.error("[Alumni] save failed:", err);
+      statusEl.textContent = "Could not save. Please try again.";
       statusEl.style.color = "var(--terracotta-500)";
       statusEl.style.display = "block";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Save Job Update";
     }
   });
 }
@@ -277,7 +327,7 @@ form.addEventListener("submit", async (e) => {
   if (!photoFile) { showError("Please select a photo."); return; }
   if (photoFile.size > 10 * 1024 * 1024) { showError("Photo must be under 10MB."); return; }
 
-  // Check for duplicate studentId
+  // Duplicate check
   try {
     const dupQ = query(collection(db, "alumni"), where("studentId", "==", studentId));
     const dupSnap = await getDocs(dupQ);
@@ -285,7 +335,7 @@ form.addEventListener("submit", async (e) => {
       showError("An alumni profile with this Student ID already exists.");
       return;
     }
-  } catch (err) { /* proceed */ }
+  } catch (err) { /* non-blocking — proceed */ }
 
   submitBtn.disabled = true;
   submitBtn.textContent = "Uploading…";
@@ -316,8 +366,8 @@ form.addEventListener("submit", async (e) => {
     statusBox.classList.add("hidden");
     successBox.classList.remove("hidden");
   } catch (err) {
-    console.error(err);
-    showStatus("Something went wrong: " + err.message, true);
+    console.error("[Alumni] submit failed:", err);
+    showStatus("Something went wrong. Please try again.", true);
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit for Review";
   }
