@@ -96,7 +96,11 @@
       const isOfficeDoc = ["ppt","pptx","doc","docx","xls","xlsx"].includes(ext);
 
       if (isImage) {
-        wrap.innerHTML = `<img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:contain;">`;
+        const imgEl = document.createElement("img");
+        imgEl.src = fileUrl;        // safe — browser handles encoding
+        imgEl.alt = fileName;       // safe — property assignment, not HTML
+        imgEl.style.cssText = "width:100%;height:100%;object-fit:contain;";
+        wrap.appendChild(imgEl);
         loadingMask.classList.add("hidden"); 
       } else if (isOfficeDoc) {
         // pdf.js can't read PPT/PPTX/DOC/XLS — use Microsoft's Office Online
@@ -123,7 +127,8 @@
             loadingMask.classList.add("hidden");
           });
         }).catch((err) => {
-          wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Error: ${err.message}</p>`;
+          wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);">Could not load document. Please go back and try again.</p>`;
+          console.error("[Viewer] PDF load failed:", err);
           loadingMask.classList.add("hidden"); 
         });
       } else {
