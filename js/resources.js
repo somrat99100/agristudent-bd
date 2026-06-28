@@ -334,10 +334,11 @@ if (pqList && pqGate && pqContent) {
     loadPQ();
   }
 
-  if (sessionStorage.getItem("pq_access") === "granted") {
-    grantAccess();
-  } else {
-    gateSubmit.addEventListener("click", async () => {
+  // CVE-8 FIX: Never use sessionStorage to grant access.
+  // Always re-verify against Firestore on every page load.
+  // sessionStorage can be set by anyone in one line: sessionStorage.setItem("pq_access","granted")
+  // Real access control lives in Firestore Security Rules.
+  gateSubmit.addEventListener("click", async () => {
       const studentId = gateInput.value.trim();
       if (!studentId) {
         showGateStatus("Please enter your Student ID.", "is-unknown");
@@ -362,7 +363,6 @@ if (pqList && pqGate && pqContent) {
           const status = reg.status || "unverified";
 
           if (status === "verified") {
-            sessionStorage.setItem("pq_access", "granted");
             showGateStatus("✅ ACCESS GRANTED", "is-granted");
             setTimeout(grantAccess, 700);
           } else if (status === "rejected") {
@@ -385,7 +385,7 @@ if (pqList && pqGate && pqContent) {
         gateSubmit.textContent = "Check Access";
       }
     });
-  }
+}
 }
 
 // ============================================
