@@ -424,62 +424,78 @@ const alumniList = document.getElementById("admin-alumni-list");
 
 async function loadAlumni() {
   alumniList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
-  const q = query(collection(db, "alumni"), orderBy("submittedAt", "desc"));
-  const snap = await getDocs(q);
+  try {
+    // Admin reads ALL alumni regardless of status — no orderBy to avoid index requirement
+    const snap = await getDocs(collection(db, "alumni"));
 
-  if (snap.empty) { alumniList.innerHTML = `<p style="color:var(--moss-600);">No alumni profiles submitted yet.</p>`; return; }
+    if (snap.empty) { alumniList.innerHTML = `<p style="color:var(--moss-600);">No alumni profiles submitted yet.</p>`; return; }
 
-  alumniList.innerHTML = "";
-  snap.forEach(d => {
-    const item = d.data();
-    const row = document.createElement("div");
-    row.className = "resource-row";
-    row.innerHTML = `
-      <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
-        ${item.photoUrl ? `<img src="${item.photoUrl}" alt="${item.fullName}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--paper-100);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🎓</div>`}
-        <div style="flex:1;">
-          <strong>${item.fullName}</strong>
-          <span style="font-size:.75rem;color:var(--moss-600);margin-left:.5rem;">Batch ${item.batch || "—"}</span><br>
-          <span style="font-size:.8rem;color:var(--moss-600);">ID: ${item.studentId} · ${item.email}</span><br>
-          ${item.phone ? `<span style="font-size:.78rem;color:var(--moss-600);">📞 ${item.phone}</span><br>` : ""}
-          <span style="font-size:.8rem;color:var(--moss-700);margin-top:.2rem;display:block;">💼 ${item.currentJob || "No job info"}</span>
+    // Sort client-side: pending first, then by submittedAt desc
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    docs.sort((a, b) => {
+      const statusOrder = { pending: 0, approved: 1, rejected: 2 };
+      if (statusOrder[a.status] !== statusOrder[b.status])
+        return (statusOrder[a.status] ?? 1) - (statusOrder[b.status] ?? 1);
+      const aTime = a.submittedAt?.toMillis?.() ?? 0;
+      const bTime = b.submittedAt?.toMillis?.() ?? 0;
+      return bTime - aTime;
+    });
+
+    alumniList.innerHTML = "";
+    docs.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "resource-row";
+      row.innerHTML = `
+        <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
+          ${item.photoUrl ? `<img src="${item.photoUrl}" alt="${item.fullName}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--paper-100);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🎓</div>`}
+          <div style="flex:1;">
+            <strong>${item.fullName}</strong>
+            <span style="font-size:.75rem;color:var(--moss-600);margin-left:.5rem;">Batch ${item.batch || "—"}</span><br>
+            <span style="font-size:.8rem;color:var(--moss-600);">ID: ${item.studentId} · ${item.email}</span><br>
+            ${item.phone ? `<span style="font-size:.78rem;color:var(--moss-600);">📞 ${item.phone}</span><br>` : ""}
+            <span style="font-size:.8rem;color:var(--moss-700);margin-top:.2rem;display:block;">💼 ${item.currentJob || "No job info"}</span>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
-        <select data-id="${d.id}" class="status-select-alumni" style="font-size:.82rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;">
-          <option value="pending" ${(!item.status || item.status === "pending") ? "selected" : ""}>🕓 Pending</option>
-          <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
-          <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
-        </select>
-        <button class="delete-alumni-btn" data-id="${d.id}"
-          style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.25rem .65rem;border-radius:6px;font-size:.75rem;cursor:pointer;">
-          🗑 Delete
-        </button>
-      </div>`;
-    alumniList.appendChild(row);
-  });
-
-  alumniList.querySelectorAll(".status-select-alumni").forEach(sel => {
-    sel.addEventListener("change", async (e) => {
-      e.target.disabled = true;
-      try {
-        await updateDoc(doc(db, "alumni", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
-        e.target.style.borderColor = "var(--leaf-500)";
-      } catch (err) { alert("Failed: " + err.message); }
-      finally { e.target.disabled = false; }
+        <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
+          <select data-id="${item.id}" class="status-select-alumni" style="font-size:.82rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px;">
+            <option value="pending" ${(!item.status || item.status === "pending") ? "selected" : ""}>🕓 Pending</option>
+            <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
+            <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
+          </select>
+          <button class="delete-alumni-btn" data-id="${item.id}"
+            style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.25rem .65rem;border-radius:6px;font-size:.75rem;cursor:pointer;">
+            🗑 Delete
+          </button>
+        </div>`;
+      alumniList.appendChild(row);
     });
-  });
 
-  alumniList.querySelectorAll(".delete-alumni-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("Permanently delete this alumni profile?")) return;
-      btn.disabled = true;
-      try {
-        await deleteDoc(doc(db, "alumni", btn.dataset.id));
-        loadAlumni();
-      } catch (err) { alert("Failed: " + err.message); btn.disabled = false; }
+    alumniList.querySelectorAll(".status-select-alumni").forEach(sel => {
+      sel.addEventListener("change", async (e) => {
+        e.target.disabled = true;
+        try {
+          await updateDoc(doc(db, "alumni", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
+          e.target.style.borderColor = "var(--leaf-500)";
+        } catch (err) { alert("Failed: " + err.message); }
+        finally { e.target.disabled = false; }
+      });
     });
-  });
+
+    alumniList.querySelectorAll(".delete-alumni-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Permanently delete this alumni profile?")) return;
+        btn.disabled = true;
+        try {
+          await deleteDoc(doc(db, "alumni", btn.dataset.id));
+          loadAlumni();
+        } catch (err) { alert("Failed: " + err.message); btn.disabled = false; }
+      });
+    });
+
+  } catch (err) {
+    console.error("[Admin] loadAlumni failed:", err);
+    alumniList.innerHTML = `<p style="color:var(--terracotta-500);">Failed to load alumni: ${err.message}</p>`;
+  }
 }
 
 // ============================================
