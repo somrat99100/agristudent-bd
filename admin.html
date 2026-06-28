@@ -2,10 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-  <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — AgriStudent BD</title>
 <meta name="robots" content="noindex, nofollow">
@@ -47,8 +43,8 @@
         <button id="tab-terms" class="course-btn">📖 Terms</button>
         <button id="tab-timeline" class="course-btn">📅 Timeline</button>
         <button id="tab-registrations" class="course-btn">📝 Registrations</button>
-        <button id="tab-messages" class="course-btn">💬 Messages</button>
         <button id="tab-alumni" class="course-btn">🎓 Alumni</button>
+        <button id="tab-messages" class="course-btn">💬 Messages</button>
         <button id="tab-danger" class="course-btn" style="border-color:var(--terracotta-500);color:var(--terracotta-500);">⚠️ Danger Zone</button>
       </div>
 
@@ -100,14 +96,14 @@
         <div id="admin-registrations-list"></div>
       </div>
 
+      <div id="alumni-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">🎓 Alumni Profiles — Verify Submissions</h2>
+        <div id="admin-alumni-list"></div>
+      </div>
+
       <div id="messages-panel" class="hidden">
         <h2 style="font-size:1.1rem;margin-bottom:1rem;">Help Messages</h2>
         <div id="admin-messages-list"></div>
-      </div>
-
-      <div id="alumni-panel" class="hidden">
-        <h2 style="font-size:1.1rem;margin-bottom:1rem;">🎓 Alumni Profiles</h2>
-        <div id="admin-alumni-list"></div>
       </div>
 
       <div id="danger-panel" class="hidden">
@@ -122,9 +118,9 @@
             <button class="btn-danger danger-delete-btn" data-collection="resources" data-label="Resources">🗑 Delete ALL Resources</button>
             <button class="btn-danger danger-delete-btn" data-collection="terms" data-label="Terms">🗑 Delete ALL Terms</button>
             <button class="btn-danger danger-delete-btn" data-collection="registrations" data-label="Registrations">🗑 Delete ALL Registrations</button>
+            <button class="btn-danger danger-delete-btn" data-collection="alumni" data-label="Alumni Profiles">🗑 Delete ALL Alumni</button>
             <button class="btn-danger danger-delete-btn" data-collection="timeline" data-label="Timeline Events">🗑 Delete ALL Timeline Events</button>
             <button class="btn-danger danger-delete-btn" data-collection="messages" data-label="Messages">🗑 Delete ALL Messages</button>
-            <button class="btn-danger danger-delete-btn" data-collection="alumni" data-label="Alumni Profiles">🗑 Delete ALL Alumni</button>
           </div>
           <p id="danger-result" class="hidden" style="font-weight:700;font-size:.9rem;"></p>
         </div>
