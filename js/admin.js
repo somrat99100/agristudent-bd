@@ -101,12 +101,12 @@ async function loadResources() {
 
     row.innerHTML = `
       <div style="flex:1;">
-        <strong>${item.courseCode} — ${item.courseName || ""}</strong>
+        <strong>${esc(item.courseCode)} — ${esc(item.courseName || "")}</strong>
         <div style="font-size:.8rem;color:var(--moss-600);">
           ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 All Slides"}
-          ${item.examType ? " · " + item.examType : ""} · ${item.facultyName || ""}
+          ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName || "")}
         </div>
-        <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${item.uploaderName || "—"} (${item.uploaderEmail || "no email"})</div>
+        <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName || "—")} (${esc(item.uploaderEmail || "no email")})</div>
         <div style="margin-top:.3rem;">${filesHtml}</div>
       </div>
       <div>
@@ -125,7 +125,7 @@ async function loadResources() {
       try {
         await updateDoc(doc(db, "resources", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
         e.target.style.borderColor = "var(--leaf-500)";
-      } catch (err) { alert("Failed: " + err.message); }
+      } catch (err) { console.error("[Admin] update failed:", err); alert("Something went wrong. Please try again."); }
       finally { e.target.disabled = false; }
     });
   });
@@ -146,7 +146,7 @@ async function loadResources() {
         await updateDoc(ref, { fileUrls });
         loadResources();
       } catch (err) {
-        alert("Failed to remove file: " + err.message);
+        console.error("[Admin] file delete failed:", err); alert("Could not remove file. Please try again.");
         btn.disabled = false;
         btn.textContent = "🗑 Remove";
       }
@@ -214,7 +214,7 @@ function ensureTermEditModal() {
         loadTerms();
       }, 800);
     } catch (err) {
-      statusEl.textContent = "Failed: " + err.message;
+      console.error("[Admin] term edit failed:", err); statusEl.textContent = "Something went wrong. Please try again.";
       statusEl.style.color = "var(--terracotta-500)";
       statusEl.style.display = "block";
     } finally {
@@ -239,12 +239,12 @@ async function loadTerms() {
     row.className = "resource-row";
     row.innerHTML = `
       <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
-        <img src="${item.imageUrl}" alt="${item.name}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;">
+        <img src="${esc(item.imageUrl)}" alt="${esc(item.name)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;">
         <div style="flex:1;">
-          <strong>${item.name}</strong>
+          <strong>${esc(item.name)}</strong>
           ${item.possibleDuplicate ? '<span style="color:var(--terracotta-500);font-size:.75rem;margin-left:.4rem;">⚠️ possible duplicate</span>' : ''}
-          <div style="font-size:.8rem;color:var(--moss-600);max-width:380px;margin-top:.2rem;">${(item.description || "").slice(0, 140)}${(item.description || "").length > 140 ? "…" : ""}</div>
-          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${item.uploaderEmail || "—"}</div>
+          <div style="font-size:.8rem;color:var(--moss-600);max-width:380px;margin-top:.2rem;">${esc((item.description || "").slice(0, 140))}${(item.description || "").length > 140 ? "…" : ""}</div>
+          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${esc(item.uploaderEmail || "—")}</div>
           <button class="edit-term-btn" data-id="${d.id}" data-name="${encodeURIComponent(item.name)}" data-desc="${encodeURIComponent(item.description || "")}"
             style="margin-top:.5rem;background:none;border:1px solid var(--moss-600);color:var(--moss-700);padding:.25rem .65rem;border-radius:6px;font-size:.75rem;cursor:pointer;">
             ✏️ Edit Name & Description
@@ -267,7 +267,7 @@ async function loadTerms() {
       try {
         await updateDoc(doc(db, "terms", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
         e.target.style.borderColor = "var(--leaf-500)";
-      } catch (err) { alert("Failed: " + err.message); }
+      } catch (err) { console.error("[Admin] update failed:", err); alert("Something went wrong. Please try again."); }
       finally { e.target.disabled = false; }
     });
   });
@@ -308,7 +308,7 @@ document.getElementById("add-event-form").addEventListener("submit", async (e) =
     document.getElementById("event-date").value = "";
     document.getElementById("event-end-date").value = "";
     loadTimeline();
-  } catch (err) { alert("Failed to add event: " + err.message); }
+  } catch (err) { console.error("[Admin] add event failed:", err); alert("Could not add event. Please try again."); }
 });
 
 async function loadTimeline() {
@@ -330,8 +330,8 @@ async function loadTimeline() {
     row.className = "resource-row";
     row.innerHTML = `
       <div>
-        <strong>${item.title}</strong>
-        <div style="font-size:.8rem;color:var(--moss-600);">${dateLabel} · ${TYPE_LABELS[item.type] || item.type}</div>
+        <strong>${esc(item.title)}</strong>
+        <div style="font-size:.8rem;color:var(--moss-600);">${esc(dateLabel)} · ${esc(TYPE_LABELS[item.type] || item.type)}</div>
       </div>
       <button data-id="${d.id}" class="delete-event-btn" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.8rem;">🗑 Delete</button>`;
     timelineList.appendChild(row);
@@ -341,7 +341,7 @@ async function loadTimeline() {
     btn.addEventListener("click", async () => {
       if (!confirm("Delete this event?")) return;
       try { await deleteDoc(doc(db, "timeline", btn.dataset.id)); loadTimeline(); }
-      catch (err) { alert("Failed to delete: " + err.message); }
+      catch (err) { console.error("[Admin] delete event failed:", err); alert("Could not delete. Please try again."); }
     });
   });
 }
@@ -363,12 +363,12 @@ async function loadRegistrations() {
     row.className = "resource-row";
     row.innerHTML = `
       <div style="display:flex;gap:.8rem;align-items:flex-start;">
-        ${item.studentIdUrl ? `<a href="${item.studentIdUrl}" target="_blank" rel="noopener"><img src="${item.studentIdUrl}" alt="ID" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;"></a>` : `<div style="width:60px;height:60px;background:var(--paper-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--moss-600);flex-shrink:0;">No photo</div>`}
+        ${item.studentIdUrl ? `<a href="${esc(item.studentIdUrl)}" target="_blank" rel="noopener"><img src="${esc(item.studentIdUrl)}" alt="ID" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;"></a>` : `<div style="width:60px;height:60px;background:var(--paper-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--moss-600);flex-shrink:0;">No photo</div>`}
         <div>
-          <strong>${item.fullName}</strong>
-          <div style="font-size:.8rem;color:var(--moss-600);">${item.institution || ""}</div>
-          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">📞 ${item.phone || "—"} · 💬 ${item.whatsapp || "—"} · ✉️ ${item.email || "—"}</div>
-          ${item.studentIdNumber ? `<div style="font-size:.78rem;color:var(--moss-600);">ID #: ${item.studentIdNumber}</div>` : ""}
+          <strong>${esc(item.fullName)}</strong>
+          <div style="font-size:.8rem;color:var(--moss-600);">${esc(item.institution || "")}</div>
+          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">📞 ${esc(item.phone || "—")} · 💬 ${esc(item.whatsapp || "—")} · ✉️ ${esc(item.email || "—")}</div>
+          ${item.studentIdNumber ? `<div style="font-size:.78rem;color:var(--moss-600);">ID #: ${esc(item.studentIdNumber)}</div>` : ""}
         </div>
       </div>
       <div>
@@ -387,7 +387,7 @@ async function loadRegistrations() {
       try {
         await updateDoc(doc(db, "registrations", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
         e.target.style.borderColor = "var(--leaf-500)";
-      } catch (err) { alert("Failed: " + err.message); }
+      } catch (err) { console.error("[Admin] update failed:", err); alert("Something went wrong. Please try again."); }
       finally { e.target.disabled = false; }
     });
   });
@@ -410,8 +410,8 @@ async function loadMessages() {
     row.className = "resource-row";
     row.innerHTML = `
       <div>
-        <strong>${item.name}</strong> <span style="font-size:.8rem;color:var(--moss-600);">(${item.email})</span>
-        <div style="font-size:.85rem;color:var(--moss-700);margin-top:.3rem;max-width:480px;">${item.message}</div>
+        <strong>${esc(item.name)}</strong> <span style="font-size:.8rem;color:var(--moss-600);">(${esc(item.email)})</span>
+        <div style="font-size:.85rem;color:var(--moss-700);margin-top:.3rem;max-width:480px;">${esc(item.message)}</div>
       </div>`;
     msgList.appendChild(row);
   });
@@ -447,13 +447,13 @@ async function loadAlumni() {
       row.className = "resource-row";
       row.innerHTML = `
         <div style="display:flex;gap:.8rem;align-items:flex-start;flex:1;">
-          ${item.photoUrl ? `<img src="${item.photoUrl}" alt="${item.fullName}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--paper-100);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🎓</div>`}
+          ${item.photoUrl ? `<img src="${esc(item.photoUrl)}" alt="${esc(item.fullName)}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--paper-100);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🎓</div>`}
           <div style="flex:1;">
-            <strong>${item.fullName}</strong>
-            <span style="font-size:.75rem;color:var(--moss-600);margin-left:.5rem;">Batch ${item.batch || "—"}</span><br>
-            <span style="font-size:.8rem;color:var(--moss-600);">ID: ${item.studentId} · ${item.email}</span><br>
-            ${item.phone ? `<span style="font-size:.78rem;color:var(--moss-600);">📞 ${item.phone}</span><br>` : ""}
-            <span style="font-size:.8rem;color:var(--moss-700);margin-top:.2rem;display:block;">💼 ${item.currentJob || "No job info"}</span>
+            <strong>${esc(item.fullName)}</strong>
+            <span style="font-size:.75rem;color:var(--moss-600);margin-left:.5rem;">Batch ${esc(item.batch || "—")}</span><br>
+            <span style="font-size:.8rem;color:var(--moss-600);">ID: ${esc(item.studentId)} · ${esc(item.email)}</span><br>
+            ${item.phone ? `<span style="font-size:.78rem;color:var(--moss-600);">📞 ${esc(item.phone)}</span><br>` : ""}
+            <span style="font-size:.8rem;color:var(--moss-700);margin-top:.2rem;display:block;">💼 ${esc(item.currentJob || "No job info")}</span>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
@@ -476,7 +476,7 @@ async function loadAlumni() {
         try {
           await updateDoc(doc(db, "alumni", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
-        } catch (err) { alert("Failed: " + err.message); }
+        } catch (err) { console.error("[Admin] update failed:", err); alert("Something went wrong. Please try again."); }
         finally { e.target.disabled = false; }
       });
     });
@@ -547,7 +547,7 @@ document.querySelectorAll(".danger-delete-btn").forEach(btn => {
       if (collectionName === "messages") loadMessages();
       if (collectionName === "alumni") loadAlumni();
     } catch (err) {
-      dangerResult.textContent = "❌ Failed: " + err.message;
+      console.error("[Admin] danger zone failed:", err); dangerResult.textContent = "❌ Something went wrong. Please try again.";
       dangerResult.style.color = "var(--terracotta-500)";
       dangerResult.classList.remove("hidden");
     } finally {
