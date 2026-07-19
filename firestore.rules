@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /registrations/{id} {
+      allow create: if true;
+      // Public needs list access for the pq-gate student ID lookup,
+      // and so the Registered Students page can show verified members.
+      allow list: if true;
+      allow get, update, delete: if request.auth != null;
+    }
+    match /resources/{id} {
+      // Public can list & get approved docs; admin can read everything
+      allow get: if resource.data.status == "approved" || request.auth != null;
+      allow list: if true;   // needed so getDocs+where("status","approved") works client-side
+      allow create: if true;
+      allow update, delete: if request.auth != null;
+    }
+    match /terms/{id} {
+      allow get: if resource.data.status == "approved" || request.auth != null;
+      allow list: if true;
+      allow create: if true;
+      allow update, delete: if request.auth != null;
+    }
+    match /courses/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /timeline/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /messages/{id} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null;
+    }
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

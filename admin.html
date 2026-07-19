@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — AgriStudent BD</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container inner">
+    <a href="index.html" class="brand">🌱 AgriStudent BD — Admin</a>
+    <button id="logout-btn" class="hidden" style="background:var(--terracotta-500);color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;font-weight:600;cursor:pointer;">Log Out</button>
+  </div>
+</header>
+
+<section class="section-page">
+  <div class="container" style="max-width:900px;">
+
+    <!-- Login gate -->
+    <div id="login-box" style="max-width:340px;margin:2rem auto;">
+      <h1 style="font-size:1.4rem;text-align:center;margin-bottom:1.4rem;">🔐 Admin Login</h1>
+      <div class="form-field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email">
+      </div>
+      <div class="form-field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password">
+      </div>
+      <button id="login-btn" class="btn-primary" style="width:100%;">Log In</button>
+      <p id="login-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin-top:.8rem;text-align:center;"></p>
+    </div>
+
+    <!-- Admin panel (shown after successful login) -->
+    <div id="admin-panel" class="hidden">
+      <div style="display:flex;gap:.6rem;margin-bottom:1.4rem;flex-wrap:wrap;">
+        <button id="tab-resources" class="course-btn" style="background:var(--moss-700);color:#fff;">📚 Resources</button>
+        <button id="tab-terms" class="course-btn">📖 Terms</button>
+        <button id="tab-timeline" class="course-btn">📅 Timeline</button>
+        <button id="tab-registrations" class="course-btn">📝 Registrations</button>
+        <button id="tab-messages" class="course-btn">💬 Messages</button>
+        <button id="tab-danger" class="course-btn" style="border-color:var(--terracotta-500);color:var(--terracotta-500);">⚠️ Danger Zone</button>
+      </div>
+
+      <div id="resources-panel">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Resources — Pending / Approved / Rejected</h2>
+        <div id="admin-resource-list"></div>
+      </div>
+
+      <div id="terms-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Terms — Pending / Approved / Rejected</h2>
+        <div id="admin-term-list"></div>
+      </div>
+
+      <div id="timeline-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Academic Timeline Events</h2>
+        <form id="add-event-form" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.6rem;border:1px solid var(--line);padding:1rem;border-radius:8px;background:#fff;">
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Title</label>
+            <input type="text" id="event-title" required placeholder="e.g., Final Examination" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Start Date</label>
+            <input type="date" id="event-date" required style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">End Date (optional)</label>
+            <input type="date" id="event-end-date" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+          </div>
+          <div>
+            <label style="display:block;font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Type</label>
+            <select id="event-type" style="padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;">
+              <option value="registration">Registration</option>
+              <option value="advising">Advising</option>
+              <option value="add_drop">Add/Drop Deadline</option>
+              <option value="class_test">Class Test (ring card)</option>
+              <option value="midterm">Midterm Examination (ring card)</option>
+              <option value="final">Final Examination (ring card)</option>
+              <option value="break">Semester Break</option>
+              <option value="semester_end">Semester Ends</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">+ Add Event</button>
+        </form>
+        <div id="admin-timeline-list"></div>
+      </div>
+
+      <div id="registrations-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Student Registrations — Verify ID</h2>
+        <div id="admin-registrations-list"></div>
+      </div>
+
+      <div id="messages-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;">Help Messages</h2>
+        <div id="admin-messages-list"></div>
+      </div>
+
+      <div id="danger-panel" class="hidden">
+        <h2 style="font-size:1.1rem;margin-bottom:1rem;color:var(--terracotta-500);">⚠️ Danger Zone — Clear Test Data</h2>
+        <div class="danger-zone" style="display:flex;flex-direction:column;gap:1rem;">
+          <p style="font-size:.85rem;color:var(--moss-600);margin:0;">
+            These buttons permanently delete <strong>every document</strong> in the chosen collection — use this to wipe out
+            sample/testing data before going live. You'll be asked to type <strong>DELETE</strong> to confirm each one.
+            This cannot be undone.
+          </p>
+          <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+            <button class="btn-danger danger-delete-btn" data-collection="resources" data-label="Resources">🗑 Delete ALL Resources</button>
+            <button class="btn-danger danger-delete-btn" data-collection="terms" data-label="Terms">🗑 Delete ALL Terms</button>
+            <button class="btn-danger danger-delete-btn" data-collection="registrations" data-label="Registrations">🗑 Delete ALL Registrations</button>
+            <button class="btn-danger danger-delete-btn" data-collection="timeline" data-label="Timeline Events">🗑 Delete ALL Timeline Events</button>
+            <button class="btn-danger danger-delete-btn" data-collection="messages" data-label="Messages">🗑 Delete ALL Messages</button>
+          </div>
+          <p id="danger-result" class="hidden" style="font-weight:700;font-size:.9rem;"></p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

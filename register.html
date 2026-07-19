@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="manifest" href="manifest.json">
+<title>Register — AgriStudent BD</title>
+<script src="js/auth-guard.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ANNOUNCEMENT BAR -->
+<div id="navbar-placeholder"></div>
+<script src="js/navbar-loader.js"></script>
+
+<section class="section-page">
+  <div class="container" style="max-width:600px;">
+    <div class="crumb"><a href="index.html">Home</a> / Register</div>
+    <h1>📝 Register</h1>
+    <p style="color:var(--moss-600);margin-bottom:2rem;">
+      Join the AgriStudent BD community to unlock uploads and future premium resources.
+      We verify Student ID before activating upload access — verification usually takes 24–48 hours.
+    </p>
+
+    <form id="register-form" style="display:flex;flex-direction:column;gap:1.1rem;">
+
+      <div>
+        <label for="fullName" style="display:block;font-weight:600;margin-bottom:.3rem;">Full Name *</label>
+        <input type="text" id="fullName" required style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;">
+      </div>
+
+      <div>
+        <label for="email" style="display:block;font-weight:600;margin-bottom:.3rem;">Email Address *</label>
+        <input type="email" id="email" required style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;">
+      </div>
+
+      <div>
+        <label style="display:block;font-weight:600;margin-bottom:.3rem;">Gender *</label>
+        <div style="display:flex;gap:1.4rem;">
+          <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.95rem;">
+            <input type="radio" name="gender" value="female" required> Female
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.95rem;">
+            <input type="radio" name="gender" value="male" required> Male
+          </label>
+        </div>
+      </div>
+
+      <div style="border:1.5px dashed var(--moss-600);border-radius:8px;padding:1rem;background:#fff;">
+        <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Student Verification</p>
+
+        <label for="studentIdNumber" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Number *</label>
+        <input type="text" id="studentIdNumber" required placeholder="e.g., 21-AGR-045" style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;margin-bottom:.9rem;">
+
+        <label for="studentIdPhoto" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Photo / Scan (optional — JPG, PNG, or PDF, max 5MB)</label>
+        <input type="file" id="studentIdPhoto" accept=".jpg,.jpeg,.png,.pdf" style="width:100%;font-size:.85rem;">
+      </div>
+
+      <button type="submit" id="submit-btn" style="background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Register</button>
+
+      <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
+        <div class="progress-ring-box">
+          <svg class="progress-ring" viewBox="0 0 84 84">
+            <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+            <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+          </svg>
+          <div class="progress-ring-text" id="progress-ring-text">0%</div>
+        </div>
+        <div class="progress-label" id="form-status">Uploading…</div>
+      </div>
+    </form>
+
+    <div id="form-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+      <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+      <h3>Thanks for registering!</h3>
+      <p>We'll verify your account within 24–48 hours. You'll be able to upload resources once verified.</p>
+    </div>
+
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
+  </div>
+</footer>
+
+<script type="module" src="js/registration.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
