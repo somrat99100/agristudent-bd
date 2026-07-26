@@ -200,11 +200,17 @@ if (courseButtonsWrap) {
 
   async function loadSlides() {
     try {
-      // Single where() — avoids composite index requirement
-      const q = query(collection(db, "resources"), where("resourceType", "==", "slides_notes"));
+      // Two equality filters — still no composite index required.
+      // status must be filtered in the query itself: the security rule
+      // checks resource.data.status, so an unfiltered query is rejected
+      // outright rather than silently returning fewer docs.
+      const q = query(
+        collection(db, "resources"),
+        where("resourceType", "==", "slides_notes"),
+        where("status", "==", "approved")
+      );
       const snap = await getDocs(q);
-      // Filter approved client-side
-      allSlides = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status === "approved");
+      allSlides = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCourseButtons(allSlides);
     } catch (err) {
       console.error("[Slides] loadSlides failed:", err);
@@ -374,11 +380,15 @@ if (pqList) {
     const examFilter = document.getElementById("pq-exam")?.value || "";
 
     try {
-      // Single where() — avoids composite index requirement
-      const q = query(collection(db, "resources"), where("resourceType", "==", "previous_questions"));
+      // Two equality filters — still no composite index required.
+      // status must be filtered in the query itself (see loadSlides note above).
+      const q = query(
+        collection(db, "resources"),
+        where("resourceType", "==", "previous_questions"),
+        where("status", "==", "approved")
+      );
       const snap = await getDocs(q);
-      // Filter approved client-side
-      let items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status === "approved");
+      let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       if (facultyFilter) items = items.filter(i => (i.facultyName || "").toLowerCase().includes(facultyFilter.toLowerCase()));
       if (courseFilter) items = items.filter(i => i.courseCode.includes(courseFilter));
