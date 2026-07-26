@@ -1,38 +1,136 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ============================================
+    // REGISTRATIONS: Student signup + verification
+    // ============================================
+    // NOTE: Students never sign in (only the admin panel authenticates,
+    // via signInWithEmailAndPassword in js/admin.js). Requiring
+    // request.auth != null on create would break register.html entirely.
+    // "list: if true" is intentionally kept public -- it's what powers
+    // the live registration counter (js/stats.js, getCountFromServer)
+    // and the resource-gate student-ID lookup (js/resources.js
+    // checkAccess()), both of which run unauthenticated. Restricting it
+    // to auth-only silently breaks those two features.
     match /registrations/{id} {
-      allow create: if true;
-      // Public needs list access for the pq-gate student ID lookup,
-      // and so the Registered Students page can show verified members.
+      allow create: if
+        request.resource.data.keys().hasAll(['studentIdNumber', 'email', 'status']) &&
+        request.resource.data.status == "unverified" &&
+        request.resource.data.studentIdNumber is string &&
+        request.resource.data.studentIdNumber.size() > 0 &&
+        request.resource.data.studentIdNumber.size() < 50 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() > 0;
+
       allow list: if true;
-      allow get, update, delete: if request.auth != null;
+
+      allow get: if
+        resource.data.status == "verified" ||
+        request.auth != null;
+
+      // Admin panel only (js/admin.js approve/reject + generic edit modal)
+      allow update, delete: if request.auth != null;
     }
+
+    // ============================================
+    // RESOURCES: Lecture notes, past questions
+    // ============================================
+    // NOTE: js/resources.js uploads with NO Firebase Auth session, so
+    // create must stay public. Hardening here comes from field
+    // validation instead of an auth gate -- a doc can only be created
+    // as "pending" with a valid resourceType and at least one file.
     match /resources/{id} {
-      // Public can list & get approved docs; admin can read everything
-      allow get: if resource.data.status == "approved" || request.auth != null;
-      allow list: if true;   // needed so getDocs+where("status","approved") works client-side
-      allow create: if true;
+      allow create: if
+        request.resource.data.keys().hasAll(['status', 'resourceType', 'courseCode', 'fileUrls']) &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.resourceType in ["slides_notes", "previous_questions"] &&
+        request.resource.data.courseCode is string &&
+        request.resource.data.courseCode.size() > 0 &&
+        request.resource.data.fileUrls is list &&
+        request.resource.data.fileUrls.size() > 0 &&
+        request.resource.data.fileUrls.size() <= 20;
+
+      allow get: if
+        resource.data.status == "approved" ||
+        request.auth != null;
+
+      allow list: if resource.data.status == "approved";
+
+      // Admin panel only (approve/reject/edit in js/admin.js)
       allow update, delete: if request.auth != null;
     }
+
+    // ============================================
+    // TERMS: Knowledge-hub glossary entries
+    // ============================================
+    // Same story as resources: js/knowledge-hub.js submits terms with
+    // no auth session, so create stays public + validated.
     match /terms/{id} {
-      allow get: if resource.data.status == "approved" || request.auth != null;
-      allow list: if true;
-      allow create: if true;
+      allow create: if
+        request.resource.data.keys().hasAll(['status', 'name']) &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0;
+
+      allow get: if
+        resource.data.status == "approved" ||
+        request.auth != null;
+
+      allow list: if resource.data.status == "approved";
+
       allow update, delete: if request.auth != null;
     }
+
+    // ============================================
+    // COURSES: Canonical course list (reference data)
+    // ============================================
+    // js/resources.js writes a new course doc (setDoc) the first time a
+    // course code is seen, still unauthenticated. Because it's a plain
+    // setDoc, Firestore treats this as "create" only when the doc
+    // doesn't exist yet; once created, further writes to the same doc
+    // hit the "update" branch below and require admin auth.
     match /courses/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if
+        request.resource.data.keys().hasAll(['courseCode', 'courseName']) &&
+        request.resource.data.courseCode is string &&
+        request.resource.data.courseCode.size() > 0;
+      allow update, delete: if request.auth != null;
     }
+
+    // ============================================
+    // TIMELINE: Academic calendar (admin-only, unchanged)
+    // ============================================
     match /timeline/{id} {
       allow read: if true;
       allow write: if request.auth != null;
     }
+
+    // ============================================
+    // MESSAGES: Contact / help form (js/help.js)
+    // ============================================
+    // Real schema is {name, email, message, submittedAt, read} -- there
+    // is no "uid" field because the sender never signs in. The original
+    // hardened draft required request.auth.uid == uid, which no
+    // submission could ever satisfy. Validated instead of auth-gated,
+    // and "read" must start false so a sender can't mark their own
+    // message pre-read.
     match /messages/{id} {
-      allow create: if true;
+      allow create: if
+        request.resource.data.keys().hasAll(['name', 'email', 'message']) &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() > 0 &&
+        request.resource.data.message.size() <= 5000 &&
+        (!('read' in request.resource.data) || request.resource.data.read == false);
+
+      // Admin-only inbox (js/admin.js loadMessages)
       allow read, update, delete: if request.auth != null;
     }
+
+    // ============================================
+    // SETTINGS: Configuration (admin-only, unchanged)
+    // ============================================
     match /settings/{id} {
       allow read: if true;
       allow write: if request.auth != null;
