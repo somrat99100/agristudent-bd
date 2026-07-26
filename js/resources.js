@@ -173,7 +173,15 @@ if (uploadForm) {
       courseNameInput.readOnly = false;
     } catch (err) {
       console.error("[Upload] failed:", err);
-      showStatus("Something went wrong. Please try again.", true);
+      let userMessage = "Something went wrong. Please try again.";
+      if (err.code === "permission-denied") {
+        userMessage = "Upload was rejected. Please check the course code and file(s), then try again.";
+      } else if (/network/i.test(err.message || "")) {
+        userMessage = "Network error. Check your connection and try again.";
+      } else if (/timed out/i.test(err.message || "")) {
+        userMessage = "Upload took too long. Try again with a smaller file.";
+      }
+      showStatus(userMessage, true);
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Review";
     }
@@ -249,27 +257,34 @@ if (courseButtonsWrap) {
     });
   }
 
-  loadSlides().then(() => {
-    // Deep link support: slides-notes.html?course=CODE (from homepage search)
-    const courseParam = new URLSearchParams(location.search).get("course");
-    if (courseParam) renderResourceList(courseParam.toUpperCase());
+  // Runs once access is granted (see shared access gate below) —
+  // loads the course list and honors the ?course=CODE deep link.
+  window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
+  window.__onResourceAccessGranted.push(() => {
+    loadSlides().then(() => {
+      const courseParam = new URLSearchParams(location.search).get("course");
+      if (courseParam) renderResourceList(courseParam.toUpperCase());
+    });
   });
 }
 
 // ============================================
-// SUGGESTIONS ACCESS GATE (previous-questions.html)
+// SHARED RESOURCES ACCESS GATE
+// (resources.html, slides-notes.html, previous-questions.html)
 // ============================================
-const pqGate = document.getElementById("pq-gate");
-const pqContent = document.getElementById("pq-content");
-const pqList = document.getElementById("pq-list");
-const pqSearchBtn = document.getElementById("pq-search-btn");
-let loadPQ;
+// One Student-ID check unlocks All Slides & Suggestions together for the
+// rest of the browser session. The student ID (not a plain "verified" flag)
+// is cached in sessionStorage purely for convenience — every page load still
+// re-checks the student's live status in Firestore before granting access,
+// so a rejected/removed registration loses access immediately.
+const resourceGate = document.getElementById("resource-gate");
+const resourceContent = document.getElementById("resource-content");
 
-// Guard: only run on previous-questions.html
-if (pqGate && pqContent && pqList) {
-  const gateInput = document.getElementById("pq-gate-input");
-  const gateSubmit = document.getElementById("pq-gate-submit");
-  const gateStatus = document.getElementById("pq-gate-status");
+if (resourceGate && resourceContent) {
+  const gateInput = document.getElementById("resource-gate-input");
+  const gateSubmit = document.getElementById("resource-gate-submit");
+  const gateStatus = document.getElementById("resource-gate-status");
+  const STORAGE_KEY = "agri_student_id";
 
   function showGateStatus(html, stateClass) {
     gateStatus.innerHTML = html;
@@ -278,50 +293,82 @@ if (pqGate && pqContent && pqList) {
   }
 
   function grantAccess() {
-    pqGate.classList.add("hidden");
-    pqContent.classList.remove("hidden");
-    if (typeof loadPQ === "function") loadPQ();
+    resourceGate.classList.add("hidden");
+    resourceContent.classList.remove("hidden");
+    (window.__onResourceAccessGranted || []).forEach(fn => fn());
   }
 
-  // CVE-8: Always re-verify from Firestore — no sessionStorage caching
-  if (gateSubmit) {
-    gateSubmit.addEventListener("click", async () => {
-      const studentId = gateInput.value.trim();
-      if (!studentId) { showGateStatus("Please enter your Student ID.", "is-unknown"); return; }
+  async function checkAccess(studentId, { silent } = {}) {
+    if (!silent) {
       gateSubmit.disabled = true;
       gateSubmit.textContent = "Checking…";
       showGateStatus("Checking your registration…", "is-unknown");
-      try {
-        const q = query(collection(db, "registrations"), where("studentIdNumber", "==", studentId));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          showGateStatus(`❌ NOT REGISTERED<div class="access-status-note">We couldn't find that Student ID. Please register first.</div>`, "is-rejected");
+    }
+    try {
+      const q = query(collection(db, "registrations"), where("studentIdNumber", "==", studentId));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        if (!silent) showGateStatus(`❌ NOT REGISTERED<div class="access-status-note">We couldn't find that Student ID. Please register first.</div>`, "is-rejected");
+        return;
+      }
+      const reg = snap.docs[0].data();
+      const status = reg.status || "unverified";
+      if (status === "verified") {
+        sessionStorage.setItem(STORAGE_KEY, studentId);
+        if (!silent) {
+          showGateStatus("✅ ACCESS GRANTED", "is-granted");
+          setTimeout(grantAccess, 700);
         } else {
-          const reg = snap.docs[0].data();
-          const status = reg.status || "unverified";
-          if (status === "verified") {
-            showGateStatus("✅ ACCESS GRANTED", "is-granted");
-            setTimeout(grantAccess, 700);
-          } else if (status === "rejected") {
+          grantAccess();
+        }
+      } else {
+        sessionStorage.removeItem(STORAGE_KEY);
+        if (!silent) {
+          if (status === "rejected") {
             showGateStatus(`❌ REJECTED<div class="access-status-note">Your registration was rejected. Please register again.</div>`, "is-rejected");
           } else {
             showGateStatus(`⏳ PENDING APPROVAL<div class="access-status-note">Your registration is awaiting admin review. Please check back later.</div>`, "is-pending");
           }
         }
-      } catch (err) {
-        console.error("[PQ Gate] check failed:", err);
-        showGateStatus("Something went wrong. Please try again.", "is-unknown");
-      } finally {
+      }
+    } catch (err) {
+      console.error("[Resource Gate] check failed:", err);
+      if (!silent) showGateStatus("Something went wrong. Please try again.", "is-unknown");
+    } finally {
+      if (!silent) {
         gateSubmit.disabled = false;
         gateSubmit.textContent = "Check Access";
       }
+    }
+  }
+
+  if (gateSubmit) {
+    gateSubmit.addEventListener("click", () => {
+      const studentId = gateInput.value.trim();
+      if (!studentId) { showGateStatus("Please enter your Student ID.", "is-unknown"); return; }
+      checkAccess(studentId);
     });
   }
 
-  // ============================================
-  // PREVIOUS QUESTIONS BROWSING
-  // ============================================
-  loadPQ = async function () {
+  // Silently re-verify a previously-entered Student ID from this session,
+  // rather than asking the student to type it again on every page.
+  const cachedId = sessionStorage.getItem(STORAGE_KEY);
+  if (cachedId) {
+    gateInput.value = cachedId;
+    checkAccess(cachedId, { silent: true });
+  }
+}
+
+// ============================================
+// SUGGESTIONS BROWSING (previous-questions.html)
+// ============================================
+const pqList = document.getElementById("pq-list");
+const pqSearchBtn = document.getElementById("pq-search-btn");
+
+// Guard: only run on previous-questions.html
+if (pqList) {
+  async function loadPQ() {
     const facultyFilter = document.getElementById("pq-faculty")?.value.trim() || "";
     const courseFilter = (document.getElementById("pq-course")?.value.trim() || "").toUpperCase();
     const examFilter = document.getElementById("pq-exam")?.value || "";
@@ -354,7 +401,7 @@ if (pqGate && pqContent && pqList) {
       console.error("[PQ] loadPQ failed:", err);
       pqList.innerHTML = `<p style="color:var(--terracotta-500);font-family:var(--font-mono);font-size:.85rem;">Could not load questions. Please refresh and try again.</p>`;
     }
-  };
+  }
 
   if (pqSearchBtn) pqSearchBtn.addEventListener("click", loadPQ);
 
@@ -363,4 +410,8 @@ if (pqGate && pqContent && pqList) {
   const pqCourseParam = new URLSearchParams(location.search).get("course");
   const pqCourseInput = document.getElementById("pq-course");
   if (pqCourseParam && pqCourseInput) pqCourseInput.value = pqCourseParam.toUpperCase();
+
+  // Runs once access is granted (see shared access gate above)
+  window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
+  window.__onResourceAccessGranted.push(loadPQ);
 }

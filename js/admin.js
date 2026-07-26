@@ -1,6 +1,6 @@
-import { db, auth } from "./firebase-config.js";
+import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch
+  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -53,8 +53,11 @@ loginBtn.addEventListener("click", async () => {
 
 logoutBtn.addEventListener("click", () => signOut(auth));
 
+let currentAdminEmail = "";
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
+    currentAdminEmail = user.email || "";
     loginBox.classList.add("hidden");
     adminPanel.classList.remove("hidden");
     logoutBtn.classList.remove("hidden");
@@ -74,6 +77,13 @@ const termList = document.getElementById("admin-term-list");
 const timelineList = document.getElementById("admin-timeline-list");
 const regList = document.getElementById("admin-registrations-list");
 const msgList = document.getElementById("admin-messages-list");
+
+// Caches of last-loaded docs, keyed by id — used to populate the "Edit any content" modal
+// without a second round-trip to Firestore.
+const resourcesCache = {};
+const termsCache = {};
+const timelineCache = {};
+const registrationsCache = {};
 
 const tabs = {
   resources: { btn: document.getElementById("tab-resources"), panel: document.getElementById("resources-panel"), load: loadResources },
@@ -110,6 +120,7 @@ async function loadResources() {
     list.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
+      resourcesCache[d.id] = item;
       const row = document.createElement("div");
       row.className = "resource-row";
       row.innerHTML = `
@@ -122,14 +133,22 @@ async function loadResources() {
           <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})</div>
           <div style="margin-top:.4rem;">${(item.fileUrls || []).map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);">${esc(f.name)}</a>`).join(" · ")}</div>
         </div>
-        <div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
           <select data-id="${esc(d.id)}" class="status-select">
             <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Pending</option>
             <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
             <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
           </select>
+          <button type="button" class="edit-btn" data-schema="resources" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         </div>`;
       list.appendChild(row);
+    });
+
+    list.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const item = resourcesCache[btn.dataset.id];
+        if (item) openEditModal("resources", btn.dataset.id, item);
+      });
     });
 
     list.querySelectorAll(".status-select").forEach(sel => {
@@ -164,6 +183,7 @@ async function loadTerms() {
     termList.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
+      termsCache[d.id] = item;
       const row = document.createElement("div");
       row.className = "resource-row";
       row.innerHTML = `
@@ -176,14 +196,22 @@ async function loadTerms() {
             <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${esc(item.uploaderEmail) || "—"}</div>
           </div>
         </div>
-        <div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
           <select data-id="${esc(d.id)}" class="status-select-term">
             <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Pending</option>
             <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
             <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
           </select>
+          <button type="button" class="edit-btn" data-schema="terms" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         </div>`;
       termList.appendChild(row);
+    });
+
+    termList.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const item = termsCache[btn.dataset.id];
+        if (item) openEditModal("terms", btn.dataset.id, item);
+      });
     });
 
     termList.querySelectorAll(".status-select-term").forEach(sel => {
@@ -246,6 +274,7 @@ async function loadTimeline() {
     timelineList.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
+      timelineCache[d.id] = item;
       const dateObj = item.date?.toDate ? item.date.toDate() : new Date(item.date);
       const endObj = item.endDate ? (item.endDate.toDate ? item.endDate.toDate() : new Date(item.endDate)) : null;
       const dateLabel = endObj
@@ -258,8 +287,18 @@ async function loadTimeline() {
           <strong>${esc(item.title)}</strong>
           <div style="font-size:.8rem;color:var(--moss-600);">${dateLabel} · ${esc(TYPE_LABELS[item.type] || item.type)}</div>
         </div>
-        <button data-id="${esc(d.id)}" class="delete-event-btn" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.8rem;">🗑 Delete</button>`;
+        <div style="display:flex;gap:.5rem;">
+          <button type="button" data-id="${esc(d.id)}" class="edit-btn" data-schema="timeline" style="background:none;border:1px solid var(--line);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.8rem;">✏️ Edit</button>
+          <button data-id="${esc(d.id)}" class="delete-event-btn" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.8rem;">🗑 Delete</button>
+        </div>`;
       timelineList.appendChild(row);
+    });
+
+    timelineList.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const item = timelineCache[btn.dataset.id];
+        if (item) openEditModal("timeline", btn.dataset.id, item);
+      });
     });
 
     timelineList.querySelectorAll(".delete-event-btn").forEach(btn => {
@@ -291,6 +330,7 @@ async function loadRegistrations() {
     regList.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
+      registrationsCache[d.id] = item;
       const row = document.createElement("div");
       row.className = "resource-row";
       row.innerHTML = `
@@ -304,14 +344,22 @@ async function loadRegistrations() {
             ${item.studentIdNumber ? `<div style="font-size:.78rem;color:var(--moss-600);">ID #: ${esc(item.studentIdNumber)}</div>` : ""}
           </div>
         </div>
-        <div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
           <select data-id="${esc(d.id)}" class="status-select-reg">
             <option value="unverified" ${(!item.status || item.status === "unverified") ? "selected" : ""}>🕓 Unverified</option>
             <option value="verified" ${item.status === "verified" ? "selected" : ""}>✅ Verified</option>
             <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
           </select>
+          <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         </div>`;
       regList.appendChild(row);
+    });
+
+    regList.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const item = registrationsCache[btn.dataset.id];
+        if (item) openEditModal("registrations", btn.dataset.id, item);
+      });
     });
 
     regList.querySelectorAll(".status-select-reg").forEach(sel => {
@@ -417,4 +465,286 @@ document.querySelectorAll(".danger-delete-btn").forEach(btn => {
       btn.textContent = originalText;
     }
   });
+});
+
+// ============================================
+// GENERIC "EDIT ANY CONTENT" MODAL
+// ============================================
+// Each schema describes which fields can be edited for that collection,
+// how to render an input for them, and how to read the value back out.
+const EDIT_SCHEMAS = {
+  resources: {
+    collection: "resources",
+    title: "Edit Resource",
+    reload: loadResources,
+    cache: resourcesCache,
+    fields: [
+      { key: "courseCode", label: "Course Code", type: "text" },
+      { key: "courseName", label: "Course Name", type: "text" },
+      { key: "facultyName", label: "Faculty Name", type: "text" },
+      { key: "examType", label: "Exam Type", type: "text" },
+      { key: "uploaderName", label: "Uploader Name", type: "text" },
+      { key: "uploaderEmail", label: "Uploader Email", type: "text" }
+    ]
+  },
+  terms: {
+    collection: "terms",
+    title: "Edit Term",
+    reload: loadTerms,
+    cache: termsCache,
+    fields: [
+      { key: "name", label: "Term Name", type: "text" },
+      { key: "description", label: "Description", type: "textarea" },
+      { key: "imageUrl", label: "Image URL", type: "text" }
+    ]
+  },
+  timeline: {
+    collection: "timeline",
+    title: "Edit Timeline Event",
+    reload: loadTimeline,
+    cache: timelineCache,
+    fields: [
+      { key: "title", label: "Title", type: "text" },
+      { key: "date", label: "Start Date", type: "date" },
+      { key: "endDate", label: "End Date (optional)", type: "date" },
+      { key: "type", label: "Type", type: "select", options: TYPE_LABELS }
+    ]
+  },
+  registrations: {
+    collection: "registrations",
+    title: "Edit Registration",
+    reload: loadRegistrations,
+    cache: registrationsCache,
+    fields: [
+      { key: "fullName", label: "Full Name", type: "text" },
+      { key: "email", label: "Email", type: "text" },
+      { key: "gender", label: "Gender", type: "select", options: { male: "Male", female: "Female" } },
+      { key: "studentIdNumber", label: "Student ID Number", type: "text" }
+    ]
+  }
+};
+
+const editModal = document.getElementById("edit-modal");
+const editModalTitle = document.getElementById("edit-modal-title");
+const editModalFields = document.getElementById("edit-modal-fields");
+const editModalForm = document.getElementById("edit-modal-form");
+const editModalError = document.getElementById("edit-modal-error");
+const editModalSave = document.getElementById("edit-modal-save");
+
+let currentEditSchemaKey = null;
+let currentEditDocId = null;
+
+function tsToDateInputValue(val) {
+  if (!val) return "";
+  const dateObj = val?.toDate ? val.toDate() : new Date(val);
+  if (isNaN(dateObj.getTime())) return "";
+  return dateObj.toISOString().slice(0, 10);
+}
+
+function openEditModal(schemaKey, docId, item) {
+  const schema = EDIT_SCHEMAS[schemaKey];
+  if (!schema) return;
+  currentEditSchemaKey = schemaKey;
+  currentEditDocId = docId;
+  editModalTitle.textContent = schema.title;
+  editModalError.classList.add("hidden");
+
+  editModalFields.innerHTML = schema.fields.map(f => {
+    const fieldId = `edit-field-${f.key}`;
+    if (f.type === "textarea") {
+      return `<div class="form-field"><label for="${fieldId}">${esc(f.label)}</label>
+        <textarea id="${fieldId}" data-key="${esc(f.key)}">${esc(item[f.key] || "")}</textarea></div>`;
+    }
+    if (f.type === "date") {
+      return `<div class="form-field"><label for="${fieldId}">${esc(f.label)}</label>
+        <input type="date" id="${fieldId}" data-key="${esc(f.key)}" value="${esc(tsToDateInputValue(item[f.key]))}"></div>`;
+    }
+    if (f.type === "select") {
+      const opts = Object.entries(f.options).map(([val, label]) =>
+        `<option value="${esc(val)}" ${item[f.key] === val ? "selected" : ""}>${esc(label)}</option>`).join("");
+      return `<div class="form-field"><label for="${fieldId}">${esc(f.label)}</label>
+        <select id="${fieldId}" data-key="${esc(f.key)}">${opts}</select></div>`;
+    }
+    return `<div class="form-field"><label for="${fieldId}">${esc(f.label)}</label>
+      <input type="text" id="${fieldId}" data-key="${esc(f.key)}" value="${esc(item[f.key] || "")}"></div>`;
+  }).join("");
+
+  editModal.classList.remove("hidden");
+}
+
+function closeEditModal() {
+  editModal.classList.add("hidden");
+  currentEditSchemaKey = null;
+  currentEditDocId = null;
+}
+
+document.getElementById("edit-modal-close").addEventListener("click", closeEditModal);
+document.getElementById("edit-modal-cancel").addEventListener("click", closeEditModal);
+editModal.addEventListener("click", (e) => { if (e.target === editModal) closeEditModal(); });
+
+editModalForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!currentEditSchemaKey || !currentEditDocId) return;
+  const schema = EDIT_SCHEMAS[currentEditSchemaKey];
+
+  const updateData = {};
+  schema.fields.forEach(f => {
+    const input = editModalFields.querySelector(`[data-key="${f.key}"]`);
+    if (!input) return;
+    if (f.type === "date") {
+      updateData[f.key] = input.value ? Timestamp.fromDate(new Date(input.value + "T00:00:00")) : null;
+    } else {
+      updateData[f.key] = input.value.trim();
+    }
+  });
+  updateData.editedAt = new Date();
+
+  editModalSave.disabled = true;
+  editModalSave.textContent = "Saving…";
+  editModalError.classList.add("hidden");
+
+  try {
+    await updateDoc(doc(db, schema.collection, currentEditDocId), updateData);
+    closeEditModal();
+    schema.reload();
+  } catch (err) {
+    console.error("[AgriAdmin] edit save failed:", err);
+    editModalError.textContent = "Couldn't save changes. Please try again.";
+    editModalError.classList.remove("hidden");
+  } finally {
+    editModalSave.disabled = false;
+    editModalSave.textContent = "💾 Save Changes";
+  }
+});
+
+// ============================================
+// BULK UPLOAD TERMS
+// ============================================
+const bulkTermImagesInput = document.getElementById("bulk-term-images");
+const bulkTermRows = document.getElementById("bulk-term-rows");
+const bulkTermUploadBtn = document.getElementById("bulk-term-upload-btn");
+const bulkTermStatus = document.getElementById("bulk-term-status");
+
+let bulkTermFiles = [];
+
+function filenameToTitle(name) {
+  return name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function uploadFileToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText).secure_url);
+      } else {
+        reject(new Error(`Image upload failed (server said: ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again."));
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
+}
+
+bulkTermImagesInput.addEventListener("change", () => {
+  bulkTermFiles = Array.from(bulkTermImagesInput.files || []);
+  bulkTermRows.innerHTML = "";
+  bulkTermStatus.textContent = "";
+
+  if (!bulkTermFiles.length) {
+    bulkTermUploadBtn.classList.add("hidden");
+    return;
+  }
+
+  bulkTermFiles.forEach((file, idx) => {
+    const row = document.createElement("div");
+    row.className = "bulk-term-row";
+    row.dataset.index = String(idx);
+    const objectUrl = URL.createObjectURL(file);
+    row.innerHTML = `
+      <img src="${objectUrl}" alt="">
+      <div class="bulk-term-fields">
+        <input type="text" class="bulk-term-name" placeholder="Term name" value="${esc(filenameToTitle(file.name))}">
+        <textarea class="bulk-term-desc" placeholder="Short description (optional)" rows="2"></textarea>
+      </div>
+      <span class="bulk-term-status">Ready</span>`;
+    bulkTermRows.appendChild(row);
+  });
+
+  bulkTermUploadBtn.classList.remove("hidden");
+});
+
+bulkTermUploadBtn.addEventListener("click", async () => {
+  const rows = Array.from(bulkTermRows.querySelectorAll(".bulk-term-row"));
+  if (!rows.length) return;
+
+  bulkTermUploadBtn.disabled = true;
+  bulkTermUploadBtn.textContent = "Uploading…";
+  bulkTermStatus.textContent = "";
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const row of rows) {
+    const idx = Number(row.dataset.index);
+    const file = bulkTermFiles[idx];
+    const nameInput = row.querySelector(".bulk-term-name");
+    const descInput = row.querySelector(".bulk-term-desc");
+    const statusEl = row.querySelector(".bulk-term-status");
+    const name = nameInput.value.trim();
+
+    if (!name) {
+      statusEl.textContent = "⚠️ Name required";
+      statusEl.style.color = "var(--terracotta-500)";
+      failCount++;
+      continue;
+    }
+
+    statusEl.textContent = "Uploading…";
+    statusEl.style.color = "var(--moss-600)";
+    nameInput.disabled = true;
+    descInput.disabled = true;
+
+    try {
+      const imageUrl = await uploadFileToCloudinary(file, (pct) => {
+        statusEl.textContent = `Uploading ${pct}%`;
+      });
+      await addDoc(collection(db, "terms"), {
+        name,
+        description: descInput.value.trim(),
+        imageUrl,
+        uploaderEmail: currentAdminEmail || "admin",
+        status: "approved",
+        possibleDuplicate: false,
+        submittedAt: serverTimestamp(),
+        reviewedAt: new Date()
+      });
+      statusEl.textContent = "✅ Published";
+      statusEl.style.color = "var(--leaf-500)";
+      successCount++;
+    } catch (err) {
+      console.error("[AgriAdmin] bulk term upload failed:", err);
+      statusEl.textContent = "❌ Failed";
+      statusEl.style.color = "var(--terracotta-500)";
+      failCount++;
+      nameInput.disabled = false;
+      descInput.disabled = false;
+    }
+  }
+
+  bulkTermStatus.textContent = `Done — ${successCount} published, ${failCount} failed.`;
+  bulkTermStatus.style.color = failCount ? "var(--terracotta-500)" : "var(--leaf-500)";
+  bulkTermUploadBtn.disabled = false;
+  bulkTermUploadBtn.textContent = "⬆️ Upload All";
+
+  if (successCount > 0) loadTerms();
 });
