@@ -38,16 +38,28 @@
     cursor: grabbing !important;
   }
   
-  /* Keeps the zoomed image contained inside the modal */
+  /* Keeps the zoomed image contained, WITHOUT blocking the modal box
+     from scrolling to show the rest of the description below it */
   #term-modal .modal-box {
-    overflow: hidden; 
     position: relative;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #term-modal .modal-img-wrap {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
   }
 
   /* FIX: Forces the close button to ALWAYS sit above the zoomed image */
   #term-modal .modal-close {
     position: absolute;
     z-index: 50 !important; 
+  }
+
+  #term-modal .modal-desc {
+    max-height: none;
+    overflow-y: visible;
   }
 </style>
 </head>
@@ -129,7 +141,9 @@
 <div id="term-modal" class="modal-overlay hidden">
   <div class="modal-box">
     <button class="modal-close" id="modal-close">✕</button>
-    <img id="modal-img" src="" alt="" title="Click to zoom, drag to pan">
+    <div class="modal-img-wrap">
+      <img id="modal-img" src="" alt="" title="Click to zoom, drag to pan">
+    </div>
     <div class="modal-body">
       <h3 id="modal-name"></h3>
       <div id="modal-desc" class="modal-desc"></div>
