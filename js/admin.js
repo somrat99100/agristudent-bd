@@ -127,7 +127,7 @@ async function loadResources() {
         <div>
           <strong>${esc(item.courseCode)} — ${esc(item.courseName) || ""}</strong>
           <div style="font-size:.8rem;color:var(--moss-600);">
-            ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 All Slides"}
+            ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 Hand Notes"}
             ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName) || ""}
           </div>
           <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})</div>

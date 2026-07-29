@@ -367,6 +367,116 @@ if (resourceGate && resourceContent) {
 }
 
 // ============================================
+// HAND NOTES UNLOCK GATE (slides-notes.html)
+// ============================================
+// Hand Notes uses a different unlock than the rest of Resources: instead
+// of a Student-ID check, a visitor unlocks the page by contributing a PDF
+// of their own. The file goes through the exact same admin-review pipeline
+// as a normal upload (status: "pending") and appears in Hand Notes once
+// approved — the unlock itself is immediate and just gates the UI.
+const handNotesGate = document.getElementById("handnotes-gate");
+const handNotesContent = document.getElementById("resource-content");
+
+if (handNotesGate && handNotesContent) {
+  const HN_STORAGE_KEY = "agri_handnotes_unlocked";
+  const hnForm = document.getElementById("handnotes-unlock-form");
+  const hnFiles = document.getElementById("hn-files");
+  const hnSubmit = document.getElementById("hn-unlock-submit");
+  const hnStatus = document.getElementById("hn-unlock-status");
+  const hnProgressWrap = document.getElementById("hn-unlock-progress-wrap");
+  const hnProgressBar = document.getElementById("hn-progress-ring-bar");
+  const hnProgressText = document.getElementById("hn-progress-ring-text");
+  const HN_CIRCUMFERENCE = 226.19;
+
+  function hnGrantAccess() {
+    handNotesGate.classList.add("hidden");
+    handNotesContent.classList.remove("hidden");
+    (window.__onResourceAccessGranted || []).forEach(fn => fn());
+  }
+
+  function hnSetProgress(pct) {
+    hnProgressBar.style.strokeDashoffset = HN_CIRCUMFERENCE - (pct / 100) * HN_CIRCUMFERENCE;
+    hnProgressText.textContent = pct + "%";
+  }
+  function hnShowStatus(msg, isError = false) {
+    hnProgressWrap.classList.remove("hidden");
+    hnStatus.textContent = msg;
+    hnStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  }
+
+  // Already contributed a note on this device before — skip straight in.
+  if (localStorage.getItem(HN_STORAGE_KEY)) {
+    hnGrantAccess();
+  }
+
+  if (hnForm) {
+    hnForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const courseCode = document.getElementById("hn-courseCode").value.trim().toUpperCase();
+      const courseName = document.getElementById("hn-courseName").value.trim();
+      const facultyName = document.getElementById("hn-facultyName").value.trim();
+      const uploaderEmail = document.getElementById("hn-uploaderEmail").value.trim();
+      const files = Array.from(hnFiles.files);
+
+      if (files.length === 0) { hnShowStatus("Please choose at least one PDF.", true); return; }
+      if (files.length > MAX_FILES) { hnShowStatus(`Maximum ${MAX_FILES} files allowed.`, true); return; }
+      const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
+      if (nonPdf) { hnShowStatus(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`, true); return; }
+      const oversized = files.find(f => f.size > MAX_SIZE);
+      if (oversized) { hnShowStatus(`"${oversized.name}" is over 50MB.`, true); return; }
+
+      hnSubmit.disabled = true;
+      hnSubmit.textContent = "Uploading…";
+      hnSetProgress(0);
+      hnShowStatus(`Uploading ${files.length} file(s)…`);
+
+      try {
+        const progressByFile = new Array(files.length).fill(0);
+        const updateOverall = () => {
+          const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
+          hnSetProgress(avg);
+          hnShowStatus(avg >= 100 ? "Processing on server…" : `Uploading ${files.length} file(s)…`);
+        };
+        const fileUrls = await Promise.all(
+          files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
+        );
+        hnShowStatus("Saving details…");
+        hnSetProgress(100);
+
+        const courseSnap = await getDoc(doc(db, "courses", courseCode));
+        const finalCourseName = courseSnap.exists() ? courseSnap.data().courseName : courseName;
+        if (!courseSnap.exists()) {
+          await setDoc(doc(db, "courses", courseCode), { courseCode, courseName: finalCourseName });
+        }
+
+        await addDoc(collection(db, "resources"), {
+          courseCode, courseName: finalCourseName, facultyName,
+          resourceType: "slides_notes", uploaderEmail, fileUrls,
+          status: "pending", submittedAt: serverTimestamp()
+        });
+
+        localStorage.setItem(HN_STORAGE_KEY, "1");
+        hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
+        setTimeout(hnGrantAccess, 700);
+      } catch (err) {
+        console.error("[Hand Notes Unlock] failed:", err);
+        let userMessage = "Something went wrong. Please try again.";
+        if (err.code === "permission-denied") {
+          userMessage = "Upload was rejected. Please check the course code and file(s), then try again.";
+        } else if (/network/i.test(err.message || "")) {
+          userMessage = "Network error. Check your connection and try again.";
+        } else if (/timed out/i.test(err.message || "")) {
+          userMessage = "Upload took too long. Try again with a smaller file.";
+        }
+        hnShowStatus(userMessage, true);
+        hnSubmit.disabled = false;
+        hnSubmit.textContent = "Upload & Unlock";
+      }
+    });
+  }
+}
+
+// ============================================
 // SUGGESTIONS BROWSING (previous-questions.html)
 // ============================================
 const pqList = document.getElementById("pq-list");
