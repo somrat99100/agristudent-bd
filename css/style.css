@@ -227,31 +227,42 @@ img{ max-width:100%; display:block; }
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 0.8rem;
 }
 
 .image-item {
   position: relative;
-  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   border: 2px solid var(--line);
   transition: all 0.25s;
-  background: var(--paper-100);
+  background: #fff;
 }
 
 .image-item:hover {
-  transform: scale(1.08);
+  transform: translateY(-3px);
   border-color: var(--leaf-500);
   box-shadow: 0 8px 16px rgba(107, 155, 94, 0.25);
+}
+
+.image-item .image-item-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: var(--paper-100);
+  flex-shrink: 0;
 }
 
 .image-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .image-item .status-badge {
@@ -295,6 +306,34 @@ img{ max-width:100%; display:block; }
 .image-item .view-overlay button:hover {
   background: var(--leaf-400);
   transform: scale(1.1);
+}
+
+/* Caption strip: course code + upload-time title, shown under the thumbnail */
+.image-item .image-item-caption {
+  padding: 0.4rem 0.5rem 0.5rem;
+  line-height: 1.25;
+}
+
+.image-item .image-item-code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--leaf-500);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.image-item .image-item-title {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--moss-700);
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* VIEW ALL LINK */
@@ -380,311 +419,11 @@ img{ max-width:100%; display:block; }
   }
 
   .image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 
   .file-item {
     flex-wrap: wrap;
-  }
-}
-
-/* ============================================
-   IMPROVED VIEWER DESIGN
-   ============================================ */
-.viewer-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.8rem 1.2rem;
-  background: var(--moss-900);
-  color: #fff;
-  border-bottom: 2px solid var(--line);
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
-
-.back-link {
-  color: #fff;
-  font-weight: 600;
-  padding: 0.5rem 0.8rem;
-  border-radius: 6px;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.back-link:hover {
-  background: var(--moss-700);
-  transform: translateX(-2px);
-}
-
-.title {
-  flex: 1;
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.viewer-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.8rem;
-  background: var(--moss-700);
-  border-radius: 6px;
-}
-
-.zoom-btn {
-  background: transparent;
-  color: #fff;
-  border: none;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.zoom-btn:hover {
-  background: var(--moss-600);
-  transform: scale(1.1);
-}
-
-.zoom-display {
-  font-size: 0.8rem;
-  font-family: var(--font-mono);
-  min-width: 50px;
-  text-align: center;
-}
-
-.size-display {
-  font-size: 0.75rem;
-  opacity: 0.8;
-  margin-left: 0.4rem;
-  padding-left: 0.4rem;
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.viewer-bg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #f5f3ed 0%, #faf8f2 100%);
-  min-height: calc(100vh - 80px);
-  padding: 1rem;
-  overflow: auto;
-}
-
-.viewer-book {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 100%;
-  position: relative;
-}
-
-.viewer-frame-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(31, 46, 34, 0.2);
-  width: 100%;
-  max-height: calc(100vh - 180px);
-  overflow: auto;
-  position: relative;
-}
-
-.viewer-frame-wrap img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 8px;
-}
-
-.book-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  overflow: auto;
-}
-
-.book-page canvas {
-  display: block;
-  margin: auto;
-  max-width: 100%;
-  height: auto;
-}
-
-.book-page.is-zoomed {
-  overflow: auto;
-  cursor: grab;
-}
-
-.book-page.is-zoomed canvas.is-dragging {
-  cursor: grabbing;
-}
-
-/* Page animations */
-.book-page.in-right {
-  animation: slideInRight 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.book-page.in-left {
-  animation: slideInLeft 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.book-page.out-left {
-  animation: slideOutLeft 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.book-page.out-right {
-  animation: slideOutRight 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(60px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-60px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes slideOutLeft {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-60px); }
-}
-
-@keyframes slideOutRight {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(60px); }
-}
-
-.book-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1.2rem;
-  background: #fff;
-  border-radius: 10px;
-  margin-top: 1.2rem;
-  box-shadow: 0 4px 16px rgba(31, 46, 34, 0.1);
-  flex-wrap: wrap;
-}
-
-.page-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  font-family: var(--font-mono);
-}
-
-.page-search-input {
-  width: 50px;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  text-align: center;
-  transition: border-color 0.2s;
-}
-
-.page-search-input:focus {
-  outline: none;
-  border-color: var(--leaf-500);
-}
-
-.book-btn {
-  padding: 0.6rem 1.2rem;
-  background: var(--leaf-500);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.book-btn:hover:not(:disabled) {
-  background: var(--leaf-400);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(107, 155, 94, 0.3);
-}
-
-.book-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-go {
-  padding: 0.5rem 1rem;
-  background: var(--moss-700);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.btn-go:hover {
-  background: var(--moss-600);
-}
-
-@media (max-width: 768px) {
-  .viewer-bar {
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    padding: 0.6rem 0.8rem;
-  }
-
-  .title {
-    font-size: 0.85rem;
-  }
-
-  .viewer-controls {
-    gap: 0.4rem;
-    padding: 0.3rem 0.6rem;
-  }
-
-  .zoom-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.8rem;
-  }
-
-  .viewer-frame-wrap {
-    max-height: calc(100vh - 120px);
-    border-radius: 8px;
-  }
-
-  .book-controls {
-    gap: 0.6rem;
-    padding: 0.8rem;
-    margin-top: 0.8rem;
-  }
-
-  .book-btn {
-    padding: 0.5rem 0.9rem;
-    font-size: 0.85rem;
   }
 }
 
@@ -1298,29 +1037,41 @@ footer{
 /* ============================================
    DOCUMENT VIEWER (Premium Editorial & 3D Book)
    ============================================ */
+/* NOTE on height: every dvh usage below is preceded by a vh fallback.
+   Some Android WebViews (older in-app browsers, budget-phone browsers)
+   don't support dvh — an unsupported value is dropped entirely, so the
+   vh line just before it keeps applying. Without this fallback those
+   browsers get an unconstrained/zero-height viewer and the bottom
+   controls (prev/next) can end up squashed out of view. */
 body.viewer-layout {
   margin: 0; padding: 0;
+  height: 100vh;
   height: 100dvh;
-  overflow: hidden; 
+  overflow: hidden;
   background: var(--moss-900);
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  overscroll-behavior: none;
 }
 
 /* --- Top Navigation Bar --- */
 .viewer-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.5rem; height: 60px; 
+  gap: 0.6rem;
+  padding: 0 1.5rem; height: 60px; flex-shrink: 0;
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
   background: var(--moss-900); color: var(--paper-100);
   box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-  position: relative; z-index: 10;
+  position: relative; z-index: 30;
 }
 .viewer-bar .back-link {
   display: inline-flex; align-items: center; gap: 0.5rem;
   font-size: 0.85rem; font-weight: 700;
   color: var(--moss-900); background: var(--wheat-400);
   padding: 0.5rem 1.2rem; border-radius: 999px;
+  flex-shrink: 0;
   transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 .viewer-bar .back-link:hover {
@@ -1332,23 +1083,54 @@ body.viewer-layout {
   font-family: var(--font-display); 
   font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em;
   opacity: 0.95; text-align: center;
-  flex: 1; margin: 0 1.5rem;
+  flex: 1; margin: 0 1rem; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* --- Zoom Controls Pill --- */
+.viewer-controls {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--moss-700); border-radius: 999px;
+  flex-shrink: 0;
+}
+.zoom-btn {
+  background: transparent; color: #fff; border: none;
+  width: 30px; height: 30px; min-width: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; cursor: pointer; font-weight: 700; font-size: 1rem;
+  transition: all 0.2s;
+}
+.zoom-btn:hover { background: var(--moss-600); transform: scale(1.1); }
+.zoom-btn:active { transform: scale(0.92); }
+.zoom-display {
+  font-size: 0.75rem; font-family: var(--font-mono);
+  min-width: 42px; text-align: center; color: var(--paper-100);
+}
+.size-display {
+  font-size: 0.72rem; opacity: 0.85; color: var(--paper-100);
+  margin-left: 0.3rem; padding-left: 0.5rem;
+  border-left: 1px solid rgba(255,255,255,0.25);
+  white-space: nowrap;
 }
 
 /* --- Canvas / Desk Environment --- */
 .viewer-bg {
-  height: calc(100dvh - 60px); 
+  height: calc(100vh - 60px);
+  height: calc(100dvh - 60px);
+  min-height: 0;
   background:
     radial-gradient(circle at 50% 0%, rgba(107,155,94,0.06), transparent 60%),
     var(--paper-100);
   display: flex; justify-content: center; align-items: center;
-  padding: 2.5rem 1.5rem; box-sizing: border-box;
+  padding: 1.5rem; box-sizing: border-box;
+  position: relative;
 }
 
 /* --- The Book Anatomy --- */
 .viewer-book {
-  width: 100%; max-width: 1000px; height: 100%;     
+  width: 100%; max-width: 1000px; height: 100%;
+  min-height: 0;
   background: #fff;
   border-radius: 4px 8px 8px 4px; 
   box-shadow:
@@ -1361,10 +1143,12 @@ body.viewer-layout {
 
 /* --- Page Physics & 3D Space --- */
 .viewer-frame-wrap {
-  position: relative; flex: 1; 
+  position: relative; flex: 1; min-height: 0;
   perspective: 2500px; background: #faf9f5;
-  overflow: hidden; margin-left: 0; /* Fix 1: Removed margin for spine */
+  overflow: hidden; touch-action: none; /* JS owns gestures: swipe/pinch/pan */
+  display: flex; align-items: center; justify-content: center;
 }
+.viewer-frame-wrap img { transition: transform 0.12s ease-out; }
 .book-page {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; justify-content: center; align-items: center; /* center any aspect ratio, no white gap */
@@ -1377,25 +1161,18 @@ body.viewer-layout {
 .book-page canvas {
   max-width: 100%; max-height: 100%; object-fit: contain;
   box-shadow: 2px 0 25px rgba(0,0,0,0.04);
-  transition: transform 0.15s ease-out; 
-  transform-origin: center center; 
+  transition: transform 0.12s ease-out; 
+  transform-origin: 0 0; 
   margin: 0 auto;
 }
 
-/* Zoom state overrides — anchored top-left (not centered) so the full
-   zoomed page is reachable by scrolling; centering here would clip the
-   "before" (top/left) half of the overflow as unreachable. */
-.book-page.is-zoomed {
-  align-items: flex-start;
-  justify-content: flex-start;
-  overflow: auto; -webkit-overflow-scrolling: touch;
+/* Zoom stays centered — the JS pan/zoom controller keeps the page
+   reachable in every direction by translating around the center anchor,
+   clamped to the scaled content's actual overflow on each axis. */
+.book-page.is-zoomed canvas {
+  transition: none;
 }
-.book-page.is-zoomed canvas { 
-  transform-origin: top left; 
-  margin: 0; 
-  max-width: none;
-  max-height: none;
-}
+.is-dragging, .book-page.is-zoomed canvas { cursor: grab; }
 .is-dragging { cursor: grabbing !important; }
 
 /* 3D Hinge States */
@@ -1405,19 +1182,37 @@ body.viewer-layout {
 .book-page.out-right { transform: rotateY(20deg) translateZ(-10px); opacity: 0; }
 .book-page.in-left { transform: rotateY(-85deg) translateZ(20px); opacity: 0; z-index: 6; }
 
+/* --- Floating Side Nav Arrows (large touch targets, mobile-friendly) --- */
+.side-nav-btn {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(31,46,34,0.55); color: #fff; border: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; cursor: pointer; z-index: 15;
+  backdrop-filter: blur(2px);
+  transition: background 0.2s, transform 0.15s, opacity 0.2s;
+}
+.side-nav-btn:hover:not(:disabled) { background: rgba(31,46,34,0.8); }
+.side-nav-btn:active:not(:disabled) { transform: translateY(-50%) scale(0.92); }
+.side-nav-btn:disabled { opacity: 0; pointer-events: none; }
+.side-nav-btn.side-prev { left: 10px; }
+.side-nav-btn.side-next { right: 10px; }
+
 /* --- Bottom Controls --- */
 .book-controls {
   display: flex; justify-content: center; align-items: center;
-  gap: 2rem; padding: 1rem 1.5rem;
+  gap: 2rem; padding: 0.8rem 1.5rem;
+  padding-bottom: max(0.8rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line); background: #fff;
   flex-shrink: 0; z-index: 20;
 }
 .book-btn {
   background: var(--moss-700); color: #fff;
-  border: none; padding: 0.6rem 1.6rem; border-radius: 999px;
+  border: none; padding: 0.65rem 1.4rem; border-radius: 999px;
   font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;
   cursor: pointer; transition: all 0.2s ease;
   display: flex; align-items: center; gap: 0.4rem;
+  min-height: 40px;
 }
 .book-btn:hover:not(:disabled) {
   background: var(--moss-900); transform: translateY(-2px);
@@ -1452,10 +1247,10 @@ body.viewer-layout {
 
 .btn-go {
   background: var(--wheat-400); color: var(--moss-900);
-  border: none; padding: 0.35rem 0.7rem; border-radius: 6px;
+  border: none; padding: 0.4rem 0.8rem; border-radius: 6px;
   font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;
   cursor: pointer; transition: all 0.2s ease;
-  margin-left: 0.2rem;
+  margin-left: 0.2rem; min-height: 32px;
 }
 .btn-go:hover { background: var(--terracotta-400); color: #fff; }
 .btn-go:active { transform: scale(0.95); }
@@ -1466,17 +1261,49 @@ body.viewer-layout {
   color: rgba(31,46,34,0.3); pointer-events: none; z-index: 5;
 }
 
+/* --- Image caption (course code + upload title) --- */
+.viewer-image-caption {
+  flex-shrink: 0; text-align: center;
+  padding: 0.7rem 1.2rem;
+  padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+  background: #fff; border-top: 1px solid var(--line);
+}
+.viewer-image-caption .caption-code {
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem;
+  color: var(--leaf-500); letter-spacing: 0.03em;
+}
+.viewer-image-caption .caption-title {
+  font-family: var(--font-display); font-size: 0.95rem;
+  color: var(--moss-900); margin-top: 0.15rem;
+}
+
+/* --- Office viewer fallback link --- */
+.viewer-fallback-bar {
+  flex-shrink: 0; text-align: center;
+  padding: 0.6rem 1rem;
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
+  background: #fff; border-top: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--moss-600);
+}
+.viewer-fallback-bar a {
+  color: var(--leaf-500); font-weight: 700; text-decoration: underline;
+}
+
 /* --- Mobile Polish --- */
 @media (max-width: 700px) {
-  .viewer-bg { padding: 0.5rem; height: calc(100dvh - 54px); }
-  .viewer-bar { height: 54px; padding: 0 1rem; }
+  .viewer-bg { padding: 0.5rem; height: calc(100vh - 54px); height: calc(100dvh - 54px); }
+  .viewer-bar { height: 54px; padding: 0 0.8rem; gap: 0.4rem; }
   .viewer-bar .title { display: none; }
-  .book-controls { padding: 0.6rem; gap: 0.4rem; justify-content: space-between; }
-  .book-btn { padding: 0.5rem 0.9rem; font-size: 0.8rem; }
-  .page-search-input { width: 40px; font-size: 0.9rem; }
-  .page-search-input:focus { width: 45px; }
+  .viewer-controls { padding: 0.25rem 0.4rem; gap: 0.25rem; }
+  .zoom-btn { width: 26px; height: 26px; min-width: 26px; font-size: 0.9rem; }
+  .size-display { display: none; }
+  .book-controls { padding: 0.6rem; gap: 0.5rem; justify-content: space-between; }
+  .book-btn { padding: 0.55rem 1rem; font-size: 0.8rem; }
+  .page-search-input { width: 38px; font-size: 0.9rem; }
+  .page-search-input:focus { width: 44px; }
   .viewer-book { border-radius: 4px; }
-  .viewer-frame-wrap { margin-left: 0; }
+  .side-nav-btn { width: 38px; height: 38px; font-size: 1rem; }
 }
 
 /* ============================================
