@@ -26,9 +26,7 @@
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
   <div class="viewer-controls">
-    <button id="btn-zoom-out" class="zoom-btn" title="Zoom out">−</button>
     <span id="zoom-display" class="zoom-display">100%</span>
-    <button id="btn-zoom-in" class="zoom-btn" title="Zoom in">+</button>
     <span id="image-size-display" class="size-display" style="display:none;"></span>
   </div>
 </div>
@@ -69,8 +67,6 @@
   const btnGo = document.getElementById("btn-go");
   const btnSidePrev = document.getElementById("btn-side-prev");
   const btnSideNext = document.getElementById("btn-side-next");
-  const btnZoomIn = document.getElementById("btn-zoom-in");
-  const btnZoomOut = document.getElementById("btn-zoom-out");
   const zoomDisplay = document.getElementById("zoom-display");
 
   const params = new URLSearchParams(window.location.search);
@@ -333,9 +329,6 @@
         sizeDisplay.style.display = "inline";
       }
 
-      btnZoomIn.addEventListener("click", () => panZoom.zoomBy(0.4));
-      btnZoomOut.addEventListener("click", () => panZoom.zoomBy(-0.4));
-
       window.addEventListener("resize", () => {
         const r = imgEl.getBoundingClientRect();
         if (r.width && r.height) panZoom.setTarget(imgEl, r.width, r.height);
@@ -503,9 +496,6 @@
           if (p !== pageNum) { const d = p > pageNum ? "forward" : "backward"; pageNum = p; queueRenderPage(pageNum, d); }
           else pageInput.value = pageNum;
         }
-
-        btnZoomIn.addEventListener("click", () => panZoom.zoomBy(0.4));
-        btnZoomOut.addEventListener("click", () => panZoom.zoomBy(-0.4));
 
         btnGo.addEventListener("click", triggerPageSearch);
         pageInput.addEventListener("keypress", e => { if (e.key === "Enter") triggerPageSearch(); });
