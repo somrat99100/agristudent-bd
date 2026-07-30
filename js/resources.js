@@ -123,9 +123,7 @@ if (uploadModal) {
 // ============================================
 const uploadForm = document.getElementById("upload-form");
 if (uploadForm) {
-  prefillFromSession("uploaderEmail", "uploaderName");
-  const resourceTypeSelect = document.getElementById("resourceType");
-  const examTypeWrap = document.getElementById("examType-wrap");
+  prefillFromSession("uploaderEmail");
   const fileInput = document.getElementById("files");
   const filesLabel = document.getElementById("files-label");
   const statusBox = document.getElementById("upload-status");
@@ -216,10 +214,6 @@ if (uploadForm) {
     } catch (err) { console.error("Error checking canonical course:", err); }
   });
 
-  resourceTypeSelect.addEventListener("change", () => {
-    examTypeWrap.classList.toggle("hidden", resourceTypeSelect.value !== "previous_questions");
-  });
-
   function setProgress(pct) {
     progressBar.style.strokeDashoffset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
     progressText.textContent = pct + "%";
@@ -242,9 +236,7 @@ if (uploadForm) {
     const rawCourseCode = courseCodeInput.value.trim().toUpperCase();
     const rawCourseName = courseNameInput.value.trim();
     const facultyName = facultyNameInput.value.trim();
-    const resourceType = resourceTypeSelect.value;
-    const examType = document.getElementById("examType").value;
-    const uploaderName = document.getElementById("uploaderName").value.trim();
+    const resourceType = "slides_notes";
     const uploaderEmail = normalizeEmail(document.getElementById("uploaderEmail").value);
     const files = Array.from(fileInput.files);
 
@@ -300,8 +292,6 @@ if (uploadForm) {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
         resourceType, uploaderEmail, fileUrls, fileType: currentFileType, status: "pending", submittedAt: serverTimestamp()
       };
-      if (uploaderName) docData.uploaderName = uploaderName;
-      if (resourceType === "previous_questions" && examType) docData.examType = examType;
       const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
       await addDoc(collection(db, "resources"), docData);
@@ -417,96 +407,21 @@ if (courseButtonsWrap) {
 }
 
 // ============================================
-// SHARED RESOURCES ACCESS GATE
-// (resources.html, slides-notes.html, previous-questions.html)
+// RESOURCES PAGE — LOGIN-ONLY GATE (resources.html)
 // ============================================
-// One Student-ID check unlocks All Slides & Suggestions together for the
-// rest of the browser session. The student ID (not a plain "verified" flag)
-// is cached in sessionStorage purely for convenience — every page load still
-// re-checks the student's live status in Firestore before granting access,
-// so a rejected/removed registration loses access immediately.
+// No more Student-ID "Check Access" step here — a logged-in session
+// (see js/session.js) is all that's needed to browse the Resources hub
+// and reach the Upload form. Real access control for the notes
+// themselves happens on slides-notes.html's own Hand Notes gate below,
+// keyed off the student's upload status.
 const resourceGate = document.getElementById("resource-gate");
 const resourceContent = document.getElementById("resource-content");
 
 if (resourceGate && resourceContent) {
-  const gateInput = document.getElementById("resource-gate-input");
-  const gateSubmit = document.getElementById("resource-gate-submit");
-  const gateStatus = document.getElementById("resource-gate-status");
-  const STORAGE_KEY = "agri_student_id";
-
-  function showGateStatus(html, stateClass) {
-    gateStatus.innerHTML = html;
-    gateStatus.className = "access-status " + stateClass;
-    gateStatus.classList.remove("hidden");
-  }
-
-  function grantAccess() {
+  if (getSession()) {
     resourceGate.classList.add("hidden");
     resourceContent.classList.remove("hidden");
     (window.__onResourceAccessGranted || []).forEach(fn => fn());
-  }
-
-  async function checkAccess(studentId, { silent } = {}) {
-    const normalizedId = normalizeStudentId(studentId);
-    if (!silent) {
-      gateSubmit.disabled = true;
-      gateSubmit.textContent = "Checking…";
-      showGateStatus("Checking your registration…", "is-unknown");
-    }
-    try {
-      const q = query(collection(db, "registrations"), where("studentIdNumber", "==", normalizedId));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        sessionStorage.removeItem(STORAGE_KEY);
-        if (!silent) showGateStatus(`❌ NOT REGISTERED<div class="access-status-note">We couldn't find that Student ID. Please register first.</div>`, "is-rejected");
-        return;
-      }
-      const reg = snap.docs[0].data();
-      const status = reg.status || "unverified";
-      if (status === "verified") {
-        sessionStorage.setItem(STORAGE_KEY, normalizedId);
-        if (!silent) {
-          showGateStatus("✅ ACCESS GRANTED", "is-granted");
-          setTimeout(grantAccess, 700);
-        } else {
-          grantAccess();
-        }
-      } else {
-        sessionStorage.removeItem(STORAGE_KEY);
-        if (!silent) {
-          if (status === "rejected") {
-            showGateStatus(`❌ REJECTED<div class="access-status-note">Your registration was rejected. Please register again.</div>`, "is-rejected");
-          } else {
-            showGateStatus(`⏳ PENDING APPROVAL<div class="access-status-note">Your registration is awaiting admin review. Please check back later.</div>`, "is-pending");
-          }
-        }
-      }
-    } catch (err) {
-      console.error("[Resource Gate] check failed:", err);
-      if (!silent) showGateStatus("Something went wrong. Please try again.", "is-unknown");
-    } finally {
-      if (!silent) {
-        gateSubmit.disabled = false;
-        gateSubmit.textContent = "Check Access";
-      }
-    }
-  }
-
-  if (gateSubmit) {
-    gateSubmit.addEventListener("click", () => {
-      const studentId = gateInput.value.trim();
-      if (!studentId) { showGateStatus("Please enter your Student ID.", "is-unknown"); return; }
-      checkAccess(studentId);
-    });
-  }
-
-  // Silently re-verify a previously-entered Student ID, or — now that
-  // login exists — the logged-in student's own ID, rather than asking
-  // the student to type it again on every page.
-  const cachedId = sessionStorage.getItem(STORAGE_KEY) || getSession()?.studentIdNumber || null;
-  if (cachedId) {
-    gateInput.value = cachedId;
-    checkAccess(cachedId, { silent: true });
   }
 }
 

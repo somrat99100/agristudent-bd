@@ -16,12 +16,8 @@ const STAT_SOURCES = {
   "stat-resources": () =>
     getCountFromServer(query(collection(db, "resources"), where("status", "==", "approved"))),
 
-  "stat-suggestions": () =>
-    getCountFromServer(query(
-      collection(db, "resources"),
-      where("status", "==", "approved"),
-      where("resourceType", "==", "previous_questions")
-    )),
+  "stat-pending": () =>
+    getCountFromServer(query(collection(db, "resources"), where("status", "==", "pending"))),
 
   "stat-terms": () =>
     getCountFromServer(query(collection(db, "terms"), where("status", "==", "approved")))
