@@ -488,6 +488,29 @@ if (handNotesGate && handNotesContent) {
 
   // File type selector
   const fileTypeRadios = document.querySelectorAll('input[name="fileType"]');
+  const imageTitlesWrap = document.getElementById("hn-image-titles-wrap");
+  const imageTitlesList = document.getElementById("hn-image-titles-list");
+
+  function cleanFileNameAsTitle(name) {
+    return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  }
+
+  function renderImageTitleInputs() {
+    if (currentFileType !== "image" || !hnFiles.files || hnFiles.files.length === 0) {
+      imageTitlesWrap.classList.add("hidden");
+      imageTitlesList.innerHTML = "";
+      return;
+    }
+    imageTitlesList.innerHTML = Array.from(hnFiles.files).map((f, i) => `
+      <input type="text" class="hn-image-title-input" data-index="${i}"
+             placeholder="Title for: ${esc(f.name)}" value="${esc(cleanFileNameAsTitle(f.name))}"
+             style="width:100%;padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;font-size:.85rem;">
+    `).join("");
+    imageTitlesWrap.classList.remove("hidden");
+  }
+
+  hnFiles.addEventListener("change", renderImageTitleInputs);
+
   fileTypeRadios.forEach(radio => {
     radio.addEventListener("change", () => {
       currentFileType = radio.value;
@@ -506,6 +529,8 @@ if (handNotesGate && handNotesContent) {
         r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
         r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
       });
+
+      renderImageTitleInputs();
     });
   });
 
@@ -564,6 +589,17 @@ if (handNotesGate && handNotesContent) {
         const fileUrls = await Promise.all(
           files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
         );
+
+        // Attach the per-image title captured at upload time (if any),
+        // so the gallery and viewer can display it under the image.
+        if (currentFileType === "image") {
+          const titleInputs = imageTitlesList.querySelectorAll(".hn-image-title-input");
+          fileUrls.forEach((f, i) => {
+            const t = titleInputs[i] ? titleInputs[i].value.trim() : "";
+            f.title = t || cleanFileNameAsTitle(f.name);
+          });
+        }
+
         hnShowStatus("Saving details…");
         hnSetProgress(100);
 
@@ -696,17 +732,25 @@ if (pdfList || imageGrid || pptList) {
       return;
     }
 
-    imageGrid.innerHTML = images.map(img => `
-      <div class="image-item">
-        <img src="${encodeURI(img.fileUrls[0].url)}" alt="${esc(img.courseName)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
-        <div class="status-badge">✓</div>
-        <div class="view-overlay">
-          <a href="view.html?url=${encodeURIComponent(img.fileUrls[0].url)}&name=${encodeURIComponent(img.fileUrls[0].name)}" style="text-decoration:none;">
+    imageGrid.innerHTML = images.map(img => {
+      const file = img.fileUrls[0];
+      const viewHref = `view.html?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
+        + `&code=${encodeURIComponent(img.courseCode || "")}&title=${encodeURIComponent(file.title || "")}`;
+      return `
+      <a class="image-item" href="${viewHref}" style="text-decoration:none;">
+        <div class="image-item-thumb">
+          <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
+          <div class="status-badge">✓</div>
+          <div class="view-overlay">
             <button type="button">View</button>
-          </a>
+          </div>
         </div>
-      </div>
-    `).join("");
+        <div class="image-item-caption">
+          <span class="image-item-code">${esc(img.courseCode)}</span>
+          ${file.title ? `<span class="image-item-title">${esc(file.title)}</span>` : ""}
+        </div>
+      </a>`;
+    }).join("");
   }
 
   function renderPptCard() {
