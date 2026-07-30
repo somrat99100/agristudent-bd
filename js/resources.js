@@ -431,14 +431,14 @@ if (handNotesGate && handNotesContent) {
         const submittedDate = latest.submittedAt?.toDate?.()?.toLocaleDateString?.() || "recently";
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>✅ APPROVED — Full Access</strong>
-          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"<br>Approved on ${submittedDate}</div>
+          <div class="file-info">Approved on ${submittedDate}</div>
         `;
       } else if (latest.status === "pending") {
         accessStatusBar.classList.add("pending");
         const submittedDate = latest.submittedAt?.toDate?.()?.toLocaleDateString?.() || "today";
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>⏳ PENDING — Temporary Access (48 hours)</strong>
-          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"<br>Uploaded on ${submittedDate}<br>Still waiting for admin review...</div>
+          <div class="file-info">Uploaded on ${submittedDate}<br>Still waiting for admin review...</div>
         `;
       } else if (latest.status === "rejected") {
         accessStatusBar.classList.add("rejected");
@@ -446,7 +446,6 @@ if (handNotesGate && handNotesContent) {
         handNotesContent.classList.add("hidden");
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>❌ ACCESS EXPIRED — File Rejected</strong>
-          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"</div>
           <button class="action-btn" onclick="document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload New File</button>
         `;
       }
@@ -640,13 +639,11 @@ if (handNotesGate && handNotesContent) {
 // ============================================
 const pdfList = document.getElementById("pdf-list");
 const imageGrid = document.getElementById("image-grid");
-const pptList = document.getElementById("ppt-list");
 const imageSearch = document.getElementById("image-search");
 
-if (pdfList || imageGrid || pptList) {
-  let allSlides = [];
+if (pdfList || imageGrid) {
+  let allDocs = [];   // PDFs + Presentations, merged into one card
   let allImages = [];
-  let allPpts = [];
 
   async function loadThreeCardLayout() {
     try {
@@ -658,41 +655,43 @@ if (pdfList || imageGrid || pptList) {
       const snap = await getDocs(q);
       const resources = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Separate by file type
-      allSlides = resources.filter(r => r.fileType === "pdf" || !r.fileType); // Default to PDF for backward compatibility
+      // PDFs and Presentations share one card now; images stay separate.
+      allDocs = resources.filter(r => r.fileType === "pdf" || r.fileType === "ppt" || !r.fileType); // no fileType defaults to PDF for backward compatibility
       allImages = resources.filter(r => r.fileType === "image");
-      allPpts = resources.filter(r => r.fileType === "ppt");
 
       renderPdfCard();
       renderImageCard();
-      renderPptCard();
     } catch (err) {
       console.error("[Three Card Layout] load failed:", err);
     }
   }
 
-  function renderPdfCard() {
-    const pdfCount = allSlides.length;
-    document.getElementById("pdf-count").textContent = `(${pdfCount})`;
+  function docIcon(item) {
+    return item.fileType === "ppt" ? "📊" : "📄";
+  }
 
-    if (pdfCount === 0) {
-      pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No PDF files yet.</p>`;
+  function renderPdfCard() {
+    const docCount = allDocs.length;
+    document.getElementById("pdf-count").textContent = `(${docCount})`;
+
+    if (docCount === 0) {
+      pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No files yet.</p>`;
       document.getElementById("pdf-view-all").style.display = "none";
       return;
     }
 
-    const displayCount = Math.min(5, pdfCount);
-    const displayed = allSlides.slice(0, displayCount);
+    const displayCount = Math.min(5, docCount);
+    const displayed = allDocs.slice(0, displayCount);
 
     pdfList.innerHTML = displayed.map(item => `
       <div class="file-item">
-        <span class="file-status">✓</span>
+        <span class="file-status">${docIcon(item)}</span>
         <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
         <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
       </div>
     `).join("");
 
-    document.getElementById("pdf-view-all").style.display = pdfCount > displayCount ? "block" : "none";
+    document.getElementById("pdf-view-all").style.display = docCount > displayCount ? "block" : "none";
   }
 
   function renderImageCard() {
@@ -753,30 +752,6 @@ if (pdfList || imageGrid || pptList) {
     }).join("");
   }
 
-  function renderPptCard() {
-    const pptCount = allPpts.length;
-    document.getElementById("ppt-count").textContent = `(${pptCount})`;
-
-    if (pptCount === 0) {
-      pptList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No presentations yet.</p>`;
-      document.getElementById("ppt-view-all").style.display = "none";
-      return;
-    }
-
-    const displayCount = Math.min(5, pptCount);
-    const displayed = allPpts.slice(0, displayCount);
-
-    pptList.innerHTML = displayed.map(item => `
-      <div class="file-item">
-        <span class="file-status">✓</span>
-        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
-        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
-      </div>
-    `).join("");
-
-    document.getElementById("ppt-view-all").style.display = pptCount > displayCount ? "block" : "none";
-  }
-
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
   window.__onResourceAccessGranted.push(loadThreeCardLayout);
 
@@ -828,7 +803,7 @@ if (pdfList || imageGrid || pptList) {
   function renderPdfRow(item) {
     return `
       <div class="file-item">
-        <span class="file-status">✓</span>
+        <span class="file-status">${docIcon(item)}</span>
         <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}${item.facultyName ? ` <span style="opacity:.7;font-weight:400;">— ${esc(item.facultyName)}</span>` : ""}</span>
         <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
       </div>`;
@@ -837,26 +812,13 @@ if (pdfList || imageGrid || pptList) {
   wireViewAllModal({
     openBtnId: "pdf-view-all", modalId: "pdf-viewall-modal", closeBtnId: "pdf-viewall-close",
     searchId: "pdf-viewall-search", facultyId: "pdf-viewall-faculty",
-    getItems: () => allSlides,
+    getItems: () => allDocs,
     matchFn: (i, term) => (i.courseCode || "").toUpperCase().includes(term.toUpperCase()),
     renderList: (items) => {
       const list = document.getElementById("pdf-viewall-list");
       list.innerHTML = items.length
         ? items.map(renderPdfRow).join("")
-        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching PDFs found.</p>`;
-    }
-  });
-
-  wireViewAllModal({
-    openBtnId: "ppt-view-all", modalId: "ppt-viewall-modal", closeBtnId: "ppt-viewall-close",
-    searchId: "ppt-viewall-search", facultyId: null,
-    getItems: () => allPpts,
-    matchFn: (i, term) => (i.courseCode || "").toUpperCase().includes(term.toUpperCase()),
-    renderList: (items) => {
-      const list = document.getElementById("ppt-viewall-list");
-      list.innerHTML = items.length
-        ? items.map(renderPdfRow).join("")
-        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching presentations found.</p>`;
+        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching files found.</p>`;
     }
   });
 

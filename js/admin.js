@@ -5,6 +5,9 @@ import {
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
+
+initEmailNotifications();
 
 // ============================================
 // ESCAPE HELPER — prevents stored XSS from user-submitted
@@ -154,9 +157,25 @@ async function loadResources() {
     list.querySelectorAll(".status-select").forEach(sel => {
       sel.addEventListener("change", async (e) => {
         e.target.disabled = true;
+        const id = e.target.dataset.id;
+        const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "resources", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
+          await updateDoc(doc(db, "resources", id), { status: newStatus, reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
+          const item = resourcesCache[id];
+          if (item) {
+            const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
+            sendReviewEmail({
+              toEmail: item.uploaderEmail,
+              toName: item.uploaderName || item.courseCode,
+              status: statusLabel,
+              itemType: item.resourceType === "previous_questions" ? "Suggestion upload" : "Hand Notes upload",
+              courseCode: item.courseCode,
+              courseName: item.courseName,
+              detail: item.fileUrls?.[0]?.name || ""
+            });
+            item.status = newStatus;
+          }
         } catch (err) {
           console.error("[AgriAdmin] resource status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
@@ -217,9 +236,24 @@ async function loadTerms() {
     termList.querySelectorAll(".status-select-term").forEach(sel => {
       sel.addEventListener("change", async (e) => {
         e.target.disabled = true;
+        const id = e.target.dataset.id;
+        const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "terms", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
+          await updateDoc(doc(db, "terms", id), { status: newStatus, reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
+          const item = termsCache[id];
+          if (item) {
+            const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
+            sendReviewEmail({
+              toEmail: item.uploaderEmail,
+              toName: item.name,
+              status: statusLabel,
+              itemType: "Knowledge Hub term submission",
+              courseName: item.name,
+              detail: item.name
+            });
+            item.status = newStatus;
+          }
         } catch (err) {
           console.error("[AgriAdmin] term status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
@@ -365,9 +399,23 @@ async function loadRegistrations() {
     regList.querySelectorAll(".status-select-reg").forEach(sel => {
       sel.addEventListener("change", async (e) => {
         e.target.disabled = true;
+        const id = e.target.dataset.id;
+        const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "registrations", e.target.dataset.id), { status: e.target.value, reviewedAt: new Date() });
+          await updateDoc(doc(db, "registrations", id), { status: newStatus, reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
+          const item = registrationsCache[id];
+          if (item) {
+            const statusLabel = newStatus === "verified" ? "Verified" : newStatus === "rejected" ? "Rejected" : "Unverified";
+            sendReviewEmail({
+              toEmail: item.email,
+              toName: item.fullName,
+              status: statusLabel,
+              itemType: "Student registration",
+              detail: item.studentIdNumber ? `Student ID #${item.studentIdNumber}` : ""
+            });
+            item.status = newStatus;
+          }
         } catch (err) {
           console.error("[AgriAdmin] registration status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
