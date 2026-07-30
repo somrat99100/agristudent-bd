@@ -133,7 +133,7 @@ async function loadResources() {
             ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 Hand Notes"}
             ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName) || ""}
           </div>
-          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})</div>
+          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})${item.uploaderStudentId ? ` · Student ID: <strong>${esc(item.uploaderStudentId)}</strong>` : ""}</div>
           <div style="margin-top:.4rem;">${(item.fileUrls || []).map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);">${esc(f.name)}</a>`).join(" · ")}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">

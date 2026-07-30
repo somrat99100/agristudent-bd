@@ -46,6 +46,39 @@ function esc(val) {
 }
 
 // ============================================
+// STUDENT ID LOOKUP (by registered email)
+// Used to stamp every upload with the uploader's registered Student ID,
+// so the viewer can show "who uploaded this" without asking the student
+// to re-enter their ID on every upload form.
+// ============================================
+async function lookupStudentIdByEmail(email) {
+  if (!email) return null;
+  try {
+    const q = query(collection(db, "registrations"), where("email", "==", email));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return snap.docs[0].data().studentIdNumber || null;
+  } catch (err) {
+    console.error("[Student ID Lookup] failed:", err);
+    return null;
+  }
+}
+
+// ============================================
+// VIEW LINK BUILDER
+// Centralizes the view.html query string so every resource card/list
+// carries the same ownership + metadata params (see: ownership label &
+// upload-count features).
+// ============================================
+function buildViewHref(file, item = {}) {
+  let href = `view.html?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`;
+  if (item.courseCode) href += `&code=${encodeURIComponent(item.courseCode)}`;
+  if (file.title) href += `&title=${encodeURIComponent(file.title)}`;
+  if (item.uploaderStudentId) href += `&owner=${encodeURIComponent(item.uploaderStudentId)}`;
+  return href;
+}
+
+// ============================================
 // UPLOAD FORM MODAL (resources.html)
 // ============================================
 const openUploadBtn = document.getElementById("open-upload-form");
@@ -61,27 +94,81 @@ if (uploadModal) {
 
 // ============================================
 // UPLOAD FORM (resources.html)
+// Same premium file-type-picker experience as "Upload Another File" on
+// slides-notes.html: PDF/Image/PPT choice, course-name hint, faculty
+// suggestions, per-image titles — plus this form's own Hand Notes vs.
+// Suggestions resourceType + examType fields, unchanged.
 // ============================================
 const uploadForm = document.getElementById("upload-form");
 if (uploadForm) {
   const resourceTypeSelect = document.getElementById("resourceType");
   const examTypeWrap = document.getElementById("examType-wrap");
   const fileInput = document.getElementById("files");
+  const filesLabel = document.getElementById("files-label");
   const statusBox = document.getElementById("upload-status");
   const submitBtn = document.getElementById("upload-submit");
   const successBox = document.getElementById("upload-success");
   const courseCodeInput = document.getElementById("courseCode");
   const courseNameInput = document.getElementById("courseName");
+  const courseNameHint = document.getElementById("courseName-hint");
   const facultyNameInput = document.getElementById("facultyName");
+  const facultySuggestions = document.getElementById("upload-faculty-suggestions");
+  const imageTitlesWrap = document.getElementById("upload-image-titles-wrap");
+  const imageTitlesListEl = document.getElementById("upload-image-titles-list");
   const progressWrap = document.getElementById("upload-progress-wrap");
   const progressBar = document.getElementById("progress-ring-bar");
   const progressText = document.getElementById("progress-ring-text");
   const CIRCUMFERENCE = 226.19;
 
+  const fileTypeAccepts = {
+    pdf: ".pdf,application/pdf",
+    image: "image/*,.jpg,.jpeg,.png,.gif,.webp",
+    ppt: ".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  };
+  let currentFileType = "pdf";
   let matchedCourse = null;
+
+  function cleanFileNameAsTitle(name) {
+    return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  }
+  function renderImageTitleInputs() {
+    if (!imageTitlesWrap || !imageTitlesListEl) return;
+    if (currentFileType !== "image" || !fileInput.files || fileInput.files.length === 0) {
+      imageTitlesWrap.classList.add("hidden");
+      imageTitlesListEl.innerHTML = "";
+      return;
+    }
+    imageTitlesListEl.innerHTML = Array.from(fileInput.files).map((f, i) => `
+      <input type="text" class="upload-image-title-input" data-index="${i}"
+             placeholder="Title for: ${esc(f.name)}" value="${esc(cleanFileNameAsTitle(f.name))}"
+             style="width:100%;padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;font-size:.85rem;">
+    `).join("");
+    imageTitlesWrap.classList.remove("hidden");
+  }
+  fileInput.addEventListener("change", renderImageTitleInputs);
+
+  document.querySelectorAll('input[name="fileType"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      currentFileType = radio.value;
+      fileInput.accept = fileTypeAccepts[currentFileType];
+      const labels = {
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP — max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX — max 20 files, 50MB each)"
+      };
+      if (filesLabel) filesLabel.textContent = labels[currentFileType];
+      document.querySelectorAll('input[name="fileType"]').forEach(r => {
+        r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
+        r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
+      });
+      renderImageTitleInputs();
+    });
+  });
 
   courseCodeInput.addEventListener("blur", async () => {
     const code = courseCodeInput.value.trim().toUpperCase();
+    if (courseNameHint) courseNameHint.classList.add("hidden");
+    if (facultySuggestions) facultySuggestions.innerHTML = "";
     if (!code) { matchedCourse = null; courseNameInput.readOnly = false; courseNameInput.value = ""; return; }
     try {
       const courseSnap = await getDoc(doc(db, "courses", code));
@@ -89,9 +176,19 @@ if (uploadForm) {
         matchedCourse = courseSnap.data();
         courseNameInput.value = matchedCourse.courseName;
         courseNameInput.readOnly = true;
+        if (courseNameHint) {
+          courseNameHint.innerHTML = `Suggested from an existing course: <strong>${esc(matchedCourse.courseName)}</strong>.`;
+          courseNameHint.classList.remove("hidden");
+        }
       } else {
         matchedCourse = null;
         courseNameInput.readOnly = false;
+      }
+      if (facultySuggestions) {
+        const q = query(collection(db, "resources"), where("courseCode", "==", code));
+        const snap = await getDocs(q);
+        const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
+        facultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
       }
     } catch (err) { console.error("Error checking canonical course:", err); }
   });
@@ -128,10 +225,19 @@ if (uploadForm) {
     const uploaderEmail = document.getElementById("uploaderEmail").value.trim();
     const files = Array.from(fileInput.files);
 
-    if (files.length === 0) { showError("Please choose at least one file."); return; }
+    if (files.length === 0) { showError(`Please choose at least one ${currentFileType.toUpperCase()} file.`); return; }
     if (files.length > MAX_FILES) { showError(`Maximum ${MAX_FILES} files allowed.`); return; }
-    const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
-    if (nonPdf) { showError(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`); return; }
+
+    let validationError = false;
+    if (currentFileType === "pdf") {
+      validationError = files.some(f => !f.name.toLowerCase().endsWith(".pdf"));
+    } else if (currentFileType === "image") {
+      validationError = files.some(f => !["jpg","jpeg","png","gif","webp"].includes(f.name.toLowerCase().split(".").pop()));
+    } else if (currentFileType === "ppt") {
+      validationError = files.some(f => !["ppt","pptx"].includes(f.name.toLowerCase().split(".").pop()));
+    }
+    if (validationError) { showError(`Some files are not valid ${currentFileType.toUpperCase()} files.`); return; }
+
     const oversized = files.find(f => f.size > MAX_SIZE);
     if (oversized) { showError(`"${oversized.name}" is over 50MB.`); return; }
 
@@ -153,6 +259,15 @@ if (uploadForm) {
       const fileUrls = await Promise.all(
         files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
       );
+
+      if (currentFileType === "image" && imageTitlesListEl) {
+        const titleInputs = imageTitlesListEl.querySelectorAll(".upload-image-title-input");
+        fileUrls.forEach((f, i) => {
+          const t = titleInputs[i] ? titleInputs[i].value.trim() : "";
+          f.title = t || cleanFileNameAsTitle(f.name);
+        });
+      }
+
       showStatus("Saving details…");
       setProgress(100);
       if (!matchedCourse) {
@@ -160,10 +275,12 @@ if (uploadForm) {
       }
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
-        resourceType, uploaderEmail, fileUrls, status: "pending", submittedAt: serverTimestamp()
+        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, status: "pending", submittedAt: serverTimestamp()
       };
       if (uploaderName) docData.uploaderName = uploaderName;
       if (resourceType === "previous_questions" && examType) docData.examType = examType;
+      const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+      if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
       await addDoc(collection(db, "resources"), docData);
       uploadForm.reset();
       uploadForm.classList.add("hidden");
@@ -171,6 +288,8 @@ if (uploadForm) {
       successBox.classList.remove("hidden");
       matchedCourse = null;
       courseNameInput.readOnly = false;
+      if (courseNameHint) courseNameHint.classList.add("hidden");
+      if (imageTitlesWrap) imageTitlesWrap.classList.add("hidden");
     } catch (err) {
       console.error("[Upload] failed:", err);
       let userMessage = "Something went wrong. Please try again.";
@@ -249,7 +368,7 @@ if (courseButtonsWrap) {
             <div style="font-size:.8rem;color:var(--moss-600);">${item.fileUrls.length} file(s)</div>
           </div>
           <div class="resource-row-files">
-            ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View: ${esc(f.name)}</a>`).join("")}
+            ${item.fileUrls.map(f => `<a href="${buildViewHref(f, item)}" class="view-link">View: ${esc(f.name)}</a>`).join("")}
           </div>
         </div>`).join("");
   }
@@ -423,6 +542,13 @@ if (handNotesGate && handNotesContent) {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const latest = docs.sort((a, b) => (b.submittedAt?.toDate() || 0) - (a.submittedAt?.toDate() || 0))[0];
 
+      // Uploads-by-Student-ID count — always the live total, recomputed on
+      // every status check (i.e. right after every upload).
+      const uploadCount = docs.length;
+      let ownerStudentId = latest.uploaderStudentId;
+      if (!ownerStudentId) ownerStudentId = await lookupStudentIdByEmail(userEmail);
+      const uploadCountLine = `<div class="file-info">Uploads by ${ownerStudentId ? `Student ID <strong>${esc(ownerStudentId)}</strong>` : "this account"}: ${uploadCount}</div>`;
+
       accessStatusBar.classList.remove("hidden");
       accessStatusBar.classList.remove("approved", "pending", "rejected");
 
@@ -432,13 +558,15 @@ if (handNotesGate && handNotesContent) {
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>✅ APPROVED — Full Access</strong>
           <div class="file-info">Approved on ${submittedDate}</div>
+          ${uploadCountLine}
         `;
       } else if (latest.status === "pending") {
         accessStatusBar.classList.add("pending");
         const submittedDate = latest.submittedAt?.toDate?.()?.toLocaleDateString?.() || "today";
         accessStatusBar.querySelector(".status-content").innerHTML = `
-          <strong>⏳ PENDING — Temporary Access (48 hours)</strong>
-          <div class="file-info">Uploaded on ${submittedDate}<br>Still waiting for admin review...</div>
+          <strong>⏳ PENDING — Access Granted (Awaiting Review)</strong>
+          <div class="file-info">Uploaded on ${submittedDate}<br>Still waiting for admin review — access stays on until then.</div>
+          ${uploadCountLine}
         `;
       } else if (latest.status === "rejected") {
         accessStatusBar.classList.add("rejected");
@@ -608,11 +736,14 @@ if (handNotesGate && handNotesContent) {
           await setDoc(doc(db, "courses", courseCode), { courseCode, courseName: finalCourseName });
         }
 
-        await addDoc(collection(db, "resources"), {
+        const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
           resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType,
           status: "pending", submittedAt: serverTimestamp()
-        });
+        };
+        const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+        if (hnUploaderStudentId) hnDocData.uploaderStudentId = hnUploaderStudentId;
+        await addDoc(collection(db, "resources"), hnDocData);
 
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
         setTimeout(() => hnGrantAccess(uploaderEmail), 700);
@@ -687,7 +818,7 @@ if (pdfList || imageGrid) {
       <div class="file-item">
         <span class="file-status">${docIcon(item)}</span>
         <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
-        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
+        <a href="${buildViewHref(item.fileUrls[0], item)}" class="file-action">View</a>
       </div>
     `).join("");
 
@@ -733,8 +864,7 @@ if (pdfList || imageGrid) {
 
     imageGrid.innerHTML = images.map(img => {
       const file = img.fileUrls[0];
-      const viewHref = `view.html?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
-        + `&code=${encodeURIComponent(img.courseCode || "")}&title=${encodeURIComponent(file.title || "")}`;
+      const viewHref = buildViewHref(file, img);
       return `
       <a class="image-item" href="${viewHref}" style="text-decoration:none;">
         <div class="image-item-thumb">
@@ -805,7 +935,7 @@ if (pdfList || imageGrid) {
       <div class="file-item">
         <span class="file-status">${docIcon(item)}</span>
         <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}${item.facultyName ? ` <span style="opacity:.7;font-weight:400;">— ${esc(item.facultyName)}</span>` : ""}</span>
-        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
+        <a href="${buildViewHref(item.fileUrls[0], item)}" class="file-action">View</a>
       </div>`;
   }
 
@@ -835,8 +965,7 @@ if (pdfList || imageGrid) {
       }
       grid.innerHTML = items.map(img => {
         const file = img.fileUrls[0];
-        const viewHref = `view.html?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
-          + `&code=${encodeURIComponent(img.courseCode || "")}&title=${encodeURIComponent(file.title || "")}`;
+        const viewHref = buildViewHref(file, img);
         return `
         <a class="image-item" href="${viewHref}" style="text-decoration:none;">
           <div class="image-item-thumb">
@@ -1046,11 +1175,14 @@ if (anotherUploadBtn && anotherUploadModal) {
         await setDoc(doc(db, "courses", courseCode), { courseCode, courseName: finalCourseName });
       }
 
-      await addDoc(collection(db, "resources"), {
+      const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
         resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType,
         status: "pending", submittedAt: serverTimestamp()
-      });
+      };
+      const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+      if (auUploaderStudentId) auDocData.uploaderStudentId = auUploaderStudentId;
+      await addDoc(collection(db, "resources"), auDocData);
 
       auForm.classList.add("hidden");
       auProgressWrap.classList.add("hidden");
@@ -1110,7 +1242,7 @@ if (pqList) {
           <div class="card-body">
             <h3>${esc(item.courseCode)}</h3>
             <p style="font-size:.85rem;color:var(--moss-600);margin-bottom:.7rem;">${esc(item.facultyName || "")}</p>
-            ${item.fileUrls.map(f => `<a href="view.html?url=${encodeURIComponent(f.url)}&name=${encodeURIComponent(f.name)}" class="view-link">View Question</a>`).join("<br>")}
+            ${item.fileUrls.map(f => `<a href="${buildViewHref(f, item)}" class="view-link">View Question</a>`).join("<br>")}
           </div>
         </div>`).join("");
     } catch (err) {
