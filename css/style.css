@@ -1352,6 +1352,29 @@ body.viewer-layout {
 
 /* utility */
 .hidden { display: none !important; }
+
+/* ============================================
+   NAVBAR AUTH SLOT (login / profile+logout)
+   ============================================ */
+.navbar-auth-slot{ display:flex; align-items:center; gap:.6rem; }
+.navbar-auth-login{
+  font-weight:600; font-size:.85rem; color:var(--moss-700);
+  padding:.4rem .8rem; border:1px solid var(--line); border-radius:8px;
+}
+.navbar-auth-login:hover{ background:var(--paper-100); }
+.navbar-auth-profile{
+  display:flex; align-items:center; gap:.4rem; font-weight:600; font-size:.85rem;
+  color:var(--moss-700);
+}
+.navbar-auth-avatar{ width:26px; height:26px; border-radius:50%; object-fit:cover; }
+.navbar-auth-logout{
+  background:none; border:1px solid var(--line); border-radius:8px;
+  padding:.35rem .7rem; font-size:.78rem; font-weight:600; cursor:pointer; color:var(--terracotta-500);
+}
+.navbar-auth-logout:hover{ background:rgba(196,90,63,.08); }
+@media (max-width:700px){
+  .navbar-auth-slot span{ display:none; }
+}
 @media (max-width:700px){
   .viewer-bar .title{ display:none; }
   .viewer-bg{ padding:1rem .6rem; }
