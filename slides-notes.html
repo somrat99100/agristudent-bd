@@ -105,20 +105,20 @@
       <!-- THREE-CARD PREMIUM LAYOUT -->
       <div class="premium-cards-grid">
         
-        <!-- PDF CARD -->
+        <!-- PDF & PRESENTATIONS CARD -->
         <div class="premium-card pdf-card">
           <div class="card-header">
             <span class="card-icon">📄</span>
-            <span class="card-title">PDF Files</span>
+            <span class="card-title">PDFs &amp; Presentations</span>
             <span class="card-count" id="pdf-count">(0)</span>
           </div>
           <div class="card-body">
             <div id="pdf-list" class="file-list">
-              <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading PDFs…</p>
+              <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading files…</p>
             </div>
           </div>
           <div class="card-footer">
-            <a href="#" class="view-all-link" id="pdf-view-all" style="display:none;">View All PDFs →</a>
+            <a href="#" class="view-all-link" id="pdf-view-all" style="display:none;">View All →</a>
           </div>
         </div>
 
@@ -140,33 +140,16 @@
           </div>
         </div>
 
-        <!-- PPT CARD -->
-        <div class="premium-card ppt-card">
-          <div class="card-header">
-            <span class="card-icon">📊</span>
-            <span class="card-title">Presentations</span>
-            <span class="card-count" id="ppt-count">(0)</span>
-          </div>
-          <div class="card-body">
-            <div id="ppt-list" class="file-list">
-              <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading presentations…</p>
-            </div>
-          </div>
-          <div class="card-footer">
-            <a href="#" class="view-all-link" id="ppt-view-all" style="display:none;">View All Presentations →</a>
-          </div>
-        </div>
-
       </div>
 
     </div>
 
-    <!-- VIEW ALL PDFs MODAL: search by course code + faculty filter -->
+    <!-- VIEW ALL PDFs & PRESENTATIONS MODAL: search by course code + faculty filter -->
     <div id="pdf-viewall-modal" class="modal-overlay hidden">
       <div class="modal-box" style="max-width:640px;">
         <button class="modal-close" id="pdf-viewall-close">✕</button>
         <div class="modal-body">
-          <h2 style="font-size:1.25rem;margin-bottom:1rem;">📄 All PDF Files</h2>
+          <h2 style="font-size:1.25rem;margin-bottom:1rem;">📄 All PDFs &amp; Presentations</h2>
           <input type="text" id="pdf-viewall-search" class="card-search" placeholder="Search by course code (e.g., AGR 101)">
           <div class="form-field" style="margin-top:.2rem;margin-bottom:0;">
             <label for="pdf-viewall-faculty" style="font-size:.85rem;">Filter by Faculty</label>
@@ -187,18 +170,6 @@
           <h2 style="font-size:1.25rem;margin-bottom:1rem;">🖼️ All Images</h2>
           <input type="text" id="image-viewall-search" class="card-search" placeholder="Search by course code or name">
           <div id="image-viewall-grid" class="image-grid" style="max-height:55vh;overflow-y:auto;margin-top:.4rem;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- VIEW ALL PRESENTATIONS MODAL -->
-    <div id="ppt-viewall-modal" class="modal-overlay hidden">
-      <div class="modal-box" style="max-width:640px;">
-        <button class="modal-close" id="ppt-viewall-close">✕</button>
-        <div class="modal-body">
-          <h2 style="font-size:1.25rem;margin-bottom:1rem;">📊 All Presentations</h2>
-          <input type="text" id="ppt-viewall-search" class="card-search" placeholder="Search by course code">
-          <div id="ppt-viewall-list" class="file-list" style="max-height:50vh;overflow-y:auto;margin-top:1rem;"></div>
         </div>
       </div>
     </div>
