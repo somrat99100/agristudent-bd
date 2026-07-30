@@ -25,7 +25,12 @@
 <div class="viewer-bar">
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <span class="title" id="viewer-title">Loading…</span>
-  <span style="width:80px;"></span>
+  <div class="viewer-controls">
+    <button id="btn-zoom-out" class="zoom-btn" title="Zoom out">−</button>
+    <span id="zoom-display" class="zoom-display">100%</span>
+    <button id="btn-zoom-in" class="zoom-btn" title="Zoom in">+</button>
+    <span id="image-size-display" class="size-display" style="display:none;"></span>
+  </div>
 </div>
 
 <div class="viewer-bg">
@@ -97,13 +102,91 @@
     const isOffice = ["ppt","pptx","doc","docx","xls","xlsx"].includes(ext);
 
     if (isImage) {
+      // Auto-detect display size based on viewport
+      const detectImageSize = () => {
+        const width = window.innerWidth;
+        if (width < 640) return "fit-to-width"; // Mobile
+        if (width < 1024) return "a4"; // Tablet
+        return "a3"; // Desktop
+      };
+
       const imgEl = document.createElement("img");
       imgEl.src = fileUrl;
       imgEl.alt = fileName;
       imgEl.style.cssText = "width:100%;height:100%;object-fit:contain;";
-      imgEl.onload = () => loadingMask.classList.add("hidden");
+      imgEl.onload = () => {
+        loadingMask.classList.add("hidden");
+        updateImageSizeDisplay(detectImageSize());
+      };
       imgEl.onerror = () => showError("Could not load image.");
       wrap.appendChild(imgEl);
+
+      function updateImageSizeDisplay(size) {
+        const sizeDisplay = document.getElementById("image-size-display");
+        const sizeText = {
+          "fit-to-width": "📱 Fit to width",
+          "a4": "📄 A4 (210×297mm)",
+          "a3": "📄 A3 (297×420mm)"
+        };
+        sizeDisplay.textContent = sizeText[size] || "Auto";
+        sizeDisplay.style.display = "inline";
+      }
+
+      // Zoom controls for images
+      let imgZoom = 1;
+      const btnZoomIn = document.getElementById("btn-zoom-in");
+      const btnZoomOut = document.getElementById("btn-zoom-out");
+      const zoomDisplay = document.getElementById("zoom-display");
+
+      btnZoomIn.addEventListener("click", () => {
+        imgZoom = Math.min(imgZoom + 0.2, 3);
+        imgEl.style.transform = `scale(${imgZoom})`;
+        zoomDisplay.textContent = Math.round(imgZoom * 100) + "%";
+        wrap.style.overflow = imgZoom > 1 ? "auto" : "hidden";
+      });
+
+      btnZoomOut.addEventListener("click", () => {
+        imgZoom = Math.max(imgZoom - 0.2, 1);
+        imgEl.style.transform = `scale(${imgZoom})`;
+        zoomDisplay.textContent = Math.round(imgZoom * 100) + "%";
+        wrap.style.overflow = imgZoom > 1 ? "auto" : "hidden";
+      });
+
+      // Pinch zoom for mobile
+      let initDist = null, initScale = 1;
+      wrap.addEventListener("touchstart", e => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          initDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+          initScale = imgZoom;
+        }
+      }, { passive: false });
+
+      wrap.addEventListener("touchmove", e => {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+        const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        imgZoom = Math.min(Math.max(1, initScale * (dist / initDist)), 3);
+        imgEl.style.transform = `scale(${imgZoom})`;
+        zoomDisplay.textContent = Math.round(imgZoom * 100) + "%";
+        wrap.style.overflow = imgZoom > 1 ? "auto" : "hidden";
+      }, { passive: false });
+
+      wrap.addEventListener("touchend", e => { if (e.touches.length < 2) initDist = null; });
+
+      // Double-click zoom
+      wrap.addEventListener("dblclick", () => {
+        if (imgZoom > 1) {
+          imgZoom = 1;
+          imgEl.style.transform = "scale(1)";
+          wrap.style.overflow = "hidden";
+        } else {
+          imgZoom = 1.5;
+          imgEl.style.transform = "scale(1.5)";
+          wrap.style.overflow = "auto";
+        }
+        zoomDisplay.textContent = Math.round(imgZoom * 100) + "%";
+      });
 
     } else if (isOffice) {
       const officeUrl = "https://view.officeapps.live.com/op/embed.aspx?src=" + encodeURIComponent(fileUrl);
@@ -221,6 +304,23 @@
           if (p !== pageNum) { const d = p > pageNum ? "forward" : "backward"; pageNum = p; queueRenderPage(pageNum, d); }
           else pageInput.value = pageNum;
         }
+
+        // Zoom controls for PDF
+        const btnZoomIn = document.getElementById("btn-zoom-in");
+        const btnZoomOut = document.getElementById("btn-zoom-out");
+        const zoomDisplay = document.getElementById("zoom-display");
+
+        btnZoomIn.addEventListener("click", () => {
+          currentScale = Math.min(currentScale + 0.2, 3);
+          zoomDisplay.textContent = Math.round(currentScale * 100) + "%";
+          renderPage(pageNum, "init");
+        });
+
+        btnZoomOut.addEventListener("click", () => {
+          currentScale = Math.max(currentScale - 0.2, 1);
+          zoomDisplay.textContent = Math.round(currentScale * 100) + "%";
+          renderPage(pageNum, "init");
+        });
 
         btnGo.addEventListener("click", triggerPageSearch);
         pageInput.addEventListener("keypress", e => { if (e.key === "Enter") triggerPageSearch(); });
