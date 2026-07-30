@@ -779,6 +779,335 @@ if (pdfList || imageGrid || pptList) {
 
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
   window.__onResourceAccessGranted.push(loadThreeCardLayout);
+
+  // ============================================
+  // VIEW ALL MODALS
+  // The small cards only ever preview up to 5/6 items. "View All" opens a
+  // modal with the complete list — with a course-code search box, and (for
+  // PDFs) a faculty filter that's populated from whatever the code search
+  // currently matches.
+  // ============================================
+  function wireViewAllModal({ openBtnId, modalId, closeBtnId, searchId, facultyId, getItems, renderList, matchFn }) {
+    const openBtn = document.getElementById(openBtnId);
+    const modal = document.getElementById(modalId);
+    if (!openBtn || !modal) return;
+    const closeBtn = closeBtnId ? document.getElementById(closeBtnId) : null;
+    const searchInput = searchId ? document.getElementById(searchId) : null;
+    const facultySelect = facultyId ? document.getElementById(facultyId) : null;
+
+    function apply() {
+      const term = (searchInput?.value || "").trim();
+      let items = getItems();
+      if (term) items = items.filter(i => matchFn(i, term));
+
+      if (facultySelect) {
+        const faculties = [...new Set(items.map(i => i.facultyName).filter(Boolean))].sort();
+        const current = facultySelect.value;
+        facultySelect.innerHTML = `<option value="">All Faculties</option>` +
+          faculties.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join("");
+        facultySelect.value = faculties.includes(current) ? current : "";
+        if (facultySelect.value) items = items.filter(i => i.facultyName === facultySelect.value);
+      }
+
+      renderList(items);
+    }
+
+    openBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (searchInput) searchInput.value = "";
+      if (facultySelect) facultySelect.value = "";
+      modal.classList.remove("hidden");
+      apply();
+    });
+    if (closeBtn) closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+    if (searchInput) searchInput.addEventListener("input", apply);
+    if (facultySelect) facultySelect.addEventListener("change", apply);
+  }
+
+  function renderPdfRow(item) {
+    return `
+      <div class="file-item">
+        <span class="file-status">✓</span>
+        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}${item.facultyName ? ` <span style="opacity:.7;font-weight:400;">— ${esc(item.facultyName)}</span>` : ""}</span>
+        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
+      </div>`;
+  }
+
+  wireViewAllModal({
+    openBtnId: "pdf-view-all", modalId: "pdf-viewall-modal", closeBtnId: "pdf-viewall-close",
+    searchId: "pdf-viewall-search", facultyId: "pdf-viewall-faculty",
+    getItems: () => allSlides,
+    matchFn: (i, term) => (i.courseCode || "").toUpperCase().includes(term.toUpperCase()),
+    renderList: (items) => {
+      const list = document.getElementById("pdf-viewall-list");
+      list.innerHTML = items.length
+        ? items.map(renderPdfRow).join("")
+        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching PDFs found.</p>`;
+    }
+  });
+
+  wireViewAllModal({
+    openBtnId: "ppt-view-all", modalId: "ppt-viewall-modal", closeBtnId: "ppt-viewall-close",
+    searchId: "ppt-viewall-search", facultyId: null,
+    getItems: () => allPpts,
+    matchFn: (i, term) => (i.courseCode || "").toUpperCase().includes(term.toUpperCase()),
+    renderList: (items) => {
+      const list = document.getElementById("ppt-viewall-list");
+      list.innerHTML = items.length
+        ? items.map(renderPdfRow).join("")
+        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching presentations found.</p>`;
+    }
+  });
+
+  wireViewAllModal({
+    openBtnId: "image-view-all", modalId: "image-viewall-modal", closeBtnId: "image-viewall-close",
+    searchId: "image-viewall-search", facultyId: null,
+    getItems: () => allImages,
+    matchFn: (i, term) => (i.courseCode || "").toLowerCase().includes(term.toLowerCase()) || (i.courseName || "").toLowerCase().includes(term.toLowerCase()),
+    renderList: (items) => {
+      const grid = document.getElementById("image-viewall-grid");
+      if (!items.length) {
+        grid.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;grid-column:1/-1;">No matching images found.</p>`;
+        return;
+      }
+      grid.innerHTML = items.map(img => {
+        const file = img.fileUrls[0];
+        const viewHref = `view.html?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
+          + `&code=${encodeURIComponent(img.courseCode || "")}&title=${encodeURIComponent(file.title || "")}`;
+        return `
+        <a class="image-item" href="${viewHref}" style="text-decoration:none;">
+          <div class="image-item-thumb">
+            <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
+            <div class="status-badge">✓</div>
+            <div class="view-overlay"><button type="button">View</button></div>
+          </div>
+          <div class="image-item-caption">
+            <span class="image-item-code">${esc(img.courseCode)}</span>
+            ${file.title ? `<span class="image-item-title">${esc(file.title)}</span>` : ""}
+          </div>
+        </a>`;
+      }).join("");
+    }
+  });
+}
+
+// ============================================
+// UPLOAD ANOTHER FILE (slides-notes.html)
+// Same look-and-feel as the Hand Notes unlock upload above (file type
+// picker, image titles, progress ring) instead of the plain PDF-only form.
+// If the course code already exists, the course name and faculty name(s)
+// are offered as suggestions — the student can still type a different
+// faculty/section for the same course code.
+// ============================================
+const anotherUploadBtn = document.getElementById("open-another-upload");
+const anotherUploadModal = document.getElementById("another-upload-modal");
+if (anotherUploadBtn && anotherUploadModal) {
+  const auClose = document.getElementById("another-upload-close");
+  const auForm = document.getElementById("another-upload-form");
+  const auCourseCode = document.getElementById("au-courseCode");
+  const auCourseName = document.getElementById("au-courseName");
+  const auCourseNameHint = document.getElementById("au-courseName-hint");
+  const auFacultyName = document.getElementById("au-facultyName");
+  const auFacultySuggestions = document.getElementById("au-faculty-suggestions");
+  const auFiles = document.getElementById("au-files");
+  const auFilesLabel = document.getElementById("au-files-label");
+  const auSubmit = document.getElementById("au-submit");
+  const auStatus = document.getElementById("au-status");
+  const auProgressWrap = document.getElementById("au-progress-wrap");
+  const auProgressBar = document.getElementById("au-progress-ring-bar");
+  const auProgressText = document.getElementById("au-progress-ring-text");
+  const auImageTitlesWrap = document.getElementById("au-image-titles-wrap");
+  const auImageTitlesList = document.getElementById("au-image-titles-list");
+  const auSuccess = document.getElementById("au-success");
+  const AU_CIRCUMFERENCE = 226.19;
+  let auFileType = "pdf";
+  let auMatchedCourse = null;
+
+  const auFileTypeAccepts = {
+    pdf: ".pdf,application/pdf",
+    image: "image/*,.jpg,.jpeg,.png,.gif,.webp",
+    ppt: ".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  };
+
+  function auResetForm() {
+    auForm.reset();
+    auForm.classList.remove("hidden");
+    auSuccess.classList.add("hidden");
+    auProgressWrap.classList.add("hidden");
+    auStatus.textContent = "";
+    auCourseNameHint.classList.add("hidden");
+    auFacultySuggestions.innerHTML = "";
+    auImageTitlesWrap.classList.add("hidden");
+    auImageTitlesList.innerHTML = "";
+    auMatchedCourse = null;
+    auFileType = "pdf";
+    auFiles.accept = auFileTypeAccepts.pdf;
+    auFilesLabel.textContent = "PDF File(s) * (max 20 files, 50MB each)";
+    const pdfRadio = document.querySelector('input[name="au-fileType"][value="pdf"]');
+    if (pdfRadio) pdfRadio.checked = true;
+    document.querySelectorAll('input[name="au-fileType"]').forEach(r => {
+      r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
+      r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
+    });
+    auSubmit.disabled = false;
+    auSubmit.textContent = "Submit for Review";
+  }
+
+  anotherUploadBtn.addEventListener("click", () => {
+    auResetForm();
+    anotherUploadModal.classList.remove("hidden");
+  });
+  if (auClose) auClose.addEventListener("click", () => anotherUploadModal.classList.add("hidden"));
+  anotherUploadModal.addEventListener("click", (e) => { if (e.target === anotherUploadModal) anotherUploadModal.classList.add("hidden"); });
+
+  // Suggest course name + faculty names once the course code matches an existing one.
+  auCourseCode.addEventListener("blur", async () => {
+    const code = auCourseCode.value.trim().toUpperCase();
+    auFacultySuggestions.innerHTML = "";
+    auCourseNameHint.classList.add("hidden");
+    if (!code) { auMatchedCourse = null; return; }
+    try {
+      const courseSnap = await getDoc(doc(db, "courses", code));
+      if (courseSnap.exists()) {
+        auMatchedCourse = courseSnap.data();
+        if (!auCourseName.value.trim()) auCourseName.value = auMatchedCourse.courseName;
+        auCourseNameHint.innerHTML = `Suggested from an existing course: <strong>${esc(auMatchedCourse.courseName)}</strong> — edit if this is different.`;
+        auCourseNameHint.classList.remove("hidden");
+      } else {
+        auMatchedCourse = null;
+      }
+      // Existing faculty names for this course code, offered as suggestions
+      // (a datalist) — the student can still type any other faculty/section.
+      const q = query(collection(db, "resources"), where("courseCode", "==", code));
+      const snap = await getDocs(q);
+      const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
+      auFacultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
+    } catch (err) { console.error("[Another Upload] course lookup failed:", err); }
+  });
+
+  function auCleanFileNameAsTitle(name) {
+    return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  }
+  function renderAuImageTitleInputs() {
+    if (auFileType !== "image" || !auFiles.files || auFiles.files.length === 0) {
+      auImageTitlesWrap.classList.add("hidden");
+      auImageTitlesList.innerHTML = "";
+      return;
+    }
+    auImageTitlesList.innerHTML = Array.from(auFiles.files).map((f, i) => `
+      <input type="text" class="au-image-title-input" data-index="${i}"
+             placeholder="Title for: ${esc(f.name)}" value="${esc(auCleanFileNameAsTitle(f.name))}"
+             style="width:100%;padding:.5rem .7rem;border:1px solid var(--line);border-radius:6px;font-size:.85rem;">
+    `).join("");
+    auImageTitlesWrap.classList.remove("hidden");
+  }
+  auFiles.addEventListener("change", renderAuImageTitleInputs);
+
+  document.querySelectorAll('input[name="au-fileType"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      auFileType = radio.value;
+      auFiles.accept = auFileTypeAccepts[auFileType];
+      const labels = {
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP — max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX — max 20 files, 50MB each)"
+      };
+      auFilesLabel.textContent = labels[auFileType];
+      document.querySelectorAll('input[name="au-fileType"]').forEach(r => {
+        r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
+        r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
+      });
+      renderAuImageTitleInputs();
+    });
+  });
+
+  function auSetProgress(pct) {
+    auProgressBar.style.strokeDashoffset = AU_CIRCUMFERENCE - (pct / 100) * AU_CIRCUMFERENCE;
+    auProgressText.textContent = pct + "%";
+  }
+  function auShowStatus(msg, isError = false) {
+    auProgressWrap.classList.remove("hidden");
+    auStatus.textContent = msg;
+    auStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  }
+
+  auForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const courseCode = auCourseCode.value.trim().toUpperCase();
+    const rawCourseName = auCourseName.value.trim();
+    const facultyName = auFacultyName.value.trim();
+    const uploaderEmail = document.getElementById("au-uploaderEmail").value.trim();
+    const files = Array.from(auFiles.files);
+
+    if (files.length === 0) { auShowStatus(`Please choose at least one ${auFileType.toUpperCase()} file.`, true); return; }
+    if (files.length > MAX_FILES) { auShowStatus(`Maximum ${MAX_FILES} files allowed.`, true); return; }
+    const oversized = files.find(f => f.size > MAX_SIZE);
+    if (oversized) { auShowStatus(`"${oversized.name}" is over 50MB.`, true); return; }
+
+    let validationError = false;
+    if (auFileType === "pdf") validationError = files.some(f => !f.name.toLowerCase().endsWith(".pdf"));
+    else if (auFileType === "image") validationError = files.some(f => !["jpg","jpeg","png","gif","webp"].includes(f.name.toLowerCase().split(".").pop()));
+    else if (auFileType === "ppt") validationError = files.some(f => !["ppt","pptx"].includes(f.name.toLowerCase().split(".").pop()));
+    if (validationError) { auShowStatus(`Some files are not valid ${auFileType.toUpperCase()} files.`, true); return; }
+
+    auSubmit.disabled = true;
+    auSubmit.textContent = "Uploading…";
+    auSetProgress(0);
+    auShowStatus(`Uploading ${files.length} file(s)…`);
+
+    try {
+      const progressByFile = new Array(files.length).fill(0);
+      const updateOverall = () => {
+        const avg = Math.round(progressByFile.reduce((a, b) => a + b, 0) / files.length);
+        auSetProgress(avg);
+        auShowStatus(avg >= 100 ? "Processing on server…" : `Uploading ${files.length} file(s)…`);
+      };
+      const fileUrls = await Promise.all(
+        files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
+      );
+
+      if (auFileType === "image") {
+        const titleInputs = auImageTitlesList.querySelectorAll(".au-image-title-input");
+        fileUrls.forEach((f, i) => {
+          const t = titleInputs[i] ? titleInputs[i].value.trim() : "";
+          f.title = t || auCleanFileNameAsTitle(f.name);
+        });
+      }
+
+      auShowStatus("Saving details…");
+      auSetProgress(100);
+
+      const finalCourseName = rawCourseName || (auMatchedCourse ? auMatchedCourse.courseName : "");
+      const courseSnap = await getDoc(doc(db, "courses", courseCode));
+      if (!courseSnap.exists()) {
+        await setDoc(doc(db, "courses", courseCode), { courseCode, courseName: finalCourseName });
+      }
+
+      await addDoc(collection(db, "resources"), {
+        courseCode, courseName: finalCourseName, facultyName,
+        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType,
+        status: "pending", submittedAt: serverTimestamp()
+      });
+
+      auForm.classList.add("hidden");
+      auProgressWrap.classList.add("hidden");
+      auSuccess.classList.remove("hidden");
+      auMatchedCourse = null;
+
+      // Refresh whatever's currently on screen (three-card lists, status bar).
+      (window.__onResourceAccessGranted || []).forEach(fn => fn());
+    } catch (err) {
+      console.error("[Another Upload] failed:", err);
+      let userMessage = "Something went wrong. Please try again.";
+      if (err.code === "permission-denied") userMessage = "Upload was rejected. Please check the details and try again.";
+      else if (/network/i.test(err.message || "")) userMessage = "Network error. Check your connection and try again.";
+      else if (/timed out/i.test(err.message || "")) userMessage = "Upload took too long. Try again with a smaller file.";
+      auShowStatus(userMessage, true);
+      auSubmit.disabled = false;
+      auSubmit.textContent = "Submit for Review";
+    }
+  });
 }
 
 // ============================================
