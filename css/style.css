@@ -1161,8 +1161,13 @@ body.viewer-layout {
 .book-page canvas {
   max-width: 100%; max-height: 100%; object-fit: contain;
   box-shadow: 2px 0 25px rgba(0,0,0,0.04);
-  transition: transform 0.12s ease-out; 
-  transform-origin: 0 0; 
+  transition: transform 0.12s ease-out;
+  /* Must stay centered (default) to match the pan/zoom controller's math
+     in view.html, which anchors pinch/double-tap zoom around the
+     container's center. A 0 0 origin here caused zoom to always drift
+     toward the top-left corner on mobile, with panning unable to reach
+     the rest of the page. */
+  transform-origin: center center;
   margin: 0 auto;
 }
 
@@ -1259,6 +1264,25 @@ body.viewer-layout {
   position: fixed; bottom: 14px; right: 18px;
   font-family: var(--font-mono); font-size: 0.7rem;
   color: rgba(31,46,34,0.3); pointer-events: none; z-index: 5;
+}
+
+/* --- Resource ownership label ("@copyright-<studentId>") ---
+   Small, elegant, always-visible tag in the top-right of the document
+   area. pointer-events: none so it never intercepts pan/zoom/tap
+   gestures or covers the document underneath — it just floats above it. */
+.owner-badge {
+  position: fixed; top: 72px; right: 16px;
+  z-index: 25; pointer-events: none;
+  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.02em; color: var(--paper-100);
+  background: rgba(31,46,34,0.62);
+  padding: 0.3rem 0.65rem; border-radius: 999px;
+  backdrop-filter: blur(3px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 700px) {
+  .owner-badge { top: 62px; right: 10px; font-size: 0.62rem; padding: 0.25rem 0.55rem; }
 }
 
 /* --- Image caption (course code + upload title) --- */
