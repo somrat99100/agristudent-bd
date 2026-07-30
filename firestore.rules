@@ -55,7 +55,22 @@ service cloud.firestore {
         resource.data.status == "approved" ||
         request.auth != null;
 
-      allow list: if resource.data.status == "approved";
+      // "list: if true" — same reasoning as registrations above. Students
+      // never sign in, so there is no request.auth.token.email to check
+      // "is this your own upload" against. Firestore can only grant a
+      // `list` query if it can PROVE every possible matching doc satisfies
+      // the rule from the query's own filters — a rule like
+      // `resource.data.status == "approved"` cannot be proven for a query
+      // that filters by uploaderEmail with no status filter, so Firestore
+      // was rejecting that whole query outright (not just hiding
+      // non-approved docs). That's what broke the upload/"credit" status
+      // check in js/resources.js (hnCheckAndDisplayStatus) and the
+      // profile page's upload history (js/profile.js) for any student
+      // whose own upload was still pending or was rejected — exactly the
+      // "credit not showing" bug. The resources.html/knowledge-hub.html
+      // browsing views already filter to approved-only in their own
+      // queries, so this doesn't change what visitors normally see.
+      allow list: if true;
 
       // Admin panel only (approve/reject/edit in js/admin.js)
       allow update, delete: if request.auth != null;
@@ -77,7 +92,10 @@ service cloud.firestore {
         resource.data.status == "approved" ||
         request.auth != null;
 
-      allow list: if resource.data.status == "approved";
+      // See the matching comment on /resources/{id} above — same fix,
+      // same reason (students' own pending/rejected contributions need
+      // to be listable by uploaderEmail on their profile page).
+      allow list: if true;
 
       allow update, delete: if request.auth != null;
     }
