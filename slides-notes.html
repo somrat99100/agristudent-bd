@@ -78,6 +78,10 @@
               <label id="hn-files-label">PDF File(s) * (max 20 files, 50MB each)</label>
               <input type="file" id="hn-files" multiple required accept=".pdf,application/pdf">
             </div>
+            <div class="form-field hidden" id="hn-image-titles-wrap">
+              <label>Image Title(s) — shown under each image in the gallery</label>
+              <div id="hn-image-titles-list" style="display:flex;flex-direction:column;gap:.5rem;"></div>
+            </div>
             <button type="submit" id="hn-unlock-submit" class="btn-primary" style="width:100%;padding:.8rem;margin-top:.6rem;">Upload &amp; Unlock</button>
 
             <div id="hn-unlock-progress-wrap" class="upload-progress-wrap hidden">
