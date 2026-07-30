@@ -52,7 +52,7 @@
             <p style="font-size:.88rem;color:var(--moss-600);">Browse lecture materials by course code.</p>
           </div>
         </a>
-        <a href="https://wa.me/8801753486065?text=Hello/Assalamu%20alaikum%2C%20Mizanur.%20I%20need%20your%20help%20to%20make%20premium%20notes%20of%20..........%20chapter." target="_blank" rel="noopener" class="seed-card reveal">
+        <a href="https://wa.me/8801753486065?text=Hello/Assalamu%20alaikum%2C%20Mizanur.%20I%20need%20your%20help%20to%20make%20premium%20notes%20of%20..........%20chapter.%20How%20much%20will%20it%20cost%3F" target="_blank" rel="noopener" class="seed-card reveal">
           <div class="tag-strip"><span class="tag-dot"></span><span class="tag">PREMIUM</span></div>
           <div class="card-body">
             <div class="icon">✨</div>
@@ -78,10 +78,12 @@
             <div class="form-field">
               <label for="courseName">Course Name *</label>
               <input type="text" id="courseName" required placeholder="e.g., Introduction to Agronomy">
+              <small id="courseName-hint" class="hidden" style="display:block;margin-top:.4rem;color:var(--moss-600);font-size:.85rem;"></small>
             </div>
             <div class="form-field">
               <label for="facultyName">Faculty Name *</label>
-              <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences">
+              <input type="text" id="facultyName" required placeholder="e.g., College of Agricultural Sciences" list="upload-faculty-suggestions">
+              <datalist id="upload-faculty-suggestions"></datalist>
               <small style="display:block;margin-top:0.4rem;color:var(--moss-600);font-size:0.85rem;">Different faculty/section uploading for the same course code? Just enter your own faculty name here.</small>
             </div>
             <div class="form-field">
@@ -109,8 +111,29 @@
               <input type="email" id="uploaderEmail" required>
             </div>
             <div class="form-field">
-              <label for="files">Files * (PDF only — max 20 files, 50MB each)</label>
+              <label>File Type *</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;">
+                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
+                  <input type="radio" name="fileType" value="pdf" checked style="cursor:pointer;">
+                  <span>📄 PDF</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
+                  <input type="radio" name="fileType" value="image" style="cursor:pointer;">
+                  <span>🖼️ Image</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
+                  <input type="radio" name="fileType" value="ppt" style="cursor:pointer;">
+                  <span>📊 PPT</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-field">
+              <label id="files-label" for="files">PDF File(s) * (max 20 files, 50MB each)</label>
               <input type="file" id="files" multiple required accept=".pdf,application/pdf">
+            </div>
+            <div class="form-field hidden" id="upload-image-titles-wrap">
+              <label>Image Title(s) — shown under each image in the gallery</label>
+              <div id="upload-image-titles-list" style="display:flex;flex-direction:column;gap:.5rem;"></div>
             </div>
 
             <button type="submit" id="upload-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit for Review</button>

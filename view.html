@@ -55,6 +55,8 @@
   </div>
 </div>
 
+<div class="owner-badge hidden" id="owner-badge"></div>
+
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
 <script>
@@ -74,6 +76,14 @@
   const fileName = params.get("name") || "Document";
   const courseCode = params.get("code") || "";
   const imageTitle = params.get("title") || "";
+  const ownerStudentId = params.get("owner") || "";
+
+  // Ownership label — small, elegant, always visible, never blocks content.
+  if (ownerStudentId) {
+    const ownerBadge = document.getElementById("owner-badge");
+    ownerBadge.textContent = "@copyright-" + ownerStudentId;
+    ownerBadge.classList.remove("hidden");
+  }
 
   // Cloudinary serves PDFs as /image/upload/ with wrong content-type by default.
   // Add fl_attachment transformation so it returns application/pdf.
