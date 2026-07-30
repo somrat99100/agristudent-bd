@@ -369,16 +369,15 @@ if (resourceGate && resourceContent) {
 // ============================================
 // HAND NOTES UNLOCK GATE (slides-notes.html)
 // ============================================
-// Hand Notes uses a different unlock than the rest of Resources: instead
-// of a Student-ID check, a visitor unlocks the page by contributing a PDF
-// of their own. The file goes through the exact same admin-review pipeline
-// as a normal upload (status: "pending") and appears in Hand Notes once
-// approved — the unlock itself is immediate and just gates the UI.
+// Access is granted by uploading a file (PDF/Image/PPT).
+// User keeps access while file is pending/approved.
+// If rejected, they lose access and must upload new file.
 const handNotesGate = document.getElementById("handnotes-gate");
 const handNotesContent = document.getElementById("resource-content");
+const accessStatusBar = document.getElementById("access-status-bar");
 
 if (handNotesGate && handNotesContent) {
-  const HN_STORAGE_KEY = "agri_handnotes_unlocked";
+  const HN_STORAGE_KEY = "agri_handnotes_user_email";
   const hnForm = document.getElementById("handnotes-unlock-form");
   const hnFiles = document.getElementById("hn-files");
   const hnSubmit = document.getElementById("hn-unlock-submit");
@@ -386,28 +385,129 @@ if (handNotesGate && handNotesContent) {
   const hnProgressWrap = document.getElementById("hn-unlock-progress-wrap");
   const hnProgressBar = document.getElementById("hn-progress-ring-bar");
   const hnProgressText = document.getElementById("hn-progress-ring-text");
+  const hnFilesLabel = document.getElementById("hn-files-label");
   const HN_CIRCUMFERENCE = 226.19;
 
-  function hnGrantAccess() {
+  // File type acceptances
+  const fileTypeAccepts = {
+    pdf: ".pdf,application/pdf",
+    image: "image/*,.jpg,.jpeg,.png,.gif,.webp",
+    ppt: ".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  };
+
+  let currentFileType = "pdf";
+
+  function hnGrantAccess(userEmail) {
+    localStorage.setItem(HN_STORAGE_KEY, userEmail);
     handNotesGate.classList.add("hidden");
     handNotesContent.classList.remove("hidden");
+    hnCheckAndDisplayStatus(userEmail);
     (window.__onResourceAccessGranted || []).forEach(fn => fn());
+  }
+
+  async function hnCheckAndDisplayStatus(userEmail) {
+    if (!accessStatusBar) return;
+    try {
+      const q = query(
+        collection(db, "resources"),
+        where("uploaderEmail", "==", userEmail),
+        where("resourceType", "==", "slides_notes")
+      );
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        accessStatusBar.classList.add("hidden");
+        return;
+      }
+
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const latest = docs.sort((a, b) => (b.submittedAt?.toDate() || 0) - (a.submittedAt?.toDate() || 0))[0];
+
+      accessStatusBar.classList.remove("hidden");
+      accessStatusBar.classList.remove("approved", "pending", "rejected");
+
+      if (latest.status === "approved") {
+        accessStatusBar.classList.add("approved");
+        const submittedDate = latest.submittedAt?.toDate?.()?.toLocaleDateString?.() || "recently";
+        accessStatusBar.querySelector(".status-content").innerHTML = `
+          <strong>✅ APPROVED — Full Access</strong>
+          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"<br>Approved on ${submittedDate}</div>
+        `;
+      } else if (latest.status === "pending") {
+        accessStatusBar.classList.add("pending");
+        const submittedDate = latest.submittedAt?.toDate?.()?.toLocaleDateString?.() || "today";
+        accessStatusBar.querySelector(".status-content").innerHTML = `
+          <strong>⏳ PENDING — Temporary Access (48 hours)</strong>
+          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"<br>Uploaded on ${submittedDate}<br>Still waiting for admin review...</div>
+        `;
+      } else if (latest.status === "rejected") {
+        accessStatusBar.classList.add("rejected");
+        handNotesGate.classList.remove("hidden");
+        handNotesContent.classList.add("hidden");
+        accessStatusBar.querySelector(".status-content").innerHTML = `
+          <strong>❌ ACCESS EXPIRED — File Rejected</strong>
+          <div class="file-info">Your file: "${esc(latest.fileUrls[0]?.name || 'Document')}"</div>
+          <button class="action-btn" onclick="document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload New File</button>
+        `;
+      }
+    } catch (err) {
+      console.error("[Access Status Check] failed:", err);
+    }
   }
 
   function hnSetProgress(pct) {
     hnProgressBar.style.strokeDashoffset = HN_CIRCUMFERENCE - (pct / 100) * HN_CIRCUMFERENCE;
     hnProgressText.textContent = pct + "%";
   }
+
   function hnShowStatus(msg, isError = false) {
     hnProgressWrap.classList.remove("hidden");
     hnStatus.textContent = msg;
     hnStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
   }
 
-  // Already contributed a note on this device before — skip straight in.
-  if (localStorage.getItem(HN_STORAGE_KEY)) {
-    hnGrantAccess();
+  // Check if user already has access (from previous upload)
+  const cachedEmail = localStorage.getItem(HN_STORAGE_KEY);
+  if (cachedEmail) {
+    // Verify current status
+    const q = query(
+      collection(db, "resources"),
+      where("uploaderEmail", "==", cachedEmail),
+      where("resourceType", "==", "slides_notes")
+    );
+    getDocs(q).then(snap => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (!docs.empty) {
+        const latest = docs.sort((a, b) => (b.submittedAt?.toDate() || 0) - (a.submittedAt?.toDate() || 0))[0];
+        if (latest.status !== "rejected") {
+          hnGrantAccess(cachedEmail);
+        }
+      }
+    }).catch(err => console.error("[Access Verify] failed:", err));
   }
+
+  // File type selector
+  const fileTypeRadios = document.querySelectorAll('input[name="fileType"]');
+  fileTypeRadios.forEach(radio => {
+    radio.addEventListener("change", () => {
+      currentFileType = radio.value;
+      hnFiles.accept = fileTypeAccepts[currentFileType];
+      
+      // Update label
+      const labels = {
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP - max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX - max 20 files, 50MB each)"
+      };
+      hnFilesLabel.textContent = labels[currentFileType];
+
+      // Visual feedback
+      document.querySelectorAll('input[name="fileType"]').forEach(r => {
+        r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
+        r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
+      });
+    });
+  });
 
   if (hnForm) {
     hnForm.addEventListener("submit", async (e) => {
@@ -418,12 +518,35 @@ if (handNotesGate && handNotesContent) {
       const uploaderEmail = document.getElementById("hn-uploaderEmail").value.trim();
       const files = Array.from(hnFiles.files);
 
-      if (files.length === 0) { hnShowStatus("Please choose at least one PDF.", true); return; }
-      if (files.length > MAX_FILES) { hnShowStatus(`Maximum ${MAX_FILES} files allowed.`, true); return; }
-      const nonPdf = files.find(f => !f.name.toLowerCase().endsWith(".pdf") || (f.type && f.type !== "application/pdf"));
-      if (nonPdf) { hnShowStatus(`"${nonPdf.name}" is not a PDF. Only PDF files are accepted.`, true); return; }
+      if (files.length === 0) { 
+        hnShowStatus(`Please choose at least one ${currentFileType.toUpperCase()} file.`, true); 
+        return; 
+      }
+      if (files.length > MAX_FILES) { 
+        hnShowStatus(`Maximum ${MAX_FILES} files allowed.`, true); 
+        return; 
+      }
+
       const oversized = files.find(f => f.size > MAX_SIZE);
-      if (oversized) { hnShowStatus(`"${oversized.name}" is over 50MB.`, true); return; }
+      if (oversized) { 
+        hnShowStatus(`"${oversized.name}" is over 50MB.`, true); 
+        return; 
+      }
+
+      // Validate file types
+      let validationError = false;
+      if (currentFileType === "pdf") {
+        validationError = files.some(f => !f.name.toLowerCase().endsWith(".pdf"));
+      } else if (currentFileType === "image") {
+        validationError = files.some(f => !["jpg","jpeg","png","gif","webp"].includes(f.name.toLowerCase().split(".").pop()));
+      } else if (currentFileType === "ppt") {
+        validationError = files.some(f => !["ppt","pptx"].includes(f.name.toLowerCase().split(".").pop()));
+      }
+
+      if (validationError) {
+        hnShowStatus(`Some files are not valid ${currentFileType.toUpperCase()} files.`, true);
+        return;
+      }
 
       hnSubmit.disabled = true;
       hnSubmit.textContent = "Uploading…";
@@ -437,6 +560,7 @@ if (handNotesGate && handNotesContent) {
           hnSetProgress(avg);
           hnShowStatus(avg >= 100 ? "Processing on server…" : `Uploading ${files.length} file(s)…`);
         };
+        
         const fileUrls = await Promise.all(
           files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
         );
@@ -451,18 +575,17 @@ if (handNotesGate && handNotesContent) {
 
         await addDoc(collection(db, "resources"), {
           courseCode, courseName: finalCourseName, facultyName,
-          resourceType: "slides_notes", uploaderEmail, fileUrls,
+          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType,
           status: "pending", submittedAt: serverTimestamp()
         });
 
-        localStorage.setItem(HN_STORAGE_KEY, "1");
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
-        setTimeout(hnGrantAccess, 700);
+        setTimeout(() => hnGrantAccess(uploaderEmail), 700);
       } catch (err) {
         console.error("[Hand Notes Unlock] failed:", err);
         let userMessage = "Something went wrong. Please try again.";
         if (err.code === "permission-denied") {
-          userMessage = "Upload was rejected. Please check the course code and file(s), then try again.";
+          userMessage = "Upload was rejected. Please check the details and try again.";
         } else if (/network/i.test(err.message || "")) {
           userMessage = "Network error. Check your connection and try again.";
         } else if (/timed out/i.test(err.message || "")) {
@@ -474,6 +597,144 @@ if (handNotesGate && handNotesContent) {
       }
     });
   }
+}
+
+// ============================================
+// THREE-CARD PREMIUM LAYOUT (slides-notes.html)
+// ============================================
+const pdfList = document.getElementById("pdf-list");
+const imageGrid = document.getElementById("image-grid");
+const pptList = document.getElementById("ppt-list");
+const imageSearch = document.getElementById("image-search");
+
+if (pdfList || imageGrid || pptList) {
+  let allSlides = [];
+  let allImages = [];
+  let allPpts = [];
+
+  async function loadThreeCardLayout() {
+    try {
+      const q = query(
+        collection(db, "resources"),
+        where("resourceType", "==", "slides_notes"),
+        where("status", "==", "approved")
+      );
+      const snap = await getDocs(q);
+      const resources = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Separate by file type
+      allSlides = resources.filter(r => r.fileType === "pdf" || !r.fileType); // Default to PDF for backward compatibility
+      allImages = resources.filter(r => r.fileType === "image");
+      allPpts = resources.filter(r => r.fileType === "ppt");
+
+      renderPdfCard();
+      renderImageCard();
+      renderPptCard();
+    } catch (err) {
+      console.error("[Three Card Layout] load failed:", err);
+    }
+  }
+
+  function renderPdfCard() {
+    const pdfCount = allSlides.length;
+    document.getElementById("pdf-count").textContent = `(${pdfCount})`;
+
+    if (pdfCount === 0) {
+      pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No PDF files yet.</p>`;
+      document.getElementById("pdf-view-all").style.display = "none";
+      return;
+    }
+
+    const displayCount = Math.min(5, pdfCount);
+    const displayed = allSlides.slice(0, displayCount);
+
+    pdfList.innerHTML = displayed.map(item => `
+      <div class="file-item">
+        <span class="file-status">✓</span>
+        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
+        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
+      </div>
+    `).join("");
+
+    document.getElementById("pdf-view-all").style.display = pdfCount > displayCount ? "block" : "none";
+  }
+
+  function renderImageCard() {
+    const imageCount = allImages.length;
+    document.getElementById("image-count").textContent = `(${imageCount})`;
+
+    if (imageCount === 0) {
+      imageGrid.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;grid-column:1/-1;">No images yet.</p>`;
+      imageSearch.style.display = "none";
+      document.getElementById("image-view-all").style.display = "none";
+      return;
+    }
+
+    imageSearch.style.display = "block";
+    const displayCount = Math.min(6, imageCount);
+    const displayed = allImages.slice(0, displayCount);
+
+    renderImageGrid(displayed);
+    document.getElementById("image-view-all").style.display = imageCount > displayCount ? "block" : "none";
+
+    // Search functionality
+    imageSearch.addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase();
+      const filtered = term 
+        ? allImages.filter(img => 
+            img.courseName.toLowerCase().includes(term) || 
+            img.courseCode.toLowerCase().includes(term)
+          )
+        : allImages.slice(0, displayCount);
+      renderImageGrid(filtered);
+    });
+  }
+
+  function renderImageGrid(images) {
+    if (images.length === 0) {
+      imageGrid.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;grid-column:1/-1;">No matching images found.</p>`;
+      return;
+    }
+
+    imageGrid.innerHTML = images.map(img => `
+      <div class="image-item">
+        <img src="${encodeURI(img.fileUrls[0].url)}" alt="${esc(img.courseName)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+        <div class="status-badge">✓</div>
+        <div class="view-overlay">
+          <a href="view.html?url=${encodeURIComponent(img.fileUrls[0].url)}&name=${encodeURIComponent(img.fileUrls[0].name)}" style="text-decoration:none;">
+            <button type="button">View</button>
+          </a>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function renderPptCard() {
+    const pptCount = allPpts.length;
+    document.getElementById("ppt-count").textContent = `(${pptCount})`;
+
+    if (pptCount === 0) {
+      pptList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No presentations yet.</p>`;
+      document.getElementById("ppt-view-all").style.display = "none";
+      return;
+    }
+
+    const displayCount = Math.min(5, pptCount);
+    const displayed = allPpts.slice(0, displayCount);
+
+    pptList.innerHTML = displayed.map(item => `
+      <div class="file-item">
+        <span class="file-status">✓</span>
+        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
+        <a href="view.html?url=${encodeURIComponent(item.fileUrls[0].url)}&name=${encodeURIComponent(item.fileUrls[0].name)}" class="file-action">View</a>
+      </div>
+    `).join("");
+
+    document.getElementById("ppt-view-all").style.display = pptCount > displayCount ? "block" : "none";
+  }
+
+  window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
+  window.__onResourceAccessGranted.push(loadThreeCardLayout);
 }
 
 // ============================================
