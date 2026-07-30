@@ -21,8 +21,23 @@
         }
       });
 
-      // Re-run main.js nav toggle logic if already loaded
-      if (typeof window.__navReady === "function") window.__navReady();
+      // Signal that the navbar DOM now exists. Any script that needs to
+      // touch navbar elements (nav-toggle, the login/profile auth slot,
+      // etc.) should call whenNavbarReady(fn) instead of assuming the
+      // navbar is already in the DOM — fetch() is async, so scripts that
+      // run at DOMContentLoaded can otherwise fire before this injection
+      // completes and silently find nothing.
+      window.__navbarLoaded = true;
+      (window.__onNavbarReady || []).forEach(fn => {
+        try { fn(); } catch (err) { console.error("[navbar-loader] ready callback failed:", err); }
+      });
     })
     .catch(err => console.warn("Navbar failed to load:", err));
 })();
+
+// Register a callback to run once the navbar has been injected. Safe to
+// call before OR after injection happens.
+window.whenNavbarReady = function (fn) {
+  if (window.__navbarLoaded) fn();
+  else (window.__onNavbarReady = window.__onNavbarReady || []).push(fn);
+};

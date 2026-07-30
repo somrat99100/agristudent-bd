@@ -4,10 +4,20 @@
 
 // Mobile nav toggle
 document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.querySelector('.nav-toggle');
-  const links = document.querySelector('.nav-links');
-  if (toggle && links) {
-    toggle.addEventListener('click', () => links.classList.toggle('open'));
+  function setupNavToggle() {
+    const toggle = document.querySelector('.nav-toggle');
+    const links = document.querySelector('.nav-links');
+    if (toggle && links && !toggle.dataset.bound) {
+      toggle.dataset.bound = "true";
+      toggle.addEventListener('click', () => links.classList.toggle('open'));
+    }
+  }
+  // navbar.html is injected asynchronously (fetch), so bind as soon as it's
+  // ready rather than assuming it's already in the DOM at this point.
+  if (typeof window.whenNavbarReady === "function") {
+    window.whenNavbarReady(setupNavToggle);
+  } else {
+    setupNavToggle();
   }
 
   // Animated stat counters (runs once, respects reduced motion)

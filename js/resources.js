@@ -2,6 +2,8 @@ import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { normalizeEmail, normalizeStudentId } from "./identity.js";
+import { getSession } from "./session.js";
 
 const MAX_FILES = 20;
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
@@ -46,18 +48,38 @@ function esc(val) {
 }
 
 // ============================================
+// PREFILL FROM SESSION
+// If the student is logged in, prefill the uploader email (and name, if
+// the field exists) so every upload is stamped with their canonical,
+// already-normalized identity instead of a freshly-retyped one that
+// could differ in case/whitespace and silently break credit tracking.
+// ============================================
+function prefillFromSession(emailInputId, nameInputId) {
+  const session = getSession();
+  if (!session) return;
+  const emailInput = document.getElementById(emailInputId);
+  if (emailInput && !emailInput.value) emailInput.value = session.email;
+  if (nameInputId) {
+    const nameInput = document.getElementById(nameInputId);
+    if (nameInput && !nameInput.value && session.fullName) nameInput.value = session.fullName;
+  }
+}
+
+// ============================================
 // STUDENT ID LOOKUP (by registered email)
 // Used to stamp every upload with the uploader's registered Student ID,
 // so the viewer can show "who uploaded this" without asking the student
 // to re-enter their ID on every upload form.
 // ============================================
 async function lookupStudentIdByEmail(email) {
-  if (!email) return null;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
   try {
-    const q = query(collection(db, "registrations"), where("email", "==", email));
+    const q = query(collection(db, "registrations"), where("email", "==", normalizedEmail));
     const snap = await getDocs(q);
     if (snap.empty) return null;
-    return snap.docs[0].data().studentIdNumber || null;
+    const raw = snap.docs[0].data().studentIdNumber || null;
+    return raw ? normalizeStudentId(raw) : null;
   } catch (err) {
     console.error("[Student ID Lookup] failed:", err);
     return null;
@@ -101,6 +123,7 @@ if (uploadModal) {
 // ============================================
 const uploadForm = document.getElementById("upload-form");
 if (uploadForm) {
+  prefillFromSession("uploaderEmail", "uploaderName");
   const resourceTypeSelect = document.getElementById("resourceType");
   const examTypeWrap = document.getElementById("examType-wrap");
   const fileInput = document.getElementById("files");
@@ -222,7 +245,7 @@ if (uploadForm) {
     const resourceType = resourceTypeSelect.value;
     const examType = document.getElementById("examType").value;
     const uploaderName = document.getElementById("uploaderName").value.trim();
-    const uploaderEmail = document.getElementById("uploaderEmail").value.trim();
+    const uploaderEmail = normalizeEmail(document.getElementById("uploaderEmail").value);
     const files = Array.from(fileInput.files);
 
     if (files.length === 0) { showError(`Please choose at least one ${currentFileType.toUpperCase()} file.`); return; }
@@ -424,13 +447,14 @@ if (resourceGate && resourceContent) {
   }
 
   async function checkAccess(studentId, { silent } = {}) {
+    const normalizedId = normalizeStudentId(studentId);
     if (!silent) {
       gateSubmit.disabled = true;
       gateSubmit.textContent = "Checking…";
       showGateStatus("Checking your registration…", "is-unknown");
     }
     try {
-      const q = query(collection(db, "registrations"), where("studentIdNumber", "==", studentId));
+      const q = query(collection(db, "registrations"), where("studentIdNumber", "==", normalizedId));
       const snap = await getDocs(q);
       if (snap.empty) {
         sessionStorage.removeItem(STORAGE_KEY);
@@ -440,7 +464,7 @@ if (resourceGate && resourceContent) {
       const reg = snap.docs[0].data();
       const status = reg.status || "unverified";
       if (status === "verified") {
-        sessionStorage.setItem(STORAGE_KEY, studentId);
+        sessionStorage.setItem(STORAGE_KEY, normalizedId);
         if (!silent) {
           showGateStatus("✅ ACCESS GRANTED", "is-granted");
           setTimeout(grantAccess, 700);
@@ -476,9 +500,10 @@ if (resourceGate && resourceContent) {
     });
   }
 
-  // Silently re-verify a previously-entered Student ID from this session,
-  // rather than asking the student to type it again on every page.
-  const cachedId = sessionStorage.getItem(STORAGE_KEY);
+  // Silently re-verify a previously-entered Student ID, or — now that
+  // login exists — the logged-in student's own ID, rather than asking
+  // the student to type it again on every page.
+  const cachedId = sessionStorage.getItem(STORAGE_KEY) || getSession()?.studentIdNumber || null;
   if (cachedId) {
     gateInput.value = cachedId;
     checkAccess(cachedId, { silent: true });
@@ -496,6 +521,7 @@ const handNotesContent = document.getElementById("resource-content");
 const accessStatusBar = document.getElementById("access-status-bar");
 
 if (handNotesGate && handNotesContent) {
+  prefillFromSession("hn-uploaderEmail");
   const HN_STORAGE_KEY = "agri_handnotes_user_email";
   const hnForm = document.getElementById("handnotes-unlock-form");
   const hnFiles = document.getElementById("hn-files");
@@ -517,19 +543,21 @@ if (handNotesGate && handNotesContent) {
   let currentFileType = "pdf";
 
   function hnGrantAccess(userEmail) {
-    localStorage.setItem(HN_STORAGE_KEY, userEmail);
+    const normalizedEmail = normalizeEmail(userEmail);
+    localStorage.setItem(HN_STORAGE_KEY, normalizedEmail);
     handNotesGate.classList.add("hidden");
     handNotesContent.classList.remove("hidden");
-    hnCheckAndDisplayStatus(userEmail);
+    hnCheckAndDisplayStatus(normalizedEmail);
     (window.__onResourceAccessGranted || []).forEach(fn => fn());
   }
 
   async function hnCheckAndDisplayStatus(userEmail) {
     if (!accessStatusBar) return;
+    const normalizedEmail = normalizeEmail(userEmail);
     try {
       const q = query(
         collection(db, "resources"),
-        where("uploaderEmail", "==", userEmail),
+        where("uploaderEmail", "==", normalizedEmail),
         where("resourceType", "==", "slides_notes")
       );
       const snap = await getDocs(q);
@@ -593,8 +621,10 @@ if (handNotesGate && handNotesContent) {
     hnStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
   }
 
-  // Check if user already has access (from previous upload)
-  const cachedEmail = localStorage.getItem(HN_STORAGE_KEY);
+  // Check if user already has access (from a previous upload, or from
+  // being logged in — see js/session.js, which seeds this same cache key
+  // on login so this check picks it up for free).
+  const cachedEmail = normalizeEmail(localStorage.getItem(HN_STORAGE_KEY) || getSession()?.email || "");
   if (cachedEmail) {
     // Verify current status
     const q = query(
@@ -604,7 +634,12 @@ if (handNotesGate && handNotesContent) {
     );
     getDocs(q).then(snap => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (!docs.empty) {
+      // BUG FIX: `docs` is a plain array (from .map()), not a Firestore
+      // QuerySnapshot — arrays have no `.empty` property, so the old
+      // `!docs.empty` check was always true regardless of whether any
+      // uploads actually existed, and would throw when the array really
+      // was empty (accessing .status on undefined). Check .length instead.
+      if (docs.length > 0) {
         const latest = docs.sort((a, b) => (b.submittedAt?.toDate() || 0) - (a.submittedAt?.toDate() || 0))[0];
         if (latest.status !== "rejected") {
           hnGrantAccess(cachedEmail);
@@ -667,7 +702,7 @@ if (handNotesGate && handNotesContent) {
       const courseCode = document.getElementById("hn-courseCode").value.trim().toUpperCase();
       const courseName = document.getElementById("hn-courseName").value.trim();
       const facultyName = document.getElementById("hn-facultyName").value.trim();
-      const uploaderEmail = document.getElementById("hn-uploaderEmail").value.trim();
+      const uploaderEmail = normalizeEmail(document.getElementById("hn-uploaderEmail").value);
       const files = Array.from(hnFiles.files);
 
       if (files.length === 0) { 
@@ -994,6 +1029,7 @@ if (pdfList || imageGrid) {
 const anotherUploadBtn = document.getElementById("open-another-upload");
 const anotherUploadModal = document.getElementById("another-upload-modal");
 if (anotherUploadBtn && anotherUploadModal) {
+  prefillFromSession("au-uploaderEmail");
   const auClose = document.getElementById("another-upload-close");
   const auForm = document.getElementById("another-upload-form");
   const auCourseCode = document.getElementById("au-courseCode");
@@ -1128,7 +1164,7 @@ if (anotherUploadBtn && anotherUploadModal) {
     const courseCode = auCourseCode.value.trim().toUpperCase();
     const rawCourseName = auCourseName.value.trim();
     const facultyName = auFacultyName.value.trim();
-    const uploaderEmail = document.getElementById("au-uploaderEmail").value.trim();
+    const uploaderEmail = normalizeEmail(document.getElementById("au-uploaderEmail").value);
     const files = Array.from(auFiles.files);
 
     if (files.length === 0) { auShowStatus(`Please choose at least one ${auFileType.toUpperCase()} file.`, true); return; }

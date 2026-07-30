@@ -1,5 +1,6 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { normalizeEmail, normalizeStudentId } from "./identity.js";
 
 const form = document.getElementById("register-form");
 const submitBtn = document.getElementById("submit-btn");
@@ -67,10 +68,10 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const fullName = document.getElementById("fullName").value.trim();
-  const email = document.getElementById("email").value.trim();
+  const email = normalizeEmail(document.getElementById("email").value);
   const genderInput = document.querySelector('input[name="gender"]:checked');
   const gender = genderInput ? genderInput.value : "";
-  const studentIdNumber = document.getElementById("studentIdNumber").value.trim();
+  const studentIdNumber = normalizeStudentId(document.getElementById("studentIdNumber").value);
   const idFile = document.getElementById("studentIdPhoto").files[0];
 
   // Validation

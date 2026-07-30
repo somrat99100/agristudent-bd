@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
+import { normalizeEmail, normalizeStudentId } from "./identity.js";
 
 initEmailNotifications();
 
@@ -641,6 +642,10 @@ editModalForm.addEventListener("submit", async (e) => {
     if (!input) return;
     if (f.type === "date") {
       updateData[f.key] = input.value ? Timestamp.fromDate(new Date(input.value + "T00:00:00")) : null;
+    } else if (f.key === "email" || f.key === "uploaderEmail") {
+      updateData[f.key] = normalizeEmail(input.value);
+    } else if (f.key === "studentIdNumber") {
+      updateData[f.key] = normalizeStudentId(input.value);
     } else {
       updateData[f.key] = input.value.trim();
     }
