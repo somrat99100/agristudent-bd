@@ -48,10 +48,10 @@
 // sending fails, the student sees a clear error instead of silently getting
 // stuck.
 // ============================================
-export const EMAILJS_PUBLIC_KEY  = "YOUR_EMAILJS_PUBLIC_KEY";
-export const EMAILJS_SERVICE_ID  = "YOUR_EMAILJS_SERVICE_ID";
-export const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
-export const EMAILJS_OTP_TEMPLATE_ID = "YOUR_EMAILJS_OTP_TEMPLATE_ID";
+export const EMAILJS_PUBLIC_KEY  = "led7de4ijLLGq675b";
+export const EMAILJS_SERVICE_ID  = "service_6ys3bsi";
+export const EMAILJS_TEMPLATE_ID = "template_5eytdmh";
+export const EMAILJS_OTP_TEMPLATE_ID = "template_1lbd1pu";
 
 let emailjsReady = false;
 
