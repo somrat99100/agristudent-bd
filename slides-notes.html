@@ -37,7 +37,7 @@
         <button type="button" class="modal-close hidden" id="hn-gate-back" title="Back to preview">✕</button>
         <div class="modal-body">
           <div style="text-align:center;">
-            <div style="font-size:2.4rem;margin-bottom:.8rem;">📤</div>
+            <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">📤</div>
             <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock Hand Notes</h2>
             <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.6rem;line-height:1.6;">Contribute lecture notes to unlock access. Upload PDF, images, or presentations below — you'll get immediate access to view notes while your upload is under review.</p>
           </div>
@@ -60,24 +60,28 @@
             </div>
             <div class="form-field">
               <label>File Type *</label>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;">
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="fileType" value="pdf" checked style="cursor:pointer;">
+              <div class="filetype-grid">
+                <label class="filetype-option">
+                  <input type="radio" name="fileType" value="pdf" checked>
                   <span>📄 PDF</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="fileType" value="image" style="cursor:pointer;">
+                <label class="filetype-option">
+                  <input type="radio" name="fileType" value="image">
                   <span>🖼️ Image</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="fileType" value="ppt" style="cursor:pointer;">
+                <label class="filetype-option">
+                  <input type="radio" name="fileType" value="ppt">
                   <span>📊 PPT</span>
                 </label>
               </div>
             </div>
             <div class="form-field">
               <label id="hn-files-label">PDF File(s) * (max 20 files, 50MB each)</label>
-              <input type="file" id="hn-files" multiple required accept=".pdf,application/pdf">
+              <div class="file-drop">
+                <div class="file-drop-icon">📎</div>
+                <div class="file-drop-text">Tap to choose files, or drag them here</div>
+                <input type="file" id="hn-files" multiple required accept=".pdf,application/pdf">
+              </div>
             </div>
             <div class="form-field hidden" id="hn-image-titles-wrap">
               <label>Image Title(s) — shown under each image in the gallery</label>
@@ -157,7 +161,7 @@
               <span>🆓 Always free</span>
               <span>⏱️ ~2 min upload</span>
             </div>
-            <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">Upload to Unlock</button>
+            <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">📤 Upload to Unlock</button>
           </div>
         </div>
       </div>
@@ -199,8 +203,11 @@
       <div class="modal-box" style="max-width:520px;">
         <button class="modal-close" id="another-upload-close">✕</button>
         <div class="modal-body">
-          <h2 style="font-size:1.3rem;">⬆️ Upload Another File</h2>
-          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Same course code as before? We'll suggest the course name and faculty — feel free to change them if this is a different section.</p>
+          <div style="text-align:center;">
+            <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">⬆️</div>
+            <h2 style="font-size:1.3rem;margin-bottom:.3rem;">Upload Another File</h2>
+            <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;line-height:1.6;">Same course code as before? We'll suggest the course name and faculty — feel free to change them if this is a different section.</p>
+          </div>
 
           <form id="another-upload-form">
             <div class="form-field">
@@ -224,24 +231,28 @@
             </div>
             <div class="form-field">
               <label>File Type *</label>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;">
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="au-fileType" value="pdf" checked style="cursor:pointer;">
+              <div class="filetype-grid">
+                <label class="filetype-option">
+                  <input type="radio" name="au-fileType" value="pdf" checked>
                   <span>📄 PDF</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="au-fileType" value="image" style="cursor:pointer;">
+                <label class="filetype-option">
+                  <input type="radio" name="au-fileType" value="image">
                   <span>🖼️ Image</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.6rem;border:2px solid var(--line);border-radius:8px;transition:all .2s;">
-                  <input type="radio" name="au-fileType" value="ppt" style="cursor:pointer;">
+                <label class="filetype-option">
+                  <input type="radio" name="au-fileType" value="ppt">
                   <span>📊 PPT</span>
                 </label>
               </div>
             </div>
             <div class="form-field">
               <label id="au-files-label">PDF File(s) * (max 20 files, 50MB each)</label>
-              <input type="file" id="au-files" multiple required accept=".pdf,application/pdf">
+              <div class="file-drop">
+                <div class="file-drop-icon">📎</div>
+                <div class="file-drop-text">Tap to choose files, or drag them here</div>
+                <input type="file" id="au-files" multiple required accept=".pdf,application/pdf">
+              </div>
             </div>
             <div class="form-field hidden" id="au-image-titles-wrap">
               <label>Image Title(s) — shown under each image in the gallery</label>
