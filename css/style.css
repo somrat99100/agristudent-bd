@@ -440,6 +440,83 @@ img{ max-width:100%; display:block; }
 }
 
 /* ============================================
+   LOCKED RESOURCE PREVIEW (slides-notes.html)
+   Resources are visible but not usable until unlocked:
+   the card grid is blurred + non-interactive, with a
+   lock message layered on top.
+   ============================================ */
+.resource-preview-wrap {
+  position: relative;
+}
+
+#resource-content.locked .premium-cards-grid {
+  filter: blur(5px) saturate(0.7);
+  pointer-events: none;
+  user-select: none;
+}
+
+#resource-content.locked .resource-lock-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+.resource-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease;
+  z-index: 5;
+}
+
+.resource-lock-card {
+  background: rgba(250, 248, 242, 0.97);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(31, 46, 34, 0.16);
+  padding: 1.8rem 2rem;
+  max-width: 360px;
+  text-align: center;
+}
+
+.resource-lock-icon {
+  font-size: 1.9rem;
+  width: 3rem;
+  height: 3rem;
+  line-height: 3rem;
+  margin: 0 auto 0.7rem;
+  border-radius: 50%;
+  background: var(--paper-100);
+}
+
+.resource-lock-card h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.4rem;
+}
+
+.resource-lock-card p {
+  color: var(--moss-600);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin: 0 0 1.1rem;
+}
+
+.resource-lock-card .btn-primary {
+  width: 100%;
+  padding: 0.65rem;
+}
+
+@media (max-width: 480px) {
+  .resource-lock-card {
+    padding: 1.4rem 1.3rem;
+  }
+}
+
+/* ============================================
    ANNOUNCEMENT BAR
    ============================================ */
 .announce-bar{
