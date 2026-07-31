@@ -32,7 +32,7 @@
     </div>
 
     <!-- UPLOAD GATE -->
-    <div id="handnotes-gate" class="modal-overlay" style="position:static;background:none;padding:0;display:block;">
+    <div id="handnotes-gate" class="modal-overlay hidden" style="position:static;background:none;padding:0;">
       <div class="modal-box" style="max-width:520px;margin:0 auto;">
         <div class="modal-body">
           <div style="text-align:center;">
@@ -150,8 +150,8 @@
           <div class="resource-lock-card">
             <div class="resource-lock-icon">🔒</div>
             <h3>Preview only</h3>
-            <p>These are real hand notes already on AgriStudent BD. Upload one file above to unlock viewing &amp; downloading — free, instant, no waiting.</p>
-            <button type="button" class="btn-primary" onclick="document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload to Unlock</button>
+            <p>These are real hand notes already on AgriStudent BD. Upload at least one file to unlock viewing &amp; downloading — free, instant, no waiting.</p>
+            <button type="button" class="btn-primary" onclick="document.getElementById('handnotes-gate').classList.remove('hidden'); document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload to Unlock</button>
           </div>
         </div>
       </div>
