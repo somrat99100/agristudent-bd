@@ -461,7 +461,8 @@ if (handNotesGate && handNotesContent) {
     const normalizedEmail = normalizeEmail(userEmail);
     localStorage.setItem(HN_STORAGE_KEY, normalizedEmail);
     handNotesGate.classList.add("hidden");
-    handNotesContent.classList.remove("hidden");
+    handNotesContent.classList.remove("locked");
+    document.getElementById("open-another-upload")?.classList.remove("hidden");
     hnCheckAndDisplayStatus(normalizedEmail);
     (window.__onResourceAccessGranted || []).forEach(fn => fn());
   }
@@ -514,7 +515,8 @@ if (handNotesGate && handNotesContent) {
       } else if (latest.status === "rejected") {
         accessStatusBar.classList.add("rejected");
         handNotesGate.classList.remove("hidden");
-        handNotesContent.classList.add("hidden");
+        handNotesContent.classList.add("locked");
+        document.getElementById("open-another-upload")?.classList.add("hidden");
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>❌ ACCESS EXPIRED — File Rejected</strong>
           <button class="action-btn" onclick="document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload New File</button>
@@ -864,6 +866,11 @@ if (pdfList || imageGrid) {
 
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
   window.__onResourceAccessGranted.push(loadThreeCardLayout);
+
+  // Load the preview immediately, regardless of unlock status — the
+  // handnotes gate now shows a blurred/locked preview of real resources
+  // rather than hiding them entirely, so this can't wait for access grant.
+  loadThreeCardLayout();
 
   // ============================================
   // VIEW ALL MODALS
