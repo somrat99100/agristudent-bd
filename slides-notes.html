@@ -99,48 +99,61 @@
       </div>
     </div>
 
-    <div id="resource-content" class="hidden">
-      <button type="button" id="open-another-upload" class="btn-primary" style="display:inline-block;margin-bottom:2rem;">⬆️ Upload Another File</button>
+    <div id="resource-content" class="locked">
+      <button type="button" id="open-another-upload" class="btn-primary hidden" style="margin-bottom:2rem;">⬆️ Upload Another File</button>
 
-      <!-- THREE-CARD PREMIUM LAYOUT -->
-      <div class="premium-cards-grid">
-        
-        <!-- PDF & PRESENTATIONS CARD -->
-        <div class="premium-card pdf-card">
-          <div class="card-header">
-            <span class="card-icon">📄</span>
-            <span class="card-title">PDFs &amp; Presentations</span>
-            <span class="card-count" id="pdf-count">(0)</span>
-          </div>
-          <div class="card-body">
-            <input type="text" id="pdf-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
-            <div id="pdf-list" class="file-list">
-              <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading files…</p>
+      <!-- THREE-CARD PREMIUM LAYOUT (visible as a preview even before unlock; -->
+      <!-- the .locked class on #resource-content blurs it and shows the overlay below) -->
+      <div class="resource-preview-wrap">
+        <div class="premium-cards-grid">
+
+          <!-- PDF & PRESENTATIONS CARD -->
+          <div class="premium-card pdf-card">
+            <div class="card-header">
+              <span class="card-icon">📄</span>
+              <span class="card-title">PDFs &amp; Presentations</span>
+              <span class="card-count" id="pdf-count">(0)</span>
+            </div>
+            <div class="card-body">
+              <input type="text" id="pdf-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
+              <div id="pdf-list" class="file-list">
+                <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading files…</p>
+              </div>
+            </div>
+            <div class="card-footer">
+              <a href="#" class="view-all-link" id="pdf-view-all" style="display:none;">View All →</a>
             </div>
           </div>
-          <div class="card-footer">
-            <a href="#" class="view-all-link" id="pdf-view-all" style="display:none;">View All →</a>
-          </div>
-        </div>
 
-        <!-- IMAGE CARD -->
-        <div class="premium-card image-card">
-          <div class="card-header">
-            <span class="card-icon">🖼️</span>
-            <span class="card-title">Images</span>
-            <span class="card-count" id="image-count">(0)</span>
-          </div>
-          <div class="card-body">
-            <input type="text" id="image-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
-            <div id="image-grid" class="image-grid">
-              <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading images…</p>
+          <!-- IMAGE CARD -->
+          <div class="premium-card image-card">
+            <div class="card-header">
+              <span class="card-icon">🖼️</span>
+              <span class="card-title">Images</span>
+              <span class="card-count" id="image-count">(0)</span>
+            </div>
+            <div class="card-body">
+              <input type="text" id="image-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
+              <div id="image-grid" class="image-grid">
+                <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading images…</p>
+              </div>
+            </div>
+            <div class="card-footer">
+              <a href="#" class="view-all-link" id="image-view-all" style="display:none;">See All Images →</a>
             </div>
           </div>
-          <div class="card-footer">
-            <a href="#" class="view-all-link" id="image-view-all" style="display:none;">See All Images →</a>
-          </div>
+
         </div>
 
+        <!-- LOCK OVERLAY: shown only while #resource-content has the .locked class -->
+        <div class="resource-lock-overlay">
+          <div class="resource-lock-card">
+            <div class="resource-lock-icon">🔒</div>
+            <h3>Preview only</h3>
+            <p>These are real hand notes already on AgriStudent BD. Upload one file above to unlock viewing &amp; downloading — free, instant, no waiting.</p>
+            <button type="button" class="btn-primary" onclick="document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload to Unlock</button>
+          </div>
+        </div>
       </div>
 
     </div>
