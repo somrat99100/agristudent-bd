@@ -34,6 +34,7 @@
     <!-- UPLOAD GATE -->
     <div id="handnotes-gate" class="modal-overlay hidden" style="position:static;background:none;padding:0;">
       <div class="modal-box" style="max-width:520px;margin:0 auto;">
+        <button type="button" class="modal-close hidden" id="hn-gate-back" title="Back to preview">✕</button>
         <div class="modal-body">
           <div style="text-align:center;">
             <div style="font-size:2.4rem;margin-bottom:.8rem;">📤</div>
@@ -151,7 +152,12 @@
             <div class="resource-lock-icon">🔒</div>
             <h3>Preview only</h3>
             <p>These are real hand notes already on AgriStudent BD. Upload at least one file to unlock viewing &amp; downloading — free, instant, no waiting.</p>
-            <button type="button" class="btn-primary" onclick="document.getElementById('handnotes-gate').classList.remove('hidden'); document.getElementById('handnotes-gate').scrollIntoView({behavior:'smooth'});">Upload to Unlock</button>
+            <div class="resource-lock-perks">
+              <span>⚡ Instant access</span>
+              <span>🆓 Always free</span>
+              <span>⏱️ ~2 min upload</span>
+            </div>
+            <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">Upload to Unlock</button>
           </div>
         </div>
       </div>
