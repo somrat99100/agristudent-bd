@@ -457,11 +457,36 @@ if (handNotesGate && handNotesContent) {
 
   let currentFileType = "pdf";
 
+  const hnGateBackBtn = document.getElementById("hn-gate-back");
+
+  // When the unlock form is showing, hide the preview entirely (show only
+  // the form). `dismissible` controls whether the back (✕) button appears —
+  // it's hidden when access was forcibly revoked (rejected upload), since
+  // the person must upload again to proceed.
+  function hnEnterFormOnly(dismissible = true) {
+    handNotesContent.classList.add("form-only");
+    hnGateBackBtn?.classList.toggle("hidden", !dismissible);
+  }
+
+  function hnExitFormOnly() {
+    handNotesGate.classList.add("hidden");
+    handNotesContent.classList.remove("form-only");
+  }
+
+  window.hnOpenGate = function () {
+    handNotesGate.classList.remove("hidden");
+    hnEnterFormOnly(true);
+    handNotesGate.scrollIntoView({ behavior: "smooth" });
+  };
+
+  hnGateBackBtn?.addEventListener("click", hnExitFormOnly);
+
   function hnGrantAccess(userEmail) {
     const normalizedEmail = normalizeEmail(userEmail);
     localStorage.setItem(HN_STORAGE_KEY, normalizedEmail);
     handNotesGate.classList.add("hidden");
     handNotesContent.classList.remove("locked");
+    handNotesContent.classList.remove("form-only");
     document.getElementById("open-another-upload")?.classList.remove("hidden");
     hnCheckAndDisplayStatus(normalizedEmail);
     (window.__onResourceAccessGranted || []).forEach(fn => fn());
@@ -516,6 +541,7 @@ if (handNotesGate && handNotesContent) {
         accessStatusBar.classList.add("rejected");
         handNotesGate.classList.remove("hidden");
         handNotesContent.classList.add("locked");
+        hnEnterFormOnly(false);
         document.getElementById("open-another-upload")?.classList.add("hidden");
         accessStatusBar.querySelector(".status-content").innerHTML = `
           <strong>❌ ACCESS EXPIRED — File Rejected</strong>
