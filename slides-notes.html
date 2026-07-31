@@ -113,6 +113,7 @@
             <span class="card-count" id="pdf-count">(0)</span>
           </div>
           <div class="card-body">
+            <input type="text" id="pdf-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
             <div id="pdf-list" class="file-list">
               <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading files…</p>
             </div>
@@ -130,7 +131,7 @@
             <span class="card-count" id="image-count">(0)</span>
           </div>
           <div class="card-body">
-            <input type="text" id="image-search" placeholder="Search images..." class="card-search" style="display:none;">
+            <input type="text" id="image-search" placeholder="Search by course code (e.g., AGR 371)" class="card-search" style="display:none;">
             <div id="image-grid" class="image-grid">
               <p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">Loading images…</p>
             </div>
@@ -150,7 +151,7 @@
         <button class="modal-close" id="pdf-viewall-close">✕</button>
         <div class="modal-body">
           <h2 style="font-size:1.25rem;margin-bottom:1rem;">📄 All PDFs &amp; Presentations</h2>
-          <input type="text" id="pdf-viewall-search" class="card-search" placeholder="Search by course code (e.g., AGR 101)">
+          <input type="text" id="pdf-viewall-search" class="card-search" placeholder="Search by course code (e.g., AGR 371)">
           <div class="form-field" style="margin-top:.2rem;margin-bottom:0;">
             <label for="pdf-viewall-faculty" style="font-size:.85rem;">Filter by Faculty</label>
             <select id="pdf-viewall-faculty">
@@ -168,7 +169,7 @@
         <button class="modal-close" id="image-viewall-close">✕</button>
         <div class="modal-body">
           <h2 style="font-size:1.25rem;margin-bottom:1rem;">🖼️ All Images</h2>
-          <input type="text" id="image-viewall-search" class="card-search" placeholder="Search by course code or name">
+          <input type="text" id="image-viewall-search" class="card-search" placeholder="Search by course code (e.g., AGR 371)">
           <div id="image-viewall-grid" class="image-grid" style="max-height:55vh;overflow-y:auto;margin-top:.4rem;"></div>
         </div>
       </div>
