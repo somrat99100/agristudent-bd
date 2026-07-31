@@ -1,107 +1,524 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+  <meta charset="UTF-8">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://api.emailjs.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-<link rel="manifest" href="manifest.json">
-<title>Register — AgriStudent BD</title>
-<script src="js/auth-guard.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="manifest" href="manifest.json">
+  <title>Register — AgriStudent BD</title>
+  <script src="js/auth-guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+  <style>
+    /* Enhanced Registration Form Design */
+    .register-section {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 2rem 1.25rem;
+      background: linear-gradient(135deg, rgba(107, 155, 94, 0.04), rgba(45, 74, 53, 0.02));
+    }
+
+    .register-wrapper {
+      max-width: 600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .register-header {
+      margin-bottom: 2.5rem;
+      text-align: center;
+    }
+
+    .register-header h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--moss-900), var(--moss-700));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .register-header p {
+      color: var(--moss-600);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* Form Card */
+    .register-form-card {
+      background: #fff;
+      border: 1.5px solid var(--line);
+      border-radius: 16px;
+      padding: 2.2rem;
+      box-shadow: 0 8px 32px rgba(31, 46, 34, 0.08);
+      transition: all 0.3s ease;
+    }
+
+    .register-form-card:hover {
+      border-color: var(--leaf-500);
+      box-shadow: 0 12px 48px rgba(31, 46, 34, 0.12);
+    }
+
+    /* Form Group with Enhanced Styling */
+    .form-group {
+      margin-bottom: 1.6rem;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--moss-900);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.3px;
+    }
+
+    .form-label .required {
+      color: var(--terracotta-500);
+      margin-left: 0.2rem;
+    }
+
+    .form-input,
+    .form-select {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border: 1.5px solid var(--line);
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      color: var(--moss-900);
+      background: #fff;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--leaf-500);
+      box-shadow: 0 0 0 3px rgba(107, 155, 94, 0.1);
+      background: rgba(107, 155, 94, 0.02);
+    }
+
+    .form-input::placeholder {
+      color: var(--moss-600);
+      opacity: 0.7;
+    }
+
+    /* Gender Radio Group */
+    .radio-group {
+      display: flex;
+      gap: 2rem;
+      margin-top: 0.6rem;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    .radio-option input[type="radio"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--leaf-500);
+    }
+
+    .radio-option label {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--moss-900);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    /* Verification Section */
+    .verification-section {
+      background: linear-gradient(135deg, rgba(107, 155, 94, 0.04), rgba(88, 179, 121, 0.02));
+      border: 1.5px solid rgba(107, 155, 94, 0.2);
+      border-radius: 12px;
+      padding: 1.4rem;
+      margin: 1.8rem 0;
+    }
+
+    .verification-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--moss-900);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .verification-icon {
+      font-size: 1.1rem;
+    }
+
+    .verification-hint {
+      font-size: 0.82rem;
+      color: var(--moss-600);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+      background: rgba(255, 255, 255, 0.6);
+      padding: 0.8rem;
+      border-radius: 8px;
+      border-left: 3px solid var(--leaf-500);
+    }
+
+    /* File Upload Input */
+    .file-input-wrapper {
+      margin-top: 1rem;
+    }
+
+    .file-input-label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--moss-700);
+      margin-bottom: 0.5rem;
+    }
+
+    .file-input-hint {
+      font-size: 0.78rem;
+      color: var(--moss-600);
+      margin-top: 0.3rem;
+    }
+
+    /* Submit Button */
+    .submit-btn {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, var(--moss-700), var(--moss-900));
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 1.6rem;
+      letter-spacing: 0.5px;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(45, 74, 53, 0.3);
+    }
+
+    .submit-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Progress Ring */
+    .progress-ring-box {
+      width: 100px;
+      height: 100px;
+      margin: 1.5rem auto;
+      position: relative;
+    }
+
+    .progress-ring {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .progress-ring-track {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 4;
+    }
+
+    .progress-ring-bar {
+      fill: none;
+      stroke: url(#progressGradient);
+      stroke-width: 4;
+      transition: stroke-dashoffset 0.3s ease;
+      stroke-linecap: round;
+    }
+
+    .progress-ring-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--leaf-500);
+    }
+
+    .upload-progress-wrap {
+      text-align: center;
+      padding: 1.5rem 0;
+    }
+
+    .upload-progress-wrap.hidden {
+      display: none;
+    }
+
+    .progress-label {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: var(--moss-600);
+      font-weight: 500;
+    }
+
+    /* OTP Panel */
+    .otp-panel {
+      background: linear-gradient(135deg, rgba(107, 155, 94, 0.06), #fff);
+      border: 1.5px solid var(--leaf-500);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-top: 1.5rem;
+    }
+
+    .otp-panel.hidden {
+      display: none;
+    }
+
+    .otp-panel h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1.3rem;
+    }
+
+    .otp-sent-to {
+      color: var(--moss-600);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .otp-input {
+      width: 100%;
+      padding: 1rem;
+      border: 1.5px solid var(--line);
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 1.8rem;
+      letter-spacing: 0.6rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .otp-input:focus {
+      outline: none;
+      border-color: var(--leaf-500);
+      box-shadow: 0 0 0 3px rgba(107, 155, 94, 0.1);
+    }
+
+    .otp-status {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      min-height: 1.2em;
+    }
+
+    .otp-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .otp-link-btn {
+      background: none;
+      border: none;
+      color: var(--leaf-500);
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .otp-link-btn:hover {
+      color: var(--leaf-400);
+    }
+
+    /* Success Panel */
+    .success-panel {
+      background: linear-gradient(135deg, rgba(107, 155, 94, 0.08), rgba(88, 179, 121, 0.04));
+      border: 1.5px solid var(--leaf-500);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+
+    .success-panel.hidden {
+      display: none;
+    }
+
+    .success-badge {
+      display: inline-block;
+      background: var(--leaf-500);
+      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .success-panel h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1.4rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .register-section {
+        padding: 1.5rem 1rem;
+      }
+
+      .register-form-card {
+        padding: 1.6rem;
+      }
+
+      .register-header h1 {
+        font-size: 1.6rem;
+      }
+
+      .radio-group {
+        gap: 1.5rem;
+      }
+
+      .otp-actions {
+        flex-direction: column;
+      }
+
+      .otp-link-btn {
+        text-align: left;
+      }
+    }
+  </style>
 </head>
 <body>
 
-<!-- ANNOUNCEMENT BAR -->
 <div id="navbar-placeholder"></div>
 <script src="js/navbar-loader.js"></script>
 
-<section class="section-page">
-  <div class="container" style="max-width:600px;">
-    <div class="crumb"><a href="index.html">Home</a> / Register</div>
-    <h1>📝 Register</h1>
-    <p style="color:var(--moss-600);margin-bottom:2rem;">
-      Join the AgriStudent BD community to unlock uploads and future premium resources.
-      We'll send a 6-digit code to your email to confirm it's really you, then log you in right away.
-      Student ID verification (for upload access) happens separately and usually takes 24–48 hours.
-    </p>
+<section class="register-section">
+  <div class="register-wrapper">
+    <div class="register-header">
+      <h1>📝 Join AgriStudent BD</h1>
+      <p>Register to unlock uploads and access premium agriculture resources. We'll send you a verification code and set up your account in moments.</p>
+    </div>
 
-    <form id="register-form" style="display:flex;flex-direction:column;gap:1.1rem;">
-
-      <div>
-        <label for="fullName" style="display:block;font-weight:600;margin-bottom:.3rem;">Full Name *</label>
-        <input type="text" id="fullName" required style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;">
-      </div>
-
-      <div>
-        <label for="email" style="display:block;font-weight:600;margin-bottom:.3rem;">Email Address *</label>
-        <input type="email" id="email" required style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;">
-      </div>
-
-      <div>
-        <label style="display:block;font-weight:600;margin-bottom:.3rem;">Gender *</label>
-        <div style="display:flex;gap:1.4rem;">
-          <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.95rem;">
-            <input type="radio" name="gender" value="female" required> Female
-          </label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;font-size:.95rem;">
-            <input type="radio" name="gender" value="male" required> Male
-          </label>
+    <div class="register-form-card" id="form-card">
+      <form id="register-form">
+        <!-- Full Name -->
+        <div class="form-group">
+          <label for="fullName" class="form-label">Full Name <span class="required">*</span></label>
+          <input type="text" id="fullName" class="form-input" placeholder="Your full name" required>
         </div>
-      </div>
 
-      <div style="border:1.5px dashed var(--moss-600);border-radius:8px;padding:1rem;background:#fff;">
-        <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Student Verification</p>
-
-        <label for="studentIdNumber" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Number *</label>
-        <input type="text" id="studentIdNumber" required placeholder="e.g. 24209150 " style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;margin-bottom:.9rem;">
-
-        <label for="studentIdPhoto" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Photo / Scan (optional — JPG, PNG, or PDF, max 5MB)</label>
-        <input type="file" id="studentIdPhoto" accept=".jpg,.jpeg,.png,.pdf" style="width:100%;font-size:.85rem;">
-      </div>
-
-      <button type="submit" id="submit-btn" style="background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Register</button>
-
-      <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
-        <div class="progress-ring-box">
-          <svg class="progress-ring" viewBox="0 0 84 84">
-            <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
-            <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
-          </svg>
-          <div class="progress-ring-text" id="progress-ring-text">0%</div>
+        <!-- Email Address -->
+        <div class="form-group">
+          <label for="email" class="form-label">Email Address <span class="required">*</span></label>
+          <input type="email" id="email" class="form-input" placeholder="you@example.com" required>
         </div>
-        <div class="progress-label" id="form-status">Uploading…</div>
-      </div>
-    </form>
 
-    <div id="otp-panel" class="uc-panel hidden" style="border-color:var(--moss-600);">
-      <h3 style="margin-bottom:.4rem;">📧 Check your email</h3>
-      <p id="otp-sent-to" style="color:var(--moss-600);font-size:.92rem;margin-bottom:1rem;"></p>
+        <!-- Gender Selection -->
+        <div class="form-group">
+          <label class="form-label">Gender <span class="required">*</span></label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="gender-female" name="gender" value="female" required>
+              <label for="gender-female">👩 Female</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="gender-male" name="gender" value="male" required>
+              <label for="gender-male">👨 Male</label>
+            </div>
+          </div>
+        </div>
 
-      <label for="otp-code" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">6-digit code</label>
-      <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••"
-        style="width:100%;padding:.8rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-mono, monospace);font-size:1.4rem;letter-spacing:.4rem;text-align:center;margin-bottom:1rem;">
+        <!-- Student Verification Section -->
+        <div class="verification-section">
+          <div class="verification-title">
+            <span class="verification-icon">🎓</span>
+            Student Verification
+          </div>
 
-      <button type="button" id="otp-verify-btn" style="width:100%;background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Verify &amp; Create Account</button>
+          <div class="verification-hint">
+            <strong>Why?</strong> Student ID helps us verify your enrollment and unlock upload access. Verification typically takes 24–48 hours.
+          </div>
 
-      <div id="otp-status" style="margin-top:.8rem;font-size:.9rem;min-height:1.2em;"></div>
+          <div class="form-group">
+            <label for="studentIdNumber" class="form-label">Student ID Number <span class="required">*</span></label>
+            <input type="text" id="studentIdNumber" class="form-input" placeholder="e.g., 24209150" required>
+          </div>
 
-      <div style="margin-top:1rem;display:flex;justify-content:space-between;font-size:.85rem;">
-        <button type="button" id="otp-back-btn" style="background:none;border:none;color:var(--moss-600);cursor:pointer;text-decoration:underline;padding:0;">← Edit details</button>
-        <button type="button" id="otp-resend-btn" style="background:none;border:none;color:var(--moss-600);cursor:pointer;text-decoration:underline;padding:0;">Resend code</button>
+          <div class="file-input-wrapper">
+            <label for="studentIdPhoto" class="file-input-label">Student ID Photo / Scan</label>
+            <input type="file" id="studentIdPhoto" class="form-input" accept=".jpg,.jpeg,.png,.pdf">
+            <div class="file-input-hint">Optional — JPG, PNG, or PDF (max 5MB). Upload helps with faster verification.</div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="submit-btn" class="submit-btn">Create Account</button>
+
+        <!-- Upload Progress -->
+        <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
+          <div class="progress-ring-box">
+            <svg class="progress-ring" viewBox="0 0 84 84">
+              <defs>
+                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:var(--leaf-500);stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:var(--moss-700);stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              <circle class="progress-ring-track" cx="42" cy="42" r="36"></circle>
+              <circle id="progress-ring-bar" class="progress-ring-bar" cx="42" cy="42" r="36" stroke-dasharray="226.19" stroke-dashoffset="226.19"></circle>
+            </svg>
+            <div class="progress-ring-text" id="progress-ring-text">0%</div>
+          </div>
+          <div class="progress-label" id="form-status">Uploading…</div>
+        </div>
+      </form>
+    </div>
+
+    <!-- OTP Panel -->
+    <div id="otp-panel" class="otp-panel hidden">
+      <h3>📧 Check your email</h3>
+      <p class="otp-sent-to" id="otp-sent-to"></p>
+
+      <label for="otp-code" class="form-label">Enter 6-digit code</label>
+      <input type="text" id="otp-code" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
+
+      <button type="button" id="otp-verify-btn" class="submit-btn">Verify & Create Account</button>
+
+      <div id="otp-status" class="otp-status"></div>
+
+      <div class="otp-actions">
+        <button type="button" id="otp-back-btn" class="otp-link-btn">← Edit details</button>
+        <button type="button" id="otp-resend-btn" class="otp-link-btn">Resend code</button>
       </div>
     </div>
 
-    <div id="form-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
-      <span class="badge" style="background:var(--leaf-500);">✅ Verified</span>
-      <h3>You're in!</h3>
-      <p id="form-success-msg">Email verified — logging you in…</p>
+    <!-- Success Panel -->
+    <div id="form-success" class="success-panel hidden">
+      <span class="success-badge">✅ Verified</span>
+      <h3>Welcome to AgriStudent BD!</h3>
+      <p id="form-success-msg">Your email is verified — logging you in now…</p>
     </div>
 
   </div>
