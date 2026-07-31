@@ -446,6 +446,12 @@ if (handNotesGate && handNotesContent) {
   const hnProgressBar = document.getElementById("hn-progress-ring-bar");
   const hnProgressText = document.getElementById("hn-progress-ring-text");
   const hnFilesLabel = document.getElementById("hn-files-label");
+  const hnCourseCode = document.getElementById("hn-courseCode");
+  const hnCourseName = document.getElementById("hn-courseName");
+  const hnCourseNameHint = document.getElementById("hn-courseName-hint");
+  const hnFacultyName = document.getElementById("hn-facultyName");
+  const hnFacultySuggestions = document.getElementById("hn-faculty-suggestions");
+  let hnMatchedCourse = null;
   const HN_CIRCUMFERENCE = 226.19;
 
   // File type acceptances
@@ -456,6 +462,39 @@ if (handNotesGate && handNotesContent) {
   };
 
   let currentFileType = "pdf";
+
+  // Suggest course name + faculty names once the course code matches an
+  // existing one — the student can still edit the suggested course name or
+  // type a completely different faculty/section; nothing is locked.
+  if (hnCourseCode) {
+    hnCourseCode.addEventListener("blur", async () => {
+      const code = hnCourseCode.value.trim().toUpperCase();
+      if (hnFacultySuggestions) hnFacultySuggestions.innerHTML = "";
+      if (hnCourseNameHint) hnCourseNameHint.classList.add("hidden");
+      if (!code) { hnMatchedCourse = null; return; }
+      try {
+        const courseSnap = await getDoc(doc(db, "courses", code));
+        if (courseSnap.exists()) {
+          hnMatchedCourse = courseSnap.data();
+          if (!hnCourseName.value.trim()) hnCourseName.value = hnMatchedCourse.courseName;
+          if (hnCourseNameHint) {
+            hnCourseNameHint.innerHTML = `Suggested from an existing course: <strong>${esc(hnMatchedCourse.courseName)}</strong> — edit if this is different.`;
+            hnCourseNameHint.classList.remove("hidden");
+          }
+        } else {
+          hnMatchedCourse = null;
+        }
+        // Existing faculty names for this course code, offered as suggestions
+        // (a datalist) — the student can still type any other faculty/section.
+        if (hnFacultySuggestions) {
+          const q = query(collection(db, "resources"), where("courseCode", "==", code));
+          const snap = await getDocs(q);
+          const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
+          hnFacultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
+        }
+      } catch (err) { console.error("[Hand Notes Unlock] course lookup failed:", err); }
+    });
+  }
 
   const hnGateBackBtn = document.getElementById("hn-gate-back");
 

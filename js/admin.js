@@ -3,7 +3,7 @@ import {
   collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
@@ -41,6 +41,7 @@ const adminPanel = document.getElementById("admin-panel");
 const logoutBtn = document.getElementById("logout-btn");
 const loginBtn = document.getElementById("login-btn");
 const loginError = document.getElementById("login-error");
+const adminUserChip = document.getElementById("admin-user-chip");
 
 loginBtn.addEventListener("click", async () => {
   const email = document.getElementById("login-email").value.trim();
@@ -65,11 +66,66 @@ onAuthStateChanged(auth, (user) => {
     loginBox.classList.add("hidden");
     adminPanel.classList.remove("hidden");
     logoutBtn.classList.remove("hidden");
+    if (adminUserChip) adminUserChip.textContent = currentAdminEmail;
     loadResources();
   } else {
     loginBox.classList.remove("hidden");
     adminPanel.classList.add("hidden");
     logoutBtn.classList.add("hidden");
+    if (adminUserChip) adminUserChip.textContent = "";
+  }
+});
+
+// ============================================
+// FORGOT / RESET PASSWORD
+// ============================================
+const loginFields = document.getElementById("login-fields");
+const resetFields = document.getElementById("reset-fields");
+const forgotPasswordLink = document.getElementById("forgot-password-link");
+const backToLoginLink = document.getElementById("back-to-login-link");
+const sendResetBtn = document.getElementById("send-reset-btn");
+const resetEmailInput = document.getElementById("reset-email");
+const resetMsg = document.getElementById("reset-msg");
+
+function showResetMsg(text, isError) {
+  resetMsg.textContent = text;
+  resetMsg.classList.toggle("is-error", !!isError);
+  resetMsg.classList.remove("hidden");
+}
+
+forgotPasswordLink?.addEventListener("click", () => {
+  loginError.classList.add("hidden");
+  resetMsg.classList.add("hidden");
+  resetEmailInput.value = document.getElementById("login-email").value.trim();
+  loginFields.classList.add("hidden");
+  resetFields.classList.remove("hidden");
+});
+
+backToLoginLink?.addEventListener("click", () => {
+  resetMsg.classList.add("hidden");
+  resetFields.classList.add("hidden");
+  loginFields.classList.remove("hidden");
+});
+
+sendResetBtn?.addEventListener("click", async () => {
+  const email = resetEmailInput.value.trim();
+  resetMsg.classList.add("hidden");
+  if (!email) {
+    showResetMsg("Please enter your email address.", true);
+    return;
+  }
+  sendResetBtn.disabled = true;
+  sendResetBtn.textContent = "Sending…";
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showResetMsg("✅ If an account exists for that email, a reset link is on its way — check your inbox.", false);
+  } catch (err) {
+    console.error("[AgriAdmin] password reset failed:", err);
+    // Avoid confirming/denying whether an account exists for this email.
+    showResetMsg("✅ If an account exists for that email, a reset link is on its way — check your inbox.", false);
+  } finally {
+    sendResetBtn.disabled = false;
+    sendResetBtn.textContent = "Send Reset Link";
   }
 });
 
@@ -98,17 +154,24 @@ const tabs = {
   danger: { btn: document.getElementById("tab-danger"), panel: document.getElementById("danger-panel"), load: () => {} }
 };
 
+const adminPageTitle = document.getElementById("admin-page-title");
+
 Object.entries(tabs).forEach(([key, tab]) => {
   tab.btn.addEventListener("click", () => {
     Object.values(tabs).forEach(t => {
-      t.btn.style.background = ""; t.btn.style.color = "";
+      t.btn.classList.remove("is-active");
       t.panel.classList.add("hidden");
     });
-    tab.btn.style.background = "var(--moss-700)"; tab.btn.style.color = "#fff";
+    tab.btn.classList.add("is-active");
     tab.panel.classList.remove("hidden");
+    if (adminPageTitle) adminPageTitle.textContent = tab.btn.dataset.label || key;
     tab.load();
   });
 });
+
+// Activate the first tab by default so the sidebar/topbar reflect the initial panel shown.
+tabs.resources.btn.classList.add("is-active");
+if (adminPageTitle) adminPageTitle.textContent = tabs.resources.btn.dataset.label || "Resources";
 
 // ============================================
 // RESOURCES
