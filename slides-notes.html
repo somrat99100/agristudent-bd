@@ -49,10 +49,12 @@
             <div class="form-field">
               <label for="hn-courseName">Course Name *</label>
               <input type="text" id="hn-courseName" required placeholder="e.g., Introduction to Agronomy">
+              <small id="hn-courseName-hint" class="hidden" style="display:block;margin-top:.4rem;color:var(--moss-600);font-size:.85rem;"></small>
             </div>
             <div class="form-field">
               <label for="hn-facultyName">Faculty Name *</label>
-              <input type="text" id="hn-facultyName" required placeholder="e.g., College of Agricultural Sciences">
+              <input type="text" id="hn-facultyName" required placeholder="e.g., College of Agricultural Sciences" list="hn-faculty-suggestions">
+              <datalist id="hn-faculty-suggestions"></datalist>
             </div>
             <div class="form-field">
               <label for="hn-uploaderEmail">Your Email * (notification when reviewed)</label>
