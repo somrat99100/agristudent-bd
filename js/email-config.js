@@ -27,10 +27,31 @@
 // Until these three values are filled in, emails are silently skipped (with
 // a console warning) — the admin panel's approve/reject actions still work
 // normally either way.
+//
+// ------------------------------------------------------------------
+// REGISTRATION OTP (separate template, ~2 minutes extra setup)
+// ------------------------------------------------------------------
+// Registration now verifies the student actually owns the email address
+// they typed, via a 6-digit code sent through EmailJS. This uses the SAME
+// service (EMAILJS_SERVICE_ID above) but a DIFFERENT template, because the
+// content is different (a code, not a review status).
+//   1. Email Templates → Create New Template. Use these variables:
+//        {{to_email}}   — recipient address
+//        {{to_name}}    — student's name
+//        {{otp_code}}   — the 6-digit code (make this big/bold in the body)
+//        {{site_name}}  — "AgriStudent BD"
+//      Mention the code expires in 10 minutes. Set "To email" to {{to_email}}.
+//   2. Copy that template's "Template ID" and paste it below.
+//
+// Unlike the review-status email above, OTP sending is NOT fire-and-forget:
+// registration cannot proceed without it, so if these values are missing or
+// sending fails, the student sees a clear error instead of silently getting
+// stuck.
 // ============================================
 export const EMAILJS_PUBLIC_KEY  = "YOUR_EMAILJS_PUBLIC_KEY";
 export const EMAILJS_SERVICE_ID  = "YOUR_EMAILJS_SERVICE_ID";
 export const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
+export const EMAILJS_OTP_TEMPLATE_ID = "YOUR_EMAILJS_OTP_TEMPLATE_ID";
 
 let emailjsReady = false;
 
@@ -73,4 +94,26 @@ export async function sendReviewEmail({ toEmail, toName, status, itemType, cours
   } catch (err) {
     console.error("[Email] Failed to send review notification:", err);
   }
+}
+
+/** Whether EmailJS is ready to send AND the OTP template has been configured. */
+export function isOtpEmailReady() {
+  return emailjsReady && !!EMAILJS_OTP_TEMPLATE_ID && !EMAILJS_OTP_TEMPLATE_ID.startsWith("YOUR_");
+}
+
+/**
+ * Sends the registration OTP code. Unlike sendReviewEmail, this THROWS on
+ * failure — registration.js relies on that to stop the flow and show the
+ * student a real error instead of pretending a code went out.
+ */
+export async function sendOtpEmail({ toEmail, toName, otpCode }) {
+  if (!isOtpEmailReady()) {
+    throw new Error("Email verification isn't set up yet. Please contact the site admin.");
+  }
+  await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
+    to_email: toEmail,
+    to_name: toName || "",
+    otp_code: otpCode,
+    site_name: "AgriStudent BD"
+  });
 }

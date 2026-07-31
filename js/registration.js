@@ -1,6 +1,11 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
+import { initEmailNotifications, sendOtpEmail } from "./email-config.js";
+import { startOtp, verifyOtp, resendCooldownRemaining, clearOtp } from "./otp.js";
+import { saveSession } from "./session.js";
+
+initEmailNotifications();
 
 const form = document.getElementById("register-form");
 const submitBtn = document.getElementById("submit-btn");
@@ -10,6 +15,19 @@ const progressWrap = document.getElementById("upload-progress-wrap");
 const progressBar = document.getElementById("progress-ring-bar");
 const progressText = document.getElementById("progress-ring-text");
 const CIRCUMFERENCE = 226.19; // 2 * π * r(36)
+
+const otpPanel = document.getElementById("otp-panel");
+const otpSentTo = document.getElementById("otp-sent-to");
+const otpInput = document.getElementById("otp-code");
+const otpVerifyBtn = document.getElementById("otp-verify-btn");
+const otpStatus = document.getElementById("otp-status");
+const otpBackBtn = document.getElementById("otp-back-btn");
+const otpResendBtn = document.getElementById("otp-resend-btn");
+
+// Holds the validated form data (and file) between "send code" and
+// "verify code" — nothing is written to Firestore/Cloudinary until the
+// email is confirmed.
+let pending = null;
 
 function setProgress(pct) {
   const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
@@ -32,6 +50,11 @@ function showStatus(message, isError = false) {
   statusBox.textContent = message;
   statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
   if (isError) progressBar.style.stroke = "var(--terracotta-500)";
+}
+
+function showOtpStatus(message, isError = false) {
+  otpStatus.textContent = message;
+  otpStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
 }
 
 function uploadToCloudinary(file, onProgress) {
@@ -64,6 +87,27 @@ function uploadToCloudinary(file, onProgress) {
   });
 }
 
+function showFormStep() {
+  otpPanel.classList.add("hidden");
+  form.classList.remove("hidden");
+  statusBox.classList.add("hidden");
+  progressWrap.classList.add("hidden");
+}
+
+function showOtpStep(email) {
+  form.classList.add("hidden");
+  statusBox.classList.add("hidden");
+  progressWrap.classList.add("hidden");
+  otpPanel.classList.remove("hidden");
+  otpSentTo.textContent = `We sent a 6-digit code to ${email}. It expires in 10 minutes.`;
+  otpInput.value = "";
+  showOtpStatus("");
+  otpInput.focus();
+}
+
+// ============================================
+// STEP 1 — validate details, send the OTP
+// ============================================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -75,6 +119,14 @@ form.addEventListener("submit", async (e) => {
   const idFile = document.getElementById("studentIdPhoto").files[0];
 
   // Validation
+  if (!fullName) {
+    showError("Please enter your full name.");
+    return;
+  }
+  if (!email) {
+    showError("Please enter a valid email address.");
+    return;
+  }
   if (!gender) {
     showError("Please select your gender.");
     return;
@@ -91,19 +143,74 @@ form.addEventListener("submit", async (e) => {
   }
 
   submitBtn.disabled = true;
-  submitBtn.textContent = "Submitting…";
-  setProgress(0);
+  submitBtn.textContent = "Sending code…";
+  showStatus("Sending a verification code to your email…");
 
   try {
+    const { code } = startOtp(email);
+    await sendOtpEmail({ toEmail: email, toName: fullName, otpCode: code });
+
+    pending = { fullName, email, gender, studentIdNumber, idFile };
+    showOtpStep(email);
+  } catch (err) {
+    console.error(err);
+    showStatus("Couldn't send the verification code. (" + err.message + ")", true);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Register";
+  }
+});
+
+// ============================================
+// STEP 2 — verify the code, then create the account + auto-login
+// ============================================
+otpInput.addEventListener("input", () => {
+  otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);
+});
+
+otpInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    otpVerifyBtn.click();
+  }
+});
+
+otpVerifyBtn.addEventListener("click", async () => {
+  if (!pending) { showFormStep(); return; }
+
+  const code = otpInput.value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    showOtpStatus("Enter the 6-digit code from your email.", true);
+    return;
+  }
+
+  const result = verifyOtp(pending.email, code);
+  if (!result.ok) {
+    if (result.reason === "expired") {
+      showOtpStatus("That code expired. Please request a new one.", true);
+    } else if (result.reason === "locked") {
+      showOtpStatus("Too many incorrect attempts. Please request a new code.", true);
+    } else if (result.reason === "mismatch") {
+      showOtpStatus(`Incorrect code. ${result.attemptsLeft} attempt(s) left.`, true);
+    } else {
+      showOtpStatus("Please request a new code.", true);
+    }
+    return;
+  }
+
+  otpVerifyBtn.disabled = true;
+  otpVerifyBtn.textContent = "Creating account…";
+  showOtpStatus("Verified! Creating your account…");
+
+  try {
+    const { fullName, email, gender, studentIdNumber, idFile } = pending;
+
     let studentIdUrl = null;
     if (idFile) {
-      showStatus("Uploading Student ID photo…");
-      studentIdUrl = await uploadToCloudinary(idFile, (pct) => {
-        setProgress(pct);
-      });
+      showOtpStatus("Uploading Student ID photo…");
+      studentIdUrl = await uploadToCloudinary(idFile, () => {});
     }
-    setProgress(100);
-    showStatus("Saving your registration…");
+    showOtpStatus("Saving your registration…");
 
     const docData = {
       fullName,
@@ -111,20 +218,64 @@ form.addEventListener("submit", async (e) => {
       gender,
       avatarUrl: gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg",
       studentIdNumber,
-      status: "unverified",
+      status: "unverified", // Student-ID review status — separate from the email OTP just completed
+      emailVerified: true,
       submittedAt: serverTimestamp()
     };
     if (studentIdUrl) docData.studentIdUrl = studentIdUrl;
 
-    await addDoc(collection(db, "registrations"), docData);
+    const docRef = await addDoc(collection(db, "registrations"), docData);
+    clearOtp();
 
-    form.classList.add("hidden");
-    statusBox.classList.add("hidden");
+    // Auto-login: the email is confirmed, so start the session right away
+    // instead of sending the student to log in manually.
+    saveSession({
+      regId: docRef.id,
+      fullName,
+      email,
+      studentIdNumber,
+      gender,
+      avatarUrl: docData.avatarUrl,
+      status: docData.status
+    });
+
+    otpPanel.classList.add("hidden");
     successBox.classList.remove("hidden");
+    document.getElementById("form-success-msg").textContent = "Email verified — logging you in…";
+
+    setTimeout(() => { window.location.href = "profile.html"; }, 900);
   } catch (err) {
     console.error(err);
-    showStatus("Something went wrong. Please try again. (" + err.message + ")", true);
-    submitBtn.disabled = false;
-    submitBtn.textContent = "Register";
+    showOtpStatus("Something went wrong creating your account. (" + err.message + ")", true);
+  } finally {
+    otpVerifyBtn.disabled = false;
+    otpVerifyBtn.textContent = "Verify & Create Account";
+  }
+});
+
+otpBackBtn.addEventListener("click", () => {
+  showFormStep();
+});
+
+otpResendBtn.addEventListener("click", async () => {
+  if (!pending) return;
+
+  const remaining = resendCooldownRemaining(pending.email);
+  if (remaining > 0) {
+    showOtpStatus(`Please wait ${Math.ceil(remaining / 1000)}s before resending.`, true);
+    return;
+  }
+
+  otpResendBtn.disabled = true;
+  showOtpStatus("Resending code…");
+  try {
+    const { code } = startOtp(pending.email);
+    await sendOtpEmail({ toEmail: pending.email, toName: pending.fullName, otpCode: code });
+    showOtpStatus("A new code has been sent.");
+  } catch (err) {
+    console.error(err);
+    showOtpStatus("Couldn't resend the code. (" + err.message + ")", true);
+  } finally {
+    otpResendBtn.disabled = false;
   }
 });

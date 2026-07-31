@@ -719,6 +719,7 @@ if (handNotesGate && handNotesContent) {
 // THREE-CARD PREMIUM LAYOUT (slides-notes.html)
 // ============================================
 const pdfList = document.getElementById("pdf-list");
+const pdfSearch = document.getElementById("pdf-search");
 const imageGrid = document.getElementById("image-grid");
 const imageSearch = document.getElementById("image-search");
 
@@ -751,28 +752,57 @@ if (pdfList || imageGrid) {
     return item.fileType === "ppt" ? "📊" : "📄";
   }
 
+  let pdfSearchWired = false;
+
   function renderPdfCard() {
     const docCount = allDocs.length;
     document.getElementById("pdf-count").textContent = `(${docCount})`;
 
     if (docCount === 0) {
       pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No files yet.</p>`;
+      if (pdfSearch) pdfSearch.style.display = "none";
       document.getElementById("pdf-view-all").style.display = "none";
       return;
     }
 
     const displayCount = Math.min(5, docCount);
-    const displayed = allDocs.slice(0, displayCount);
 
-    pdfList.innerHTML = displayed.map(item => `
+    if (pdfSearch) {
+      pdfSearch.style.display = "block";
+      renderPdfList(allDocs.slice(0, displayCount));
+
+      if (!pdfSearchWired) {
+        pdfSearchWired = true;
+        pdfSearch.addEventListener("input", (e) => {
+          const term = e.target.value.trim().toLowerCase();
+          const filtered = term
+            ? allDocs.filter(item =>
+                (item.courseCode || "").toLowerCase().includes(term) ||
+                (item.courseName || "").toLowerCase().includes(term)
+              )
+            : allDocs.slice(0, displayCount);
+          renderPdfList(filtered);
+        });
+      }
+    } else {
+      renderPdfList(allDocs.slice(0, displayCount));
+    }
+
+    document.getElementById("pdf-view-all").style.display = docCount > displayCount ? "block" : "none";
+  }
+
+  function renderPdfList(items) {
+    if (items.length === 0) {
+      pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching files found.</p>`;
+      return;
+    }
+    pdfList.innerHTML = items.map(item => `
       <div class="file-item">
         <span class="file-status">${docIcon(item)}</span>
         <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
         <a href="${buildViewHref(item.fileUrls[0], item)}" class="file-action">View</a>
       </div>
     `).join("");
-
-    document.getElementById("pdf-view-all").style.display = docCount > displayCount ? "block" : "none";
   }
 
   function renderImageCard() {
