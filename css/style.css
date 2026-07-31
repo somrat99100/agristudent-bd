@@ -210,19 +210,31 @@ img{ max-width:100%; display:block; }
 /* IMAGE GRID */
 .card-search {
   width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 0.85rem;
+  padding: 0.7rem 0.9rem 0.7rem 2.6rem;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.88rem;
   margin-bottom: 0.8rem;
   font-family: var(--font-body);
-  transition: border-color 0.2s;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233C5C44' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 0.85rem center;
+  background-size: 15px 15px;
+  box-shadow: 0 1px 2px rgba(31, 46, 34, 0.05);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card-search::placeholder {
+  color: var(--moss-600);
+  opacity: 0.6;
+}
+
+.card-search:hover {
+  border-color: var(--leaf-400);
 }
 
 .card-search:focus {
   outline: none;
   border-color: var(--leaf-500);
-  box-shadow: 0 0 0 3px rgba(107, 155, 94, 0.1);
+  box-shadow: 0 0 0 3px rgba(107, 155, 94, 0.15);
 }
 
 .image-grid {
