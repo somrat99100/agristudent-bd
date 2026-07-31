@@ -1674,3 +1674,12 @@ body.viewer-layout {
 }
 .btn-danger:hover{ background:var(--terracotta-500); color:#fff; transform:translateY(-2px); }
 .btn-danger:disabled{ opacity:.6; cursor:not-allowed; transform:none; }
+
+/* Resource access window badge (profile.html) */
+.access-badge{
+  display:inline-block; padding:.35rem .8rem; border-radius:999px;
+  font-weight:700; font-size:.85rem;
+}
+.access-badge.active{ background:rgba(107,155,94,.15); color:var(--leaf-500); }
+.access-badge.expired{ background:rgba(196,90,63,.15); color:var(--terracotta-500); }
+.access-badge.locked{ background:rgba(214,171,74,.18); color:var(--wheat-400); }
