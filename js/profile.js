@@ -4,6 +4,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
+import { initEmailNotifications } from "./email-config.js";
+import { computeAccessStatus, maybeSendAccessReminder, renderAccessBadge } from "./access.js";
+
+initEmailNotifications();
 
 function esc(val) {
   return String(val ?? "")
@@ -51,7 +55,7 @@ async function init() {
     });
 
     renderIdentity(reg);
-    await renderCredits(normalizeEmail(reg.email));
+    await renderCredits(normalizeEmail(reg.email), reg.fullName);
 
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
@@ -84,7 +88,7 @@ function renderIdentity(reg) {
   }
 }
 
-async function renderCredits(email) {
+async function renderCredits(email, fullName) {
   const [resourcesSnap, termsSnap] = await Promise.all([
     getDocs(query(collection(db, "resources"), where("uploaderEmail", "==", email))),
     getDocs(query(collection(db, "terms"), where("uploaderEmail", "==", email)))
@@ -103,6 +107,14 @@ async function renderCredits(email) {
   document.getElementById("stat-approved").textContent = approved;
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-rejected").textContent = rejected;
+
+  // Access window (3 days per approval, 30 days once >10 files are approved)
+  const access = computeAccessStatus(items);
+  renderAccessBadge({
+    badgeEl: document.getElementById("access-badge"),
+    detailEl: document.getElementById("access-detail")
+  }, access);
+  maybeSendAccessReminder(access, { email, name: fullName });
 
   const listEl = document.getElementById("uploads-list");
   const emptyEl = document.getElementById("uploads-empty");
