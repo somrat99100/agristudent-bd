@@ -39,6 +39,46 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
+// AUTO-RENAME DUPLICATE FILENAMES
+// ============================================
+async function autoRenameIfDuplicate(fileName, courseCode, facultyName) {
+  // Check if this filename already exists for this course/faculty
+  const q = query(
+    collection(db, "resources"),
+    where("courseCode", "==", courseCode),
+    where("fac", "==", facultyName),
+    where("status", "==", "approved")
+  );
+  
+  const docs = await getDocs(q);
+  const existingNames = [];
+  docs.forEach(d => {
+    (d.fileUrls || []).forEach(f => {
+      existingNames.push(f.name);
+    });
+  });
+
+  if (!existingNames.includes(fileName)) {
+    return fileName; // No conflict
+  }
+
+  // Rename with counter: "file.pdf" -> "file (1).pdf", "file (2).pdf", etc.
+  const parts = fileName.split(".");
+  const ext = parts.length > 1 ? "." + parts[parts.length - 1] : "";
+  const base = parts.slice(0, -1).join(".");
+  
+  let counter = 1;
+  let newName = `${base} (${counter})${ext}`;
+  
+  while (existingNames.includes(newName)) {
+    counter++;
+    newName = `${base} (${counter})${ext}`;
+  }
+  
+  return newName;
+}
+
+// ============================================
 // NOTE TYPE (Hand Notes / Class Slide / Others)
 // A student-chosen category, separate from the file format (fileType:
 // pdf/image/ppt). Shown with low visual prominence next to the course
@@ -379,6 +419,12 @@ if (uploadForm) {
       const fileUrls = await Promise.all(
         files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
       );
+
+      // Auto-rename duplicates
+      for (let i = 0; i < fileUrls.length; i++) {
+        const renamedName = await autoRenameIfDuplicate(fileUrls[i].name, finalCourseCode, facultyName);
+        fileUrls[i].name = renamedName;
+      }
 
       if (currentFileType === "image" && imageTitlesListEl) {
         const titleInputs = imageTitlesListEl.querySelectorAll(".upload-image-title-input");
@@ -848,6 +894,12 @@ if (handNotesGate && handNotesContent) {
         const fileUrls = await Promise.all(
           files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
         );
+
+        // Auto-rename duplicates
+        for (let i = 0; i < fileUrls.length; i++) {
+          const renamedName = await autoRenameIfDuplicate(fileUrls[i].name, courseCode, facultyName);
+          fileUrls[i].name = renamedName;
+        }
 
         // Attach the per-image title captured at upload time (if any),
         // so the gallery and viewer can display it under the image.
@@ -1503,6 +1555,12 @@ if (anotherUploadBtn && anotherUploadModal) {
       const fileUrls = await Promise.all(
         files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
       );
+
+      // Auto-rename duplicates
+      for (let i = 0; i < fileUrls.length; i++) {
+        const renamedName = await autoRenameIfDuplicate(fileUrls[i].name, courseCode, facultyName);
+        fileUrls[i].name = renamedName;
+      }
 
       if (auFileType === "image") {
         const titleInputs = auImageTitlesList.querySelectorAll(".au-image-title-input");

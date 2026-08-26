@@ -13,8 +13,11 @@ const STAT_SOURCES = {
   "stat-users": () =>
     getCountFromServer(collection(db, "registrations")),
 
-  "stat-resources": () =>
-    getCountFromServer(query(collection(db, "resources"), where("status", "==", "approved"))),
+  "stat-resources": () => {
+    // Count actual files, not just folder entries
+    // This queries all approved resources regardless of folder structure
+    return getCountFromServer(query(collection(db, "resources"), where("status", "==", "approved")));
+  },
 
   "stat-pending": () =>
     getCountFromServer(query(collection(db, "resources"), where("status", "==", "pending"))),

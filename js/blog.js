@@ -694,6 +694,21 @@ document.querySelectorAll(".composer-format-btn").forEach(btn => {
   });
 });
 
+// Font size selector
+const fontSizeSelect = document.getElementById("font-size-select");
+fontSizeSelect?.addEventListener("change", (e) => {
+  const size = e.target.value;
+  if (size) {
+    document.execCommand("fontSize", false, "7"); // Use size 7 as largest
+    const spans = postBodyInput.querySelectorAll("span[style*='font-size']");
+    spans.forEach(span => {
+      span.style.fontSize = size;
+    });
+    postBodyInput.focus();
+    fontSizeSelect.value = ""; // Reset dropdown
+  }
+});
+
 // ============================================
 // UPLOAD IMAGES TO CLOUDINARY & GET URLS
 // ============================================
@@ -806,27 +821,44 @@ postSubmitBtn?.addEventListener("click", async () => {
     // Sanitize text
     const sanitized = sanitizeHTML(body);
 
-    // Create post
-    const docRef = await addDoc(collection(db, "blogPosts"), {
-      title,
-      content: sanitized,
-      imageUrls,
-      authorEmail: normalizeEmail(s.email),
-      authorRegId: s.regId,
-      authorName: s.fullName || s.email,
-      authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
-      status: "pending",
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-      views: 0,
-      createdAt: serverTimestamp()
-    });
+    const editingPostId = composerModal.dataset.editingPostId;
+
+    if (editingPostId) {
+      // Editing an existing post — mark as pending approval
+      await updateDoc(doc(db, "blogPosts", editingPostId), {
+        title,
+        content: sanitized,
+        imageUrls,
+        status: "pending_edit", // New status for edited posts waiting approval
+        editedAt: serverTimestamp(),
+        editedBy: normalizeEmail(s.email)
+      });
+      delete composerModal.dataset.editingPostId;
+      alert("Your changes have been submitted for admin review.");
+    } else {
+      // Creating a new post
+      const docRef = await addDoc(collection(db, "blogPosts"), {
+        title,
+        content: sanitized,
+        imageUrls,
+        authorEmail: normalizeEmail(s.email),
+        authorRegId: s.regId,
+        authorName: s.fullName || s.email,
+        authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
+        status: "pending",
+        likesCount: 0,
+        commentsCount: 0,
+        sharesCount: 0,
+        views: 0,
+        createdAt: serverTimestamp()
+      });
+    }
 
     // Success — reset and close
     resetComposer();
     composerModal.classList.add("hidden");
     postUploadStatus.textContent = "";
+    postSubmitBtn.textContent = "📝 Post"; // Reset button text
 
     // Reload feed to show new post at top
     resetFeed();
@@ -835,7 +867,7 @@ postSubmitBtn?.addEventListener("click", async () => {
   } catch (err) {
     console.error("[Blog] Post submit failed:", err);
     postError.classList.remove("hidden");
-    postError.textContent = err.message || "Failed to create post. Please try again.";
+    postError.textContent = err.message || "Failed to save post. Please try again.";
   } finally {
     postSubmitBtn.disabled = false;
   }
@@ -1010,7 +1042,8 @@ function wireSeeMore(bodyEl, item) {
 // "Verified" (admin-approved) or "Not verified" (still pending review).
 // Rejected posts are never rendered in the public feed/deep-link flow,
 // so there's no separate "Not approved" label to show.
-function statusBadgeHTML(status) {
+function statusBadgeHTML(status, isEdited) {
+  if (isEdited) return `<span class="blog-badge blog-badge--edited">📝 Pending Approval</span>`;
   if (status === "approved") return `<span class="blog-badge blog-badge--approved">✅ Verified</span>`;
   return `<span class="blog-badge blog-badge--pending">🕓 Not verified</span>`;
 }
@@ -1031,6 +1064,10 @@ function renderPostCard(id, item) {
   // Build gallery HTML
   const galleryHTML = buildGalleryHTML(item.imageUrls);
 
+  const s = getSession();
+  const isAuthor = s && normalizeEmail(s.email) === item.authorEmail;
+  const isEdited = item.editedAt && item.editedAt.getTime?.() > (item.createdAt?.getTime?.() || 0);
+
   article.innerHTML = `
     <header class="blog-post-header">
       <img class="blog-post-avatar" src="${esc(item.authorAvatar || "assets/avatar-male.svg")}" alt="">
@@ -1038,9 +1075,13 @@ function renderPostCard(id, item) {
         <div class="blog-post-author">${esc(item.authorName || "Student")}${item.authorStudentId ? ` <span class="blog-post-studentid">· ${esc(item.authorStudentId)}</span>` : ""}</div>
         <div class="blog-post-time">${esc(timeAgo(created))}</div>
       </div>
+      <div class="blog-post-menu" ${!isAuthor ? 'style="display:none;"' : ''}>
+        <button type="button" class="blog-menu-btn blog-edit-btn" title="Edit this post">✏️ Edit</button>
+        <button type="button" class="blog-menu-btn blog-delete-btn" title="Delete this post">🗑️ Delete</button>
+      </div>
     </header>
     <h2 class="blog-post-title">${esc(item.title)}</h2>
-    ${statusBadgeHTML(item.status)}
+    ${statusBadgeHTML(item.status, isEdited)}
     <div class="blog-post-body">${item.content}</div>
     ${galleryHTML}
     <div class="blog-post-stats">
@@ -1065,21 +1106,43 @@ function renderPostCard(id, item) {
   wirePostCard(article, id, item);
   wireSeeMore(article.querySelector(".blog-post-body"), item);
 
-  // View tracking
-  if (!viewed.has(id)) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          markViewed(id);
-          updateDoc(doc(db, "blogPosts", id), { views: increment(1) }).catch(() => {});
-          const el = article.querySelector(".blog-post-stats span");
-          if (el) el.textContent = `👁️ ${(item.views || 0) + 1} views`;
-          io.disconnect();
+  // View tracking — count views every 10 seconds of scrolling/viewing
+  let viewCountInterval = null;
+  let viewsCountedThisSession = new Set();
+  
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        // Post is in view — start counting views every 10 seconds
+        if (!viewCountInterval) {
+          viewCountInterval = setInterval(async () => {
+            const viewKey = `${id}_${new Date().getTime() / 10000 | 0}`;
+            if (!viewsCountedThisSession.has(viewKey)) {
+              viewsCountedThisSession.add(viewKey);
+              try {
+                await updateDoc(doc(db, "blogPosts", id), { views: increment(1) });
+                const el = article.querySelector(".blog-post-stats span");
+                if (el) {
+                  const currentViews = parseInt(el.textContent) || 0;
+                  el.textContent = `👁️ ${currentViews + 1} views`;
+                }
+              } catch (err) {
+                console.error("[Blog] View update failed:", err);
+              }
+            }
+          }, 10000); // Every 10 seconds
         }
-      });
-    }, { threshold: 0.4 });
-    io.observe(article);
-  }
+      } else {
+        // Post left view — stop counting
+        if (viewCountInterval) {
+          clearInterval(viewCountInterval);
+          viewCountInterval = null;
+        }
+      }
+    });
+  }, { threshold: 0.2 });
+  
+  io.observe(article);
 
   return article;
 }
@@ -1096,8 +1159,57 @@ function wirePostCard(article, id, item) {
   const commentComposer = article.querySelector(".blog-comment-composer");
   const commentCountEl = article.querySelector(".blog-comment-count");
   const shareBtn = article.querySelector(".blog-share-btn");
+  const editBtn = article.querySelector(".blog-edit-btn");
+  const deleteBtn = article.querySelector(".blog-delete-btn");
 
   let commentsLoaded = false;
+
+  // Edit button
+  editBtn?.addEventListener("click", () => {
+    const s = getSession();
+    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+      alert("You can only edit your own posts");
+      return;
+    }
+    // Load post data into composer
+    postTitleInput.value = item.title;
+    postBodyInput.innerHTML = item.content;
+    if (item.imageUrls && item.imageUrls.length > 0) {
+      item.imageUrls.forEach(url => {
+        const li = document.createElement("li");
+        li.className = "composer-preview-item";
+        li.innerHTML = `<img src="${esc(url)}" alt=""><button type="button" data-url="${esc(url)}">Remove</button>`;
+        li.querySelector("button").addEventListener("click", () => li.remove());
+        document.getElementById("composer-preview-grid").appendChild(li);
+      });
+      document.getElementById("composer-image-preview").classList.remove("hidden");
+    }
+    // Mark as editing
+    article.dataset.editingPostId = id;
+    composerModal.classList.remove("hidden");
+    postSubmitBtn.textContent = "💾 Save Changes";
+    postTitleInput.focus();
+  });
+
+  // Delete button
+  deleteBtn?.addEventListener("click", () => {
+    const s = getSession();
+    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+      alert("You can only delete your own posts");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this post? This cannot be undone.")) {
+      return;
+    }
+    deleteDoc(doc(db, "blogPosts", id)).then(() => {
+      article.remove();
+      // Show success message
+      alert("Post deleted successfully");
+    }).catch(err => {
+      console.error("Delete failed:", err);
+      alert("Failed to delete post");
+    });
+  });
 
   // Gallery tile clicks
   const galleryTiles = article.querySelectorAll(".blog-gallery-tile");

@@ -235,8 +235,17 @@ service cloud.firestore {
          request.resource.data.commentsCount == resource.data.commentsCount - 1)
       );
 
+      // Allow authenticated users to edit their own posts (title, content, images)
+      // When edited, the post moves to "pending_edit" status for admin review
+      allow update: if 
+        request.auth != null &&
+        resource.data.authorEmail == request.auth.token.email &&
+        request.resource.data.status == "pending_edit" &&
+        request.resource.data.authorEmail == resource.data.authorEmail &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'imageUrls', 'status', 'editedAt', 'editedBy']);
+
       // Admin panel only (approve/reject/delete in js/admin.js)
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null && resource.data.authorEmail == request.auth.token.email;
     }
 
     // ============================================
