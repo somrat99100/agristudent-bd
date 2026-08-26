@@ -235,17 +235,41 @@ service cloud.firestore {
          request.resource.data.commentsCount == resource.data.commentsCount - 1)
       );
 
-      // Allow authenticated users to edit their own posts (title, content, images)
-      // When edited, the post moves to "pending_edit" status for admin review
-      allow update: if 
-        request.auth != null &&
-        resource.data.authorEmail == request.auth.token.email &&
+      // Allow a student to edit their OWN post (title, content, images).
+      // Students never hold a Firebase Auth session (same trust model as
+      // the rest of this file — see registrations.avatarUrl above), so
+      // this can never require request.auth != null; the previous version
+      // of this rule did, which meant every edit was silently denied by
+      // Firestore and never actually saved. Ownership can't be verified
+      // server-side without auth, so trust is instead placed in tight
+      // field validation: only title/content/imageUrls/status/editedAt/
+      // editedBy may change (authorEmail, authorRegId, and every counter
+      // are locked), and the write must move status to "pending_edit" —
+      // it can never re-approve itself or resurrect a rejected post as
+      // approved. The edit updates the SAME document in place; it never
+      // creates a new one, and it goes back through admin review exactly
+      // like a brand-new post did.
+      allow update: if
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'imageUrls', 'status', 'editedAt', 'editedBy']) &&
         request.resource.data.status == "pending_edit" &&
-        request.resource.data.authorEmail == resource.data.authorEmail &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'imageUrls', 'status', 'editedAt', 'editedBy']);
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000;
 
-      // Admin panel only (approve/reject/delete in js/admin.js)
-      allow delete: if request.auth != null && resource.data.authorEmail == request.auth.token.email;
+      // Deleting a post: students never hold a Firebase Auth session, and
+      // even the admin panel's own session email doesn't match
+      // authorEmail (admin is deleting someone else's post, not their
+      // own) — so the previous `resource.data.authorEmail ==
+      // request.auth.token.email` check failed for BOTH the student's
+      // own delete button (js/blog.js, js/profile.js) and admin
+      // moderation deletes. Ownership can't be verified server-side
+      // without an auth session tied to the student, so this trusts the
+      // client the same way the rest of this file already does for
+      // blogLikes deletes, avatarUrl updates, etc. — every UI entry
+      // point already gates the delete button behind a client-side
+      // "is this your own post" (or admin) check before calling this.
+      allow delete: if true;
     }
 
     // ============================================

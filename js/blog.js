@@ -1114,7 +1114,12 @@ function wireSeeMore(bodyEl, item) {
     }
   };
   bodyEl.dataset.seeMoreWired = "1";
-  evaluate();
+  // renderPostCard() calls this before the card is appended to the feed,
+  // so bodyEl has no layout yet and scrollHeight would read as 0 — every
+  // post would look "short enough" and never get a See more button.
+  // Deferring to the next frame runs the check once the card is actually
+  // in the document and has real layout.
+  requestAnimationFrame(evaluate);
   bodyEl.querySelectorAll("img").forEach(img => {
     if (!img.complete) img.addEventListener("load", evaluate, { once: true });
   });

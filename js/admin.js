@@ -395,6 +395,7 @@ function buildBlogRowHTML(id, item) {
     </div>
     <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
       <select data-id="${esc(id)}" class="blog-status-select">
+        ${item.status === "pending_edit" ? `<option value="pending_edit" selected>📝 Edited (pending review)</option>` : ""}
         <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Not verified</option>
         <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
         <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected (hidden)</option>
@@ -411,7 +412,11 @@ async function loadBlogPosts() {
 
     if (snap.empty) { blogList.innerHTML = `<p style="color:var(--moss-600);">No blog posts submitted yet.</p>`; return; }
 
-    const buckets = { pending: [], approved: [], rejected: [] };
+    // "pending_edit" gets its OWN bucket — previously it fell through to
+    // buckets.pending via the `|| buckets.pending` fallback, so an edited
+    // (possibly already-approved) post looked identical to a brand-new,
+    // never-reviewed submission with no way to tell them apart.
+    const buckets = { pending: [], pending_edit: [], approved: [], rejected: [] };
     snap.forEach(d => {
       const item = d.data();
       blogCache[d.id] = item;
@@ -433,6 +438,7 @@ async function loadBlogPosts() {
     };
 
     blogList.innerHTML = [
+      section("Edited — Pending Review", "📝", buckets.pending_edit),
       section("Not Verified (Pending Review)", "🕓", buckets.pending),
       section("Approved", "✅", buckets.approved),
       section("Rejected", "❌", buckets.rejected)
