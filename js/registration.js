@@ -218,7 +218,7 @@ otpVerifyBtn.addEventListener("click", async () => {
       gender,
       avatarUrl: gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg",
       studentIdNumber,
-      status: "unverified", // Student-ID review status — separate from the email OTP just completed
+      status: "verified", // OTP verification is the only registration approval step now
       emailVerified: true,
       submittedAt: serverTimestamp()
     };

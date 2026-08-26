@@ -1167,9 +1167,12 @@ function wireSeeMore(bodyEl, item) {
 // Rejected posts are never rendered in the public feed/deep-link flow,
 // so there's no separate "Not approved" label to show.
 function statusBadgeHTML(status, isEdited) {
-  if (isEdited) return `<span class="blog-badge blog-badge--edited">📝 Pending Approval</span>`;
-  if (status === "approved") return `<span class="blog-badge blog-badge--approved">✅ Verified</span>`;
-  return `<span class="blog-badge blog-badge--pending">🕓 Not verified</span>`;
+  if (isEdited || status === "pending_edit" || status === "pending") {
+    return `<span class="blog-badge blog-badge--pending">🕓 Pending Admin Approval</span>`;
+  }
+  if (status === "approved") return `<span class="blog-badge blog-badge--approved">✅ Public</span>`;
+  if (status === "rejected") return `<span class="blog-badge blog-badge--pending">❌ Rejected</span>`;
+  return `<span class="blog-badge blog-badge--pending">🕓 Pending Admin Approval</span>`;
 }
 
 function renderPostCard(id, item) {
@@ -1521,9 +1524,14 @@ async function loadMorePosts() {
     }
     lastDoc = snap.docs[snap.docs.length - 1] || lastDoc;
 
+    const session = getSession();
+    const viewerEmail = session ? normalizeEmail(session.email) : "";
     snap.docs.forEach(d => {
       const item = d.data();
-      if (item.status === "rejected") return;
+      const isAuthor = viewerEmail && normalizeEmail(item.authorEmail) === viewerEmail;
+      // Pending/rejected posts belong only to their author's timeline.
+      // Everyone else can see a post only after admin approval.
+      if (item.status !== "approved" && !isAuthor) return;
       blogFeed.appendChild(renderPostCard(d.id, item));
     });
   } catch (err) {
@@ -1618,7 +1626,9 @@ async function loadDeepLinkedPost() {
     const snap = await getDoc(doc(db, "blogPosts", postId));
     if (!snap.exists()) return;
     const item = snap.data();
-    if (item.status === "rejected") return;
+    const s = getSession();
+    const isAuthor = s && normalizeEmail(s.email) === normalizeEmail(item.authorEmail);
+    if (item.status !== "approved" && !isAuthor) return;
     const wrapper = document.createElement("div");
     wrapper.className = "blog-pinned-post";
     wrapper.innerHTML = `<div class="blog-pinned-label">📌 Shared post</div>`;

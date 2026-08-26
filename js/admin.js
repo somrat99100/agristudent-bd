@@ -338,7 +338,12 @@ async function loadResources() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "resources", id), { status: newStatus, reviewedAt: new Date() });
+          const moderationData = { status: newStatus, reviewedAt: new Date() };
+          if (newStatus === "rejected") {
+            moderationData.rejectedAt = new Date();
+            moderationData.restrictedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          }
+          await updateDoc(doc(db, "resources", id), moderationData);
           e.target.style.borderColor = "var(--leaf-500)";
           const item = resourcesCache[id];
           if (item) {
@@ -715,11 +720,7 @@ async function loadRegistrations() {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
-          <select data-id="${esc(d.id)}" class="status-select-reg">
-            <option value="unverified" ${(!item.status || item.status === "unverified") ? "selected" : ""}>🕓 Unverified</option>
-            <option value="verified" ${item.status === "verified" ? "selected" : ""}>✅ Verified</option>
-            <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
-          </select>
+          <span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(63,91,61,.10);color:var(--moss-700);font-size:.78rem;font-weight:600;">✅ OTP Verified · Auto-approved</span>
           <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         </div>`;
       regList.appendChild(row);
@@ -732,33 +733,7 @@ async function loadRegistrations() {
       });
     });
 
-    regList.querySelectorAll(".status-select-reg").forEach(sel => {
-      sel.addEventListener("change", async (e) => {
-        e.target.disabled = true;
-        const id = e.target.dataset.id;
-        const newStatus = e.target.value;
-        try {
-          await updateDoc(doc(db, "registrations", id), { status: newStatus, reviewedAt: new Date() });
-          e.target.style.borderColor = "var(--leaf-500)";
-          const item = registrationsCache[id];
-          if (item) {
-            const statusLabel = newStatus === "verified" ? "Verified" : newStatus === "rejected" ? "Rejected" : "Unverified";
-            sendReviewEmail({
-              toEmail: item.email,
-              toName: item.fullName,
-              status: statusLabel,
-              itemType: "Student registration",
-              detail: item.studentIdNumber ? `Student ID #${item.studentIdNumber}` : ""
-            });
-            item.status = newStatus;
-          }
-        } catch (err) {
-          console.error("[AgriAdmin] registration status update failed:", err);
-          alert("Something went wrong updating the status. Please try again.");
-        }
-        finally { e.target.disabled = false; }
-      });
-    });
+
   } catch (err) {
     showLoadError(regList, "registrations", err);
   }

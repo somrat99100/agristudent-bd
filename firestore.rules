@@ -3,20 +3,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================
-    // REGISTRATIONS: Student signup + verification
+    // REGISTRATIONS: Student signup + OTP verification
     // ============================================
-    // NOTE: Students never sign in (only the admin panel authenticates,
-    // via signInWithEmailAndPassword in js/admin.js). Requiring
-    // request.auth != null on create would break register.html entirely.
-    // "list: if true" is intentionally kept public -- it's what powers
-    // the live registration counter (js/stats.js, getCountFromServer)
-    // and the resource-gate student-ID lookup (js/resources.js
-    // checkAccess()), both of which run unauthenticated. Restricting it
-    // to auth-only silently breaks those two features.
+    // Students are auto-approved once the email OTP is verified. Admin authentication
+    // is not part of registration anymore. "list: if true" remains public because
+    // the site uses it for live counters and email/ID lookups.
+    //
+    // The live registration counter and resource lookups run unauthenticated,
+    // so list access remains public.
     match /registrations/{id} {
       allow create: if
         request.resource.data.keys().hasAll(['studentIdNumber', 'email', 'status']) &&
-        request.resource.data.status == "unverified" &&
+        request.resource.data.status == "verified" &&
         request.resource.data.studentIdNumber is string &&
         request.resource.data.studentIdNumber.size() > 0 &&
         request.resource.data.studentIdNumber.size() < 50 &&
@@ -212,6 +210,9 @@ service cloud.firestore {
         request.resource.data.sharesCount == 0 &&
         request.resource.data.views == 0;
 
+      // Public read is retained because student accounts are not Firebase-authenticated.
+      // js/blog.js enforces the visibility rule: approved posts are public; pending/rejected
+      // posts are rendered only when their author email matches the current session.
       allow read: if true;
 
       // Engagement counters (like/unlike, view, share) are bumped by
