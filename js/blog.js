@@ -363,25 +363,32 @@ postInlineImageInput?.addEventListener("change", async (e) => {
 });
 
 function insertNodeAtCursor(node) {
-  postBodyInput.focus();
-  const sel = window.getSelection();
+  // Prefer the last position we explicitly captured (savedRange) over the
+  // "live" selection. The reason: calling postBodyInput.focus() when there's
+  // no active selection makes the browser default the caret to the very
+  // start of the contenteditable — so checking the live selection first
+  // would wrongly pick up that "start" position and silently override the
+  // spot the user actually placed their cursor at.
   let range;
-  const liveRangeOk = sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer);
-  if (liveRangeOk) {
-    range = sel.getRangeAt(0);
-  } else if (savedRange && postBodyInput.contains(savedRange.commonAncestorContainer)) {
-    // The live selection was lost (e.g. the file picker took focus) — fall
-    // back to the last known cursor spot inside the post body.
+  if (savedRange && postBodyInput.contains(savedRange.startContainer) && postBodyInput.contains(savedRange.endContainer)) {
     range = savedRange;
   } else {
-    range = document.createRange();
-    range.selectNodeContents(postBodyInput);
-    range.collapse(false); // end of content
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      range = sel.getRangeAt(0);
+    } else {
+      range = document.createRange();
+      range.selectNodeContents(postBodyInput);
+      range.collapse(false); // end of content
+    }
   }
   range.deleteContents();
   range.insertNode(node);
   range.setStartAfter(node);
   range.collapse(true);
+
+  postBodyInput.focus();
+  const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
   savedRange = range.cloneRange();
@@ -854,6 +861,7 @@ function renderPostCard(id, item) {
 
   article.innerHTML = `
     ${statusBadgeHTML(item.status)}
+    <h2 class="blog-post-title">${esc(item.title)}</h2>
     <header class="blog-post-header">
       <img class="blog-post-avatar" src="${esc(item.authorAvatar || "assets/avatar-male.svg")}" alt="">
       <div>
@@ -861,7 +869,6 @@ function renderPostCard(id, item) {
         <div class="blog-post-time">${esc(timeAgo(created))}</div>
       </div>
     </header>
-    <h2 class="blog-post-title">${esc(item.title)}</h2>
     <div class="blog-post-body">${item.content}</div>
     ${galleryHTML}
     <div class="blog-post-stats">
