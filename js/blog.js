@@ -91,7 +91,7 @@ function sanitizeHTML(html) {
   const template = document.createElement("template");
   template.innerHTML = html;
   // Strip composer-only UI chrome (resize handle, delete/align buttons) before sanitizing content
-  template.content.querySelectorAll(".inline-image-resize, .inline-image-delete, .inline-image-toolbar, button").forEach(el => el.remove());
+  template.content.querySelectorAll(".inline-image-resize, .inline-image-delete, .inline-image-toolbar, .inline-image-spinner, button").forEach(el => el.remove());
   template.content.querySelectorAll(".inline-image").forEach(el => el.classList.remove("selected", "is-uploading", "dragging"));
   const out = [];
   template.content.childNodes.forEach(node => sanitizeNode(node, out));
@@ -170,6 +170,7 @@ const postTitleInput = document.getElementById("post-title-input");
 const postBodyInput = document.getElementById("post-body-input");
 const postImageInput = document.getElementById("post-image-input");
 const postInlineImageInput = document.getElementById("post-inline-image-input");
+const postInlineImageLabel = document.getElementById("post-inline-image-label");
 const postUploadStatus = document.getElementById("post-upload-status");
 const postError = document.getElementById("post-error");
 const postSubmitBtn = document.getElementById("post-submit-btn");
@@ -178,6 +179,21 @@ const postSubmitBtn = document.getElementById("post-submit-btn");
 // currently being dragged so it can be dropped at a new spot in the text.
 let inlineUploadsInFlight = 0;
 let draggedInlineImage = null;
+
+// Remembers where the cursor was in the post body. Opening the native file
+// picker (for the 📄 inline-image button) steals focus/selection away from
+// the contenteditable, so by the time the chosen file comes back in the
+// "change" event, window.getSelection() no longer points inside the post —
+// without this, every inline image would land at the end of the text
+// instead of where the user was actually typing.
+let savedRange = null;
+
+function captureBodySelection() {
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+    savedRange = sel.getRangeAt(0).cloneRange();
+  }
+}
 
 const composerImagePreview = document.getElementById("composer-image-preview");
 const composerPreviewGrid = document.getElementById("composer-preview-grid");
@@ -237,6 +253,7 @@ function resetComposer() {
   pendingImages = [];
   inlineUploadsInFlight = 0;
   draggedInlineImage = null;
+  savedRange = null;
   composerImagePreview.classList.add("hidden");
   composerPreviewGrid.innerHTML = "";
 }
@@ -309,6 +326,16 @@ postImageInput?.addEventListener("change", (e) => {
 // INLINE IMAGES — insert directly into the post text,
 // draggable to reposition and resizable via a corner handle
 // ============================================
+// Grab the cursor position the instant before the native file picker opens
+// and steals focus — this is the spot the image should land in.
+postInlineImageLabel?.addEventListener("mousedown", captureBodySelection);
+postInlineImageLabel?.addEventListener("touchstart", captureBodySelection, { passive: true });
+// Also keep it fresh anytime the user is actively placing their cursor/typing,
+// so it's accurate even before the button is touched.
+postBodyInput?.addEventListener("keyup", captureBodySelection);
+postBodyInput?.addEventListener("mouseup", captureBodySelection);
+postBodyInput?.addEventListener("input", captureBodySelection);
+
 postInlineImageInput?.addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
   postInlineImageInput.value = "";
@@ -339,8 +366,13 @@ function insertNodeAtCursor(node) {
   postBodyInput.focus();
   const sel = window.getSelection();
   let range;
-  if (sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+  const liveRangeOk = sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer);
+  if (liveRangeOk) {
     range = sel.getRangeAt(0);
+  } else if (savedRange && postBodyInput.contains(savedRange.commonAncestorContainer)) {
+    // The live selection was lost (e.g. the file picker took focus) — fall
+    // back to the last known cursor spot inside the post body.
+    range = savedRange;
   } else {
     range = document.createRange();
     range.selectNodeContents(postBodyInput);
@@ -352,6 +384,7 @@ function insertNodeAtCursor(node) {
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
+  savedRange = range.cloneRange();
 }
 
 function wireInlineImageWrapper(wrapper) {
@@ -368,6 +401,9 @@ function wireInlineImageWrapper(wrapper) {
     draggedInlineImage = null;
   });
 
+  const INLINE_MIN_WIDTH = 80;
+  const INLINE_MAX_WIDTH = 560;
+
   // Resize via bottom-right handle (pointer events cover mouse + touch)
   const resizeHandle = wrapper.querySelector(".inline-image-resize");
   resizeHandle?.addEventListener("pointerdown", (ev) => {
@@ -379,7 +415,7 @@ function wireInlineImageWrapper(wrapper) {
 
     function onMove(e2) {
       const delta = e2.clientX - startX;
-      const newWidth = Math.max(80, Math.min(560, Math.round(startWidth + delta)));
+      const newWidth = Math.max(INLINE_MIN_WIDTH, Math.min(INLINE_MAX_WIDTH, Math.round(startWidth + delta)));
       wrapper.style.width = `${newWidth}px`;
     }
     function onUp(e3) {
@@ -391,6 +427,19 @@ function wireInlineImageWrapper(wrapper) {
     resizeHandle.addEventListener("pointerup", onUp);
   });
 
+  // Quick +/- size buttons — an easier, tap-friendly alternative to dragging
+  // the corner handle, especially on mobile.
+  wrapper.querySelectorAll(".inline-size-btn").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const currentWidth = wrapper.getBoundingClientRect().width;
+      const step = btn.dataset.size === "up" ? 40 : -40;
+      const newWidth = Math.max(INLINE_MIN_WIDTH, Math.min(INLINE_MAX_WIDTH, Math.round(currentWidth + step)));
+      wrapper.style.width = `${newWidth}px`;
+    });
+  });
+
   // Delete
   const deleteBtn = wrapper.querySelector(".inline-image-delete");
   deleteBtn?.addEventListener("click", (ev) => {
@@ -400,13 +449,13 @@ function wireInlineImageWrapper(wrapper) {
   });
 
   // Alignment — "none" sits inline in the paragraph; left/right float so text wraps beside it; center stands alone
-  wrapper.querySelectorAll(".inline-align-btn").forEach(btn => {
+  wrapper.querySelectorAll(".inline-align-btn:not(.inline-size-btn)").forEach(btn => {
     btn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       wrapper.classList.remove("align-left", "align-right", "align-center", "align-none");
       wrapper.classList.add(`align-${btn.dataset.align}`);
-      wrapper.querySelectorAll(".inline-align-btn").forEach(b => b.classList.toggle("is-active", b === btn));
+      wrapper.querySelectorAll(".inline-align-btn:not(.inline-size-btn)").forEach(b => b.classList.toggle("is-active", b === btn));
     });
   });
 }
@@ -434,6 +483,9 @@ async function insertInlineImage(file) {
     <button type="button" class="inline-align-btn" data-align="left" title="Wrap text right">⬅️</button>
     <button type="button" class="inline-align-btn" data-align="center" title="Center, own line">⏺️</button>
     <button type="button" class="inline-align-btn" data-align="right" title="Wrap text left">➡️</button>
+    <span class="inline-toolbar-divider"></span>
+    <button type="button" class="inline-align-btn inline-size-btn" data-size="down" title="Smaller">➖</button>
+    <button type="button" class="inline-align-btn inline-size-btn" data-size="up" title="Bigger">➕</button>
   `;
   wrapper.appendChild(toolbar);
 
@@ -450,16 +502,30 @@ async function insertInlineImage(file) {
   wireInlineImageWrapper(wrapper);
   insertNodeAtCursor(wrapper);
 
+  await runInlineUpload(wrapper, img, spinner, file);
+}
+
+async function runInlineUpload(wrapper, img, spinner, file) {
   inlineUploadsInFlight++;
+  wrapper.classList.add("is-uploading");
+  wrapper.classList.remove("upload-failed");
+  spinner.innerHTML = "Uploading…";
   try {
     const url = await uploadOneImage(file);
     img.src = url;
     wrapper.classList.remove("is-uploading");
   } catch (err) {
     console.error("[Blog] inline image upload failed:", err);
-    wrapper.remove();
-    postError.classList.remove("hidden");
-    postError.textContent = `Failed to upload image: ${file.name}`;
+    // Keep the image in place (the user already positioned it) and offer a
+    // retry instead of silently deleting their work.
+    wrapper.classList.remove("is-uploading");
+    wrapper.classList.add("upload-failed");
+    spinner.innerHTML = `Upload failed<br><button type="button" class="inline-image-retry">Tap to retry</button>`;
+    spinner.querySelector(".inline-image-retry")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      runInlineUpload(wrapper, img, spinner, file);
+    });
   } finally {
     inlineUploadsInFlight--;
   }
@@ -531,15 +597,34 @@ document.querySelectorAll(".composer-format-btn").forEach(btn => {
 // ============================================
 // UPLOAD IMAGES TO CLOUDINARY & GET URLS
 // ============================================
+const UPLOAD_TIMEOUT_MS = 25000;
+
 async function uploadOneImage(file) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-  const response = await fetch(CLOUDINARY_UPLOAD_URL, {
-    method: "POST",
-    body: formData
-  });
+  // Without a timeout a stalled connection (flaky mobile data, a dropped
+  // request) leaves the "Uploading…" spinner spinning forever with no way
+  // out. Abort and fail cleanly instead so the UI can recover.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(CLOUDINARY_UPLOAD_URL, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Upload timed out — check your connection and try again");
+    throw new Error("Upload failed — check your connection and try again");
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
   const data = await response.json();
   if (!data.secure_url) throw new Error("Upload failed");
   return data.secure_url;

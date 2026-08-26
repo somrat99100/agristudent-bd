@@ -24,9 +24,13 @@
 
 <section class="section-page">
   <div class="container blog-container">
-    <div class="crumb"><a href="index.html">Home</a> / Blog</div>
-    <h1>✍️ Blog</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:1.6rem;">Articles, guides, and stories from the agriculture student community. Every registered student can post — new posts show up right away, marked <strong>Not verified</strong> until an admin reviews them.</p>
+    <div class="blog-hero">
+      <div class="crumb"><a href="index.html">Home</a> / Blog</div>
+      <div class="blog-hero-icon">✍️</div>
+      <div class="blog-hero-eyebrow">Community Voices</div>
+      <h1>Blog</h1>
+      <p class="blog-hero-sub">Articles, guides, and stories from the agriculture student community. Every registered student can post — new posts show up right away, marked <strong>Not verified</strong> until an admin reviews them.</p>
+    </div>
 
     <!-- COMPOSER TRIGGER -->
     <div id="composer-logged-in" class="blog-composer-trigger hidden">
@@ -56,7 +60,7 @@
         <button type="button" class="composer-format-btn" data-cmd="italic" title="Italic"><i>I</i></button>
         <button type="button" class="composer-format-btn" data-cmd="underline" title="Underline"><u>U</u></button>
         <button type="button" class="composer-format-btn" data-cmd="insertUnorderedList" title="Bullet list">•≡</button>
-        <label class="composer-image-btn" title="Insert an image inside the text — drag & resize it">
+        <label id="post-inline-image-label" class="composer-image-btn" title="Insert an image inside the text — drag & resize it">
           📄
           <input type="file" id="post-inline-image-input" accept="image/*" multiple style="display:none;">
         </label>
