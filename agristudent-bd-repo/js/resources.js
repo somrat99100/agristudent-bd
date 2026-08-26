@@ -4,9 +4,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession } from "./session.js";
-import { initEmailNotifications } from "./email-config.js";
-
-initEmailNotifications();
 
 const MAX_FILES = 20;
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
@@ -39,24 +36,6 @@ function uploadFileToCloudinary(file, onProgress) {
 }
 
 // ============================================
-// NOTE TYPE (Hand Notes / Class Slide / Others)
-// A student-chosen category, separate from the file format (fileType:
-// pdf/image/ppt). Shown with low visual prominence next to the course
-// code/name in the PDFs & Presentations lists. Defaults to "hand_notes"
-// for any older docs that predate this field.
-// ============================================
-const NOTE_TYPE_LABELS = { hand_notes: "Hand Notes", class_slide: "Class Slide", others: "Others" };
-function noteTypeLabel(item) {
-  return NOTE_TYPE_LABELS[item.noteType] || NOTE_TYPE_LABELS.hand_notes;
-}
-function wireNoteTypeVisual(radioName) {
-  document.querySelectorAll(`input[name="${radioName}"]`).forEach(r => {
-    r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
-    r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
-  });
-}
-
-// ============================================
 // XSS ESCAPE HELPER
 // ============================================
 function esc(val) {
@@ -66,26 +45,6 @@ function esc(val) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#x27;");
-}
-
-// ============================================
-// SELECTED FILES PREVIEW
-// Once someone picks files, show the actual filenames chosen instead of
-// leaving them guessing whether the picker worked — no need to also spell
-// out max-count/size limits in the label, those only matter at submit time.
-// ============================================
-function wireSelectedFilesPreview(fileInput, previewEl) {
-  if (!fileInput || !previewEl) return;
-  fileInput.addEventListener("change", () => {
-    const files = Array.from(fileInput.files || []);
-    if (files.length === 0) {
-      previewEl.innerHTML = "";
-      previewEl.classList.add("hidden");
-      return;
-    }
-    previewEl.classList.remove("hidden");
-    previewEl.innerHTML = files.map(f => `<span class="selected-file-chip">📎 ${esc(f.name)}</span>`).join("");
-  });
 }
 
 // ============================================
@@ -156,61 +115,6 @@ if (uploadModal) {
 }
 
 // ============================================
-// SEND US CLASSROOM CODE MODAL + FORM (resources.html)
-// Lets a student share their Google Classroom code. On submit it's saved
-// to the "classroomCodes" Firestore collection (no email/backend needed) —
-// check the admin panel's "Classroom Codes" tab to see submissions — then
-// the form flips to a "Thank You" panel.
-// ============================================
-const openClassroomCodeBtn = document.getElementById("open-classroom-code-form");
-const classroomCodeModal = document.getElementById("classroom-code-modal");
-const classroomCodeClose = document.getElementById("classroom-code-close");
-const classroomCodeForm = document.getElementById("classroom-code-form");
-const classroomCodeInput = document.getElementById("classroom-code-input");
-const classroomCodeSubmit = document.getElementById("classroom-code-submit");
-const classroomCodeSuccess = document.getElementById("classroom-code-success");
-
-if (openClassroomCodeBtn) {
-  openClassroomCodeBtn.addEventListener("click", () => classroomCodeModal?.classList.remove("hidden"));
-}
-if (classroomCodeClose) {
-  classroomCodeClose.addEventListener("click", () => classroomCodeModal?.classList.add("hidden"));
-}
-if (classroomCodeModal) {
-  classroomCodeModal.addEventListener("click", (e) => {
-    if (e.target === classroomCodeModal) classroomCodeModal.classList.add("hidden");
-  });
-}
-
-if (classroomCodeForm) {
-  classroomCodeForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const code = classroomCodeInput.value.trim();
-    if (!code) return;
-
-    classroomCodeSubmit.disabled = true;
-    classroomCodeSubmit.textContent = "Sending…";
-    try {
-      const session = getSession?.();
-      await addDoc(collection(db, "classroomCodes"), {
-        classroomCode: code,
-        fromName: session?.fullName || session?.email || "",
-        fromEmail: session?.email || "",
-        status: "new",
-        submittedAt: serverTimestamp()
-      });
-      classroomCodeForm.classList.add("hidden");
-      classroomCodeSuccess.classList.remove("hidden");
-    } catch (err) {
-      console.error("[Resources] Failed to save classroom code:", err);
-      alert("Something went wrong submitting your classroom code. Please try again.");
-      classroomCodeSubmit.disabled = false;
-      classroomCodeSubmit.textContent = "Send";
-    }
-  });
-}
-
-// ============================================
 // UPLOAD FORM (resources.html)
 // Same premium file-type-picker experience as "Upload Another File" on
 // slides-notes.html: PDF/Image/PPT choice, course-name hint, faculty
@@ -243,15 +147,7 @@ if (uploadForm) {
     ppt: ".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
   };
   let currentFileType = "pdf";
-  let currentNoteType = "hand_notes";
   let matchedCourse = null;
-
-  document.querySelectorAll('input[name="noteType"]').forEach(radio => {
-    radio.addEventListener("change", () => {
-      currentNoteType = radio.value;
-      wireNoteTypeVisual("noteType");
-    });
-  });
 
   function cleanFileNameAsTitle(name) {
     return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
@@ -271,16 +167,15 @@ if (uploadForm) {
     imageTitlesWrap.classList.remove("hidden");
   }
   fileInput.addEventListener("change", renderImageTitleInputs);
-  wireSelectedFilesPreview(fileInput, document.getElementById("files-selected-preview"));
 
   document.querySelectorAll('input[name="fileType"]').forEach(radio => {
     radio.addEventListener("change", () => {
       currentFileType = radio.value;
       fileInput.accept = fileTypeAccepts[currentFileType];
       const labels = {
-        pdf: "PDF File(s) *",
-        image: "Image File(s) * (JPG, PNG, GIF, WebP)",
-        ppt: "Presentation File(s) * (PPT/PPTX)"
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP — max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX — max 20 files, 50MB each)"
       };
       if (filesLabel) filesLabel.textContent = labels[currentFileType];
       document.querySelectorAll('input[name="fileType"]').forEach(r => {
@@ -395,8 +290,7 @@ if (uploadForm) {
       }
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
-        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, noteType: currentNoteType,
-        status: "pending", submittedAt: serverTimestamp()
+        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, status: "pending", submittedAt: serverTimestamp()
       };
       const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
@@ -568,14 +462,6 @@ if (handNotesGate && handNotesContent) {
   };
 
   let currentFileType = "pdf";
-  let hnNoteType = "hand_notes";
-
-  document.querySelectorAll('input[name="hn-noteType"]').forEach(radio => {
-    radio.addEventListener("change", () => {
-      hnNoteType = radio.value;
-      wireNoteTypeVisual("hn-noteType");
-    });
-  });
 
   // Suggest course name + faculty names once the course code matches an
   // existing one — the student can still edit the suggested course name or
@@ -768,7 +654,6 @@ if (handNotesGate && handNotesContent) {
   }
 
   hnFiles.addEventListener("change", renderImageTitleInputs);
-  wireSelectedFilesPreview(hnFiles, document.getElementById("hn-files-selected-preview"));
 
   fileTypeRadios.forEach(radio => {
     radio.addEventListener("change", () => {
@@ -777,9 +662,9 @@ if (handNotesGate && handNotesContent) {
       
       // Update label
       const labels = {
-        pdf: "PDF File(s) *",
-        image: "Image File(s) * (JPG, PNG, GIF, WebP)",
-        ppt: "Presentation File(s) * (PPT/PPTX)"
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP - max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX - max 20 files, 50MB each)"
       };
       hnFilesLabel.textContent = labels[currentFileType];
 
@@ -870,7 +755,7 @@ if (handNotesGate && handNotesContent) {
 
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
-          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
+          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType,
           status: "pending", submittedAt: serverTimestamp()
         };
         const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
@@ -934,154 +819,7 @@ if (pdfList || imageGrid) {
     return item.fileType === "ppt" ? "📊" : "📄";
   }
 
-  // A file's display label: its per-file title if the uploader gave one,
-  // otherwise a cleaned-up version of the original filename — never a bare
-  // "View 1 / View 2" placeholder.
-  function fileDisplayName(file) {
-    if (file.title) return file.title;
-    return String(file.name || "File").replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "File";
-  }
-
-  // Groups an array of submissions by a key function, returning a Map that
-  // preserves first-seen insertion order.
-  function groupDocs(items, keyFn) {
-    const map = new Map();
-    items.forEach(item => {
-      const key = keyFn(item);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(item);
-    });
-    return map;
-  }
-
-  // ============================================
-  // PDF/PRESENTATIONS FOLDER BROWSER
-  // Renders a drill-down folder view into `container`, backed by `items`
-  // (an array of submissions) and `state` (mutable {courseCode, faculty}).
-  //   Level 1 — one folder per course code (e.g. "AGR 101: Agronomy")
-  //   Level 2 — one folder per faculty name within that course
-  //             (skipped automatically if the course only has one faculty)
-  //   Level 3 — every individual file in that course/faculty, each with
-  //             its own View button — no "View 1 / View 2" placeholders.
-  // `opts.limitTopLevel` caps how many course folders are shown at level 1
-  // (used for the compact card preview); `opts.onTopLevelCount(total, shown)`
-  // reports the true vs. displayed folder count so callers can show/hide a
-  // "View All" link.
-  // ============================================
-  function renderPdfFolder(container, items, state, opts = {}) {
-    if (items.length === 0) {
-      container.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching files found.</p>`;
-      if (opts.onTopLevelCount) opts.onTopLevelCount(0, 0);
-      return;
-    }
-
-    // LEVEL 1 — course code folders
-    if (!state.courseCode) {
-      const courses = groupDocs(items, i => i.courseCode || "Unknown");
-      let rows = [...courses.entries()].map(([code, docs]) => ({
-        code, name: docs[0].courseName || "",
-        fileCount: docs.reduce((n, d) => n + (d.fileUrls || []).length, 0)
-      })).sort((a, b) => a.code.localeCompare(b.code));
-
-      const total = rows.length;
-      if (opts.limitTopLevel) rows = rows.slice(0, opts.limitTopLevel);
-      if (opts.onTopLevelCount) opts.onTopLevelCount(total, rows.length);
-
-      container.innerHTML = rows.map(r => `
-        <div class="file-item folder-row" data-course="${esc(r.code)}">
-          <span class="file-status">📁</span>
-          <span class="file-name">${esc(r.code)}${r.name ? `: ${esc(r.name)}` : ""}</span>
-          <span class="folder-meta">${r.fileCount} file${r.fileCount !== 1 ? "s" : ""} <span class="folder-chevron">›</span></span>
-        </div>`).join("");
-
-      container.querySelectorAll("[data-course]").forEach(el => {
-        el.addEventListener("click", () => {
-          state.courseCode = el.dataset.course;
-          state.faculty = null;
-          renderPdfFolder(container, items, state, opts);
-        });
-      });
-      return;
-    }
-
-    const courseItems = items.filter(i => (i.courseCode || "Unknown") === state.courseCode);
-    const courseName = courseItems[0]?.courseName || "";
-    const faculties = groupDocs(courseItems, i => i.facultyName || "");
-
-    // LEVEL 2 — faculty folders (skipped when the course only has one faculty)
-    if (state.faculty === null) {
-      if (faculties.size <= 1) {
-        state.faculty = [...faculties.keys()][0] ?? "";
-        renderPdfFolder(container, items, state, opts);
-        return;
-      }
-
-      const rows = [...faculties.entries()].map(([fac, docs]) => ({
-        fac, fileCount: docs.reduce((n, d) => n + (d.fileUrls || []).length, 0)
-      })).sort((a, b) => a.fac.localeCompare(b.fac));
-
-      container.innerHTML =
-        `<div class="file-item folder-row folder-back" data-back="1">
-          <span class="file-status">←</span>
-          <span class="file-name">${esc(state.courseCode)}${courseName ? `: ${esc(courseName)}` : ""}</span>
-        </div>` +
-        rows.map(r => `
-          <div class="file-item folder-row" data-faculty="${esc(r.fac)}">
-            <span class="file-status">👤</span>
-            <span class="file-name">${r.fac ? esc(r.fac) : "Unspecified Faculty"}</span>
-            <span class="folder-meta">${r.fileCount} file${r.fileCount !== 1 ? "s" : ""} <span class="folder-chevron">›</span></span>
-          </div>`).join("");
-
-      container.querySelector("[data-back]").addEventListener("click", () => {
-        state.courseCode = null;
-        state.faculty = null;
-        renderPdfFolder(container, items, state, opts);
-      });
-      container.querySelectorAll("[data-faculty]").forEach(el => {
-        el.addEventListener("click", () => {
-          state.faculty = el.dataset.faculty;
-          renderPdfFolder(container, items, state, opts);
-        });
-      });
-      return;
-    }
-
-    // LEVEL 3 — individual files
-    const facultyItems = courseItems.filter(i => (i.facultyName || "") === state.faculty);
-    const backLabel = state.faculty
-      ? `${esc(state.courseCode)} — ${esc(state.faculty)}`
-      : `${esc(state.courseCode)}${courseName ? `: ${esc(courseName)}` : ""}`;
-
-    const fileRows = [];
-    facultyItems.forEach(item => {
-      (item.fileUrls || []).forEach(file => {
-        fileRows.push(`
-          <div class="file-item">
-            <span class="file-status">${docIcon(item)}</span>
-            <span class="file-name">${esc(fileDisplayName(file))} <span class="note-type-tag">${esc(noteTypeLabel(item))}</span></span>
-            <a href="${buildViewHref(file, item)}" class="file-action" title="${esc(file.name)}">View</a>
-          </div>`);
-      });
-    });
-
-    container.innerHTML =
-      `<div class="file-item folder-row folder-back" data-back="1">
-        <span class="file-status">←</span>
-        <span class="file-name">${backLabel}</span>
-      </div>` +
-      (fileRows.length ? fileRows.join("") : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No files here.</p>`);
-
-    container.querySelector("[data-back]").addEventListener("click", () => {
-      // If the faculty level was auto-skipped (only one faculty), go
-      // straight back to the course list rather than a dead-end faculty step.
-      if (faculties.size <= 1) { state.courseCode = null; state.faculty = null; }
-      else { state.faculty = null; }
-      renderPdfFolder(container, items, state, opts);
-    });
-  }
-
   let pdfSearchWired = false;
-  const pdfCardState = { courseCode: null, faculty: null };
 
   function renderPdfCard() {
     const docCount = allDocs.length;
@@ -1094,9 +832,11 @@ if (pdfList || imageGrid) {
       return;
     }
 
+    const displayCount = Math.min(5, docCount);
+
     if (pdfSearch) {
       pdfSearch.style.display = "block";
-      renderPdfList(allDocs);
+      renderPdfList(allDocs.slice(0, displayCount));
 
       if (!pdfSearchWired) {
         pdfSearchWired = true;
@@ -1107,24 +847,29 @@ if (pdfList || imageGrid) {
                 (item.courseCode || "").toLowerCase().includes(term) ||
                 (item.courseName || "").toLowerCase().includes(term)
               )
-            : allDocs;
+            : allDocs.slice(0, displayCount);
           renderPdfList(filtered);
         });
       }
     } else {
-      renderPdfList(allDocs);
+      renderPdfList(allDocs.slice(0, displayCount));
     }
+
+    document.getElementById("pdf-view-all").style.display = docCount > displayCount ? "block" : "none";
   }
 
   function renderPdfList(items) {
-    pdfCardState.courseCode = null;
-    pdfCardState.faculty = null;
-    renderPdfFolder(pdfList, items, pdfCardState, {
-      limitTopLevel: 6,
-      onTopLevelCount: (total, shown) => {
-        document.getElementById("pdf-view-all").style.display = total > shown ? "block" : "none";
-      }
-    });
+    if (items.length === 0) {
+      pdfList.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching files found.</p>`;
+      return;
+    }
+    pdfList.innerHTML = items.map(item => `
+      <div class="file-item">
+        <span class="file-status">${docIcon(item)}</span>
+        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}</span>
+        <a href="${buildViewHref(item.fileUrls[0], item)}" class="file-action">View</a>
+      </div>
+    `).join("");
   }
 
   function renderImageCard() {
@@ -1237,49 +982,27 @@ if (pdfList || imageGrid) {
     if (facultySelect) facultySelect.addEventListener("change", apply);
   }
 
-  // VIEW ALL — PDFs & Presentations: same folder browser as the compact
-  // card, just unlimited and backed by the full allDocs list. Search
-  // filters by course code/name and resets navigation back to the top.
-  // The old standalone faculty-filter dropdown is superseded by the
-  // course → faculty drill-down, so it's hidden rather than wired up.
-  (function wirePdfViewAllModal() {
-    const openBtn = document.getElementById("pdf-view-all");
-    const modal = document.getElementById("pdf-viewall-modal");
-    if (!openBtn || !modal) return;
-    const closeBtn = document.getElementById("pdf-viewall-close");
-    const searchInput = document.getElementById("pdf-viewall-search");
-    const facultySelect = document.getElementById("pdf-viewall-faculty");
-    if (facultySelect) facultySelect.closest(".form-field")?.classList.add("hidden");
-    const listEl = document.getElementById("pdf-viewall-list");
-    const modalState = { courseCode: null, faculty: null };
+  function renderPdfRow(item) {
+    return `
+      <div class="file-item">
+        <span class="file-status">${docIcon(item)}</span>
+        <span class="file-name">${esc(item.courseCode)}: ${esc(item.courseName)}${item.facultyName ? ` <span style="opacity:.7;font-weight:400;">— ${esc(item.facultyName)}</span>` : ""}</span>
+        <a href="${buildViewHref(item.fileUrls[0], item)}" class="file-action">View</a>
+      </div>`;
+  }
 
-    function apply() {
-      const term = (searchInput?.value || "").trim().toLowerCase();
-      const items = term
-        ? allDocs.filter(i =>
-            (i.courseCode || "").toLowerCase().includes(term) ||
-            (i.courseName || "").toLowerCase().includes(term)
-          )
-        : allDocs;
-      renderPdfFolder(listEl, items, modalState);
+  wireViewAllModal({
+    openBtnId: "pdf-view-all", modalId: "pdf-viewall-modal", closeBtnId: "pdf-viewall-close",
+    searchId: "pdf-viewall-search", facultyId: "pdf-viewall-faculty",
+    getItems: () => allDocs,
+    matchFn: (i, term) => (i.courseCode || "").toUpperCase().includes(term.toUpperCase()),
+    renderList: (items) => {
+      const list = document.getElementById("pdf-viewall-list");
+      list.innerHTML = items.length
+        ? items.map(renderPdfRow).join("")
+        : `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;">No matching files found.</p>`;
     }
-
-    openBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (searchInput) searchInput.value = "";
-      modalState.courseCode = null;
-      modalState.faculty = null;
-      modal.classList.remove("hidden");
-      apply();
-    });
-    if (closeBtn) closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
-    if (searchInput) searchInput.addEventListener("input", () => {
-      modalState.courseCode = null;
-      modalState.faculty = null;
-      apply();
-    });
-  })();
+  });
 
   wireViewAllModal({
     openBtnId: "image-view-all", modalId: "image-viewall-modal", closeBtnId: "image-viewall-close",
@@ -1333,7 +1056,6 @@ if (anotherUploadBtn && anotherUploadModal) {
   const auFacultySuggestions = document.getElementById("au-faculty-suggestions");
   const auFiles = document.getElementById("au-files");
   const auFilesLabel = document.getElementById("au-files-label");
-  const auFilesPreview = document.getElementById("au-files-selected-preview");
   const auSubmit = document.getElementById("au-submit");
   const auStatus = document.getElementById("au-status");
   const auProgressWrap = document.getElementById("au-progress-wrap");
@@ -1344,15 +1066,7 @@ if (anotherUploadBtn && anotherUploadModal) {
   const auSuccess = document.getElementById("au-success");
   const AU_CIRCUMFERENCE = 226.19;
   let auFileType = "pdf";
-  let auNoteType = "hand_notes";
   let auMatchedCourse = null;
-
-  document.querySelectorAll('input[name="au-noteType"]').forEach(radio => {
-    radio.addEventListener("change", () => {
-      auNoteType = radio.value;
-      wireNoteTypeVisual("au-noteType");
-    });
-  });
 
   const auFileTypeAccepts = {
     pdf: ".pdf,application/pdf",
@@ -1373,19 +1087,13 @@ if (anotherUploadBtn && anotherUploadModal) {
     auMatchedCourse = null;
     auFileType = "pdf";
     auFiles.accept = auFileTypeAccepts.pdf;
-    auFilesLabel.textContent = "PDF File(s) *";
-    auFilesPreview.innerHTML = "";
-    auFilesPreview.classList.add("hidden");
+    auFilesLabel.textContent = "PDF File(s) * (max 20 files, 50MB each)";
     const pdfRadio = document.querySelector('input[name="au-fileType"][value="pdf"]');
     if (pdfRadio) pdfRadio.checked = true;
     document.querySelectorAll('input[name="au-fileType"]').forEach(r => {
       r.closest("label").style.borderColor = r.checked ? "var(--leaf-500)" : "var(--line)";
       r.closest("label").style.background = r.checked ? "rgba(107, 155, 94, 0.05)" : "transparent";
     });
-    auNoteType = "hand_notes";
-    const handNotesRadio = document.querySelector('input[name="au-noteType"][value="hand_notes"]');
-    if (handNotesRadio) handNotesRadio.checked = true;
-    wireNoteTypeVisual("au-noteType");
     auSubmit.disabled = false;
     auSubmit.textContent = "Submit for Review";
   }
@@ -1439,16 +1147,15 @@ if (anotherUploadBtn && anotherUploadModal) {
     auImageTitlesWrap.classList.remove("hidden");
   }
   auFiles.addEventListener("change", renderAuImageTitleInputs);
-  wireSelectedFilesPreview(auFiles, auFilesPreview);
 
   document.querySelectorAll('input[name="au-fileType"]').forEach(radio => {
     radio.addEventListener("change", () => {
       auFileType = radio.value;
       auFiles.accept = auFileTypeAccepts[auFileType];
       const labels = {
-        pdf: "PDF File(s) *",
-        image: "Image File(s) * (JPG, PNG, GIF, WebP)",
-        ppt: "Presentation File(s) * (PPT/PPTX)"
+        pdf: "PDF File(s) * (max 20 files, 50MB each)",
+        image: "Image File(s) * (JPG, PNG, GIF, WebP — max 20 files, 50MB each)",
+        ppt: "Presentation File(s) * (PPT/PPTX — max 20 files, 50MB each)"
       };
       auFilesLabel.textContent = labels[auFileType];
       document.querySelectorAll('input[name="au-fileType"]').forEach(r => {
@@ -1523,7 +1230,7 @@ if (anotherUploadBtn && anotherUploadModal) {
 
       const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
-        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType, noteType: auNoteType,
+        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType,
         status: "pending", submittedAt: serverTimestamp()
       };
       const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);

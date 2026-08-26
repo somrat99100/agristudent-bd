@@ -1,6 +1,6 @@
 import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
+  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail
@@ -137,8 +137,6 @@ const termList = document.getElementById("admin-term-list");
 const timelineList = document.getElementById("admin-timeline-list");
 const regList = document.getElementById("admin-registrations-list");
 const msgList = document.getElementById("admin-messages-list");
-const classroomCodesList = document.getElementById("admin-classroom-codes-list");
-const blogList = document.getElementById("admin-blog-list");
 
 // Caches of last-loaded docs, keyed by id — used to populate the "Edit any content" modal
 // without a second round-trip to Firestore.
@@ -146,16 +144,13 @@ const resourcesCache = {};
 const termsCache = {};
 const timelineCache = {};
 const registrationsCache = {};
-const blogCache = {};
 
 const tabs = {
   resources: { btn: document.getElementById("tab-resources"), panel: document.getElementById("resources-panel"), load: loadResources },
-  blog: { btn: document.getElementById("tab-blog"), panel: document.getElementById("blog-panel"), load: loadBlogPosts },
   terms: { btn: document.getElementById("tab-terms"), panel: document.getElementById("terms-panel"), load: loadTerms },
   timeline: { btn: document.getElementById("tab-timeline"), panel: document.getElementById("timeline-panel"), load: loadTimeline },
   registrations: { btn: document.getElementById("tab-registrations"), panel: document.getElementById("registrations-panel"), load: loadRegistrations },
   messages: { btn: document.getElementById("tab-messages"), panel: document.getElementById("messages-panel"), load: loadMessages },
-  classroomCodes: { btn: document.getElementById("tab-classroom-codes"), panel: document.getElementById("classroom-codes-panel"), load: loadClassroomCodes },
   danger: { btn: document.getElementById("tab-danger"), panel: document.getElementById("danger-panel"), load: () => {} }
 };
 
@@ -181,77 +176,6 @@ if (adminPageTitle) adminPageTitle.textContent = tabs.resources.btn.dataset.labe
 // ============================================
 // RESOURCES
 // ============================================
-// ============================================
-// FILE-TYPE CATEGORIZATION — used to split the admin resources
-// list into separate PDF / Images / Other sections.
-// ============================================
-const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic"];
-
-function getFileExt(name) {
-  const clean = String(name || "").split("?")[0];
-  const parts = clean.split(".");
-  return parts.length > 1 ? parts.pop().toLowerCase() : "";
-}
-
-// Decide which bucket a whole resource entry belongs in, based on the
-// file types it contains. If it has a PDF, it's grouped under PDFs;
-// else if it has an image, under Images; otherwise Other.
-function getResourceCategory(item) {
-  const files = item.fileUrls || [];
-  const exts = files.map(f => getFileExt(f.name || f.url));
-  if (exts.some(e => e === "pdf")) return "pdf";
-  if (exts.some(e => IMAGE_EXTS.includes(e))) return "image";
-  return "other";
-}
-
-function buildResourceRowHTML(d) {
-  const item = d.data ? d.data() : d.item;
-  const id = d.id;
-  return `
-    <div>
-      <strong>${esc(item.courseCode)} — ${esc(item.courseName) || ""}</strong>
-      <div style="font-size:.8rem;color:var(--moss-600);">
-        ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 Hand Notes"}
-        ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName) || ""}
-      </div>
-      <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})${item.uploaderStudentId ? ` · Student ID: <strong>${esc(item.uploaderStudentId)}</strong>` : ""}</div>
-      <div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;">
-        ${(item.fileUrls || []).map((f, i) => `
-          <span style="display:inline-flex;align-items:center;gap:.25rem;">
-            <a href="${esc(f.url)}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);">${esc(f.name)}</a>
-            <button type="button" class="delete-file-btn" data-id="${esc(id)}" data-index="${i}" title="Delete this file" style="background:none;border:none;color:var(--terracotta-500);cursor:pointer;font-size:.85rem;line-height:1;padding:0 .15rem;">✕</button>
-          </span>`).join("")}
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
-      <select data-id="${esc(id)}" class="status-select">
-        <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Pending</option>
-        <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
-        <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
-      </select>
-      <div style="display:flex;gap:.4rem;">
-        <button type="button" class="edit-btn" data-schema="resources" data-id="${esc(id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
-        <button type="button" class="delete-resource-btn" data-id="${esc(id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🗑 Delete</button>
-      </div>
-    </div>`;
-}
-
-function buildResourceSectionHTML(title, icon, items) {
-  if (items.length === 0) return "";
-  const rows = items.map(({ id, item }) =>
-    `<div class="resource-row" data-id="${esc(id)}">${buildResourceRowHTML({ id, item })}</div>`
-  ).join("");
-  return `
-    <div class="resource-type-section" style="margin-bottom:1.5rem;">
-      <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.04em;color:var(--moss-600);border-bottom:1px solid var(--line);padding-bottom:.4rem;margin-bottom:.6rem;">
-        ${icon} ${esc(title)} <span style="font-weight:400;color:var(--moss-600);">(${items.length})</span>
-      </h3>
-      <div class="resource-section-list" style="display:flex;flex-direction:column;gap:.6rem;">
-        ${rows}
-      </div>
-    </div>`;
-}
-
 async function loadResources() {
   list.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
   try {
@@ -260,75 +184,37 @@ async function loadResources() {
 
     if (snap.empty) { list.innerHTML = `<p style="color:var(--moss-600);">No resources submitted yet.</p>`; return; }
 
-    const buckets = { pdf: [], image: [], other: [] };
+    list.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
       resourcesCache[d.id] = item;
-      buckets[getResourceCategory(item)].push({ id: d.id, item });
+      const row = document.createElement("div");
+      row.className = "resource-row";
+      row.innerHTML = `
+        <div>
+          <strong>${esc(item.courseCode)} — ${esc(item.courseName) || ""}</strong>
+          <div style="font-size:.8rem;color:var(--moss-600);">
+            ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 Hand Notes"}
+            ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName) || ""}
+          </div>
+          <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})${item.uploaderStudentId ? ` · Student ID: <strong>${esc(item.uploaderStudentId)}</strong>` : ""}</div>
+          <div style="margin-top:.4rem;">${(item.fileUrls || []).map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--leaf-500);">${esc(f.name)}</a>`).join(" · ")}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
+          <select data-id="${esc(d.id)}" class="status-select">
+            <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Pending</option>
+            <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
+            <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
+          </select>
+          <button type="button" class="edit-btn" data-schema="resources" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
+        </div>`;
+      list.appendChild(row);
     });
-
-    list.innerHTML = [
-      buildResourceSectionHTML("PDF Documents", "📄", buckets.pdf),
-      buildResourceSectionHTML("Images", "🖼️", buckets.image),
-      buildResourceSectionHTML("Other Files", "📁", buckets.other)
-    ].join("");
 
     list.querySelectorAll(".edit-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const item = resourcesCache[btn.dataset.id];
         if (item) openEditModal("resources", btn.dataset.id, item);
-      });
-    });
-
-    // Admin can delete an entire resource entry (and every file attached
-    // to it) at any time, regardless of its pending/approved/rejected
-    // status — there is no status gate on this action.
-    list.querySelectorAll(".delete-resource-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete this resource and all its files? This cannot be undone.")) return;
-        btn.disabled = true;
-        try {
-          await deleteDoc(doc(db, "resources", btn.dataset.id));
-          delete resourcesCache[btn.dataset.id];
-          loadResources();
-        } catch (err) {
-          console.error("[AgriAdmin] resource delete failed:", err);
-          alert("Something went wrong deleting this resource. Please try again.");
-          btn.disabled = false;
-        }
-      });
-    });
-
-    // Admin can delete a single file out of a multi-file resource entry
-    // at any time, without touching the rest of the entry's files.
-    list.querySelectorAll(".delete-file-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const id = btn.dataset.id;
-        const index = Number(btn.dataset.index);
-        const item = resourcesCache[id];
-        if (!item) return;
-        const fileUrls = item.fileUrls || [];
-        const file = fileUrls[index];
-        if (!file) return;
-        if (!confirm(`Delete "${file.name}" from this resource?`)) return;
-        btn.disabled = true;
-        try {
-          const updatedFileUrls = fileUrls.filter((_, i) => i !== index);
-          if (updatedFileUrls.length === 0) {
-            // No files left — remove the whole entry instead of leaving
-            // an empty resource behind.
-            await deleteDoc(doc(db, "resources", id));
-            delete resourcesCache[id];
-          } else {
-            await updateDoc(doc(db, "resources", id), { fileUrls: updatedFileUrls, editedAt: new Date() });
-            item.fileUrls = updatedFileUrls;
-          }
-          loadResources();
-        } catch (err) {
-          console.error("[AgriAdmin] file delete failed:", err);
-          alert("Something went wrong deleting this file. Please try again.");
-          btn.disabled = false;
-        }
       });
     });
 
@@ -367,137 +253,6 @@ async function loadResources() {
 }
 
 // ============================================
-// BLOG POSTS
-// ============================================
-function buildBlogRowHTML(id, item) {
-  const created = item.createdAt?.toDate?.()?.toLocaleString?.() || "—";
-  // Strip HTML down to plain text for a compact admin preview — the
-  // full formatted post (with images) is one click away via "View live".
-  const previewDiv = document.createElement("div");
-  previewDiv.innerHTML = item.content || "";
-  const preview = (previewDiv.textContent || "").slice(0, 220);
-
-  return `
-    <div>
-      <strong>${esc(item.title)}</strong>
-      <div style="font-size:.8rem;color:var(--moss-600);margin-top:.15rem;">
-        By: ${esc(item.authorName) || "—"} (${esc(item.authorEmail) || "no email"})${item.authorStudentId ? ` · Student ID: <strong>${esc(item.authorStudentId)}</strong>` : ""}
-      </div>
-      <div style="font-size:.78rem;color:var(--moss-600);margin-top:.15rem;">${esc(created)}</div>
-      <p style="font-size:.85rem;color:var(--moss-900);margin:.5rem 0;">${esc(preview)}${preview.length === 220 ? "…" : ""}</p>
-      <div style="font-size:.78rem;color:var(--moss-600);display:flex;gap:.9rem;">
-        <span>👁️ ${item.views || 0} views</span>
-        <span>❤️ ${item.likesCount || 0} likes</span>
-        <span>💬 ${item.commentsCount || 0} comments</span>
-        <span>↗️ ${item.sharesCount || 0} shares</span>
-      </div>
-      <a href="blog.html?post=${esc(id)}" target="_blank" rel="noopener" style="font-size:.8rem;color:var(--leaf-500);font-weight:600;">🔗 View live</a>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
-      <select data-id="${esc(id)}" class="blog-status-select">
-        <option value="pending" ${item.status === "pending" ? "selected" : ""}>🕓 Not verified</option>
-        <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
-        <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected (hidden)</option>
-      </select>
-      <button type="button" class="delete-blog-btn" data-id="${esc(id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🗑 Delete</button>
-    </div>`;
-}
-
-async function loadBlogPosts() {
-  blogList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
-  try {
-    const q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-
-    if (snap.empty) { blogList.innerHTML = `<p style="color:var(--moss-600);">No blog posts submitted yet.</p>`; return; }
-
-    const buckets = { pending: [], approved: [], rejected: [] };
-    snap.forEach(d => {
-      const item = d.data();
-      blogCache[d.id] = item;
-      (buckets[item.status] || buckets.pending).push({ id: d.id, item });
-    });
-
-    const section = (title, icon, items) => {
-      if (items.length === 0) return "";
-      const rows = items.map(({ id, item }) =>
-        `<div class="resource-row" data-id="${esc(id)}">${buildBlogRowHTML(id, item)}</div>`
-      ).join("");
-      return `
-        <div class="resource-type-section" style="margin-bottom:1.5rem;">
-          <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.04em;color:var(--moss-600);border-bottom:1px solid var(--line);padding-bottom:.4rem;margin-bottom:.6rem;">
-            ${icon} ${esc(title)} <span style="font-weight:400;color:var(--moss-600);">(${items.length})</span>
-          </h3>
-          <div class="resource-section-list" style="display:flex;flex-direction:column;gap:.6rem;">${rows}</div>
-        </div>`;
-    };
-
-    blogList.innerHTML = [
-      section("Not Verified (Pending Review)", "🕓", buckets.pending),
-      section("Approved", "✅", buckets.approved),
-      section("Rejected", "❌", buckets.rejected)
-    ].join("");
-
-    blogList.querySelectorAll(".blog-status-select").forEach(sel => {
-      sel.addEventListener("change", async (e) => {
-        e.target.disabled = true;
-        const id = e.target.dataset.id;
-        const newStatus = e.target.value;
-        try {
-          await updateDoc(doc(db, "blogPosts", id), { status: newStatus, reviewedAt: new Date() });
-          const item = blogCache[id];
-          if (item) {
-            const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
-            sendReviewEmail({
-              toEmail: item.authorEmail,
-              toName: item.authorName || item.authorEmail,
-              status: statusLabel,
-              itemType: "Blog post",
-              courseCode: item.title,
-              courseName: "",
-              detail: ""
-            });
-            item.status = newStatus;
-          }
-          loadBlogPosts();
-        } catch (err) {
-          console.error("[AgriAdmin] blog status update failed:", err);
-          alert("Something went wrong updating the status. Please try again.");
-          e.target.disabled = false;
-        }
-      });
-    });
-
-    blogList.querySelectorAll(".delete-blog-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete this post permanently, along with all its likes and comments? This cannot be undone.")) return;
-        btn.disabled = true;
-        try {
-          const id = btn.dataset.id;
-          const [commentsSnap, likesSnap] = await Promise.all([
-            getDocs(query(collection(db, "blogComments"), where("postId", "==", id))),
-            getDocs(query(collection(db, "blogLikes"), where("postId", "==", id)))
-          ]);
-          const batch = writeBatch(db);
-          commentsSnap.forEach(d => batch.delete(d.ref));
-          likesSnap.forEach(d => batch.delete(d.ref));
-          batch.delete(doc(db, "blogPosts", id));
-          await batch.commit();
-          delete blogCache[id];
-          loadBlogPosts();
-        } catch (err) {
-          console.error("[AgriAdmin] blog delete failed:", err);
-          alert("Something went wrong deleting this post. Please try again.");
-          btn.disabled = false;
-        }
-      });
-    });
-  } catch (err) {
-    showLoadError(blogList, "blog posts", err);
-  }
-}
-
-// ============================================
 // TERMS
 // ============================================
 async function loadTerms() {
@@ -530,10 +285,7 @@ async function loadTerms() {
             <option value="approved" ${item.status === "approved" ? "selected" : ""}>✅ Approved</option>
             <option value="rejected" ${item.status === "rejected" ? "selected" : ""}>❌ Rejected</option>
           </select>
-          <div style="display:flex;gap:.4rem;">
-            <button type="button" class="edit-btn" data-schema="terms" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
-            <button type="button" class="delete-term-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🗑 Delete</button>
-          </div>
+          <button type="button" class="edit-btn" data-schema="terms" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         </div>`;
       termList.appendChild(row);
     });
@@ -542,24 +294,6 @@ async function loadTerms() {
       btn.addEventListener("click", () => {
         const item = termsCache[btn.dataset.id];
         if (item) openEditModal("terms", btn.dataset.id, item);
-      });
-    });
-
-    // Admin can delete any term (and its image) at any time, regardless
-    // of pending/approved/rejected status.
-    termList.querySelectorAll(".delete-term-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete this term entry? This cannot be undone.")) return;
-        btn.disabled = true;
-        try {
-          await deleteDoc(doc(db, "terms", btn.dataset.id));
-          delete termsCache[btn.dataset.id];
-          loadTerms();
-        } catch (err) {
-          console.error("[AgriAdmin] term delete failed:", err);
-          alert("Something went wrong deleting this term. Please try again.");
-          btn.disabled = false;
-        }
       });
     });
 
@@ -787,68 +521,6 @@ async function loadMessages() {
 }
 
 // ============================================
-// CLASSROOM CODES ("Send Us Classroom Code" submissions, resources.html)
-// ============================================
-async function loadClassroomCodes() {
-  classroomCodesList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
-  try {
-    const q = query(collection(db, "classroomCodes"), orderBy("submittedAt", "desc"));
-    const snap = await getDocs(q);
-
-    if (snap.empty) { classroomCodesList.innerHTML = `<p style="color:var(--moss-600);">No classroom codes submitted yet.</p>`; return; }
-
-    classroomCodesList.innerHTML = "";
-    snap.forEach(d => {
-      const item = d.data();
-      const isContacted = item.status === "contacted";
-      const row = document.createElement("div");
-      row.className = "resource-row";
-      row.innerHTML = `
-        <div>
-          <span style="display:inline-block;font-family:monospace;font-size:1.05rem;font-weight:700;background:var(--leaf-50,#eef5ee);border:1px solid var(--line);border-radius:6px;padding:.2rem .6rem;">${esc(item.classroomCode)}</span>
-          <span style="margin-left:.5rem;font-size:.75rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;${isContacted ? "background:#E4F2E7;color:var(--leaf-600,#2D4A35);" : "background:#FDF3D9;color:#8A6A1A;"}">${isContacted ? "Contacted" : "New"}</span>
-          <div style="font-size:.85rem;color:var(--moss-700);margin-top:.35rem;">
-            ${item.fromName ? esc(item.fromName) : "Anonymous"}${item.fromEmail ? ` — ${esc(item.fromEmail)}` : ""}
-          </div>
-        </div>
-        <div style="display:flex;gap:.5rem;">
-          ${isContacted ? "" : `<button type="button" class="mark-contacted-btn" data-id="${d.id}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Mark Contacted</button>`}
-          <button type="button" class="btn-danger delete-classroom-code-btn" data-id="${d.id}" style="padding:.35rem .7rem;font-size:.78rem;">🗑 Delete</button>
-        </div>`;
-      classroomCodesList.appendChild(row);
-    });
-
-    classroomCodesList.querySelectorAll(".mark-contacted-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        try {
-          await updateDoc(doc(db, "classroomCodes", btn.dataset.id), { status: "contacted" });
-          loadClassroomCodes();
-        } catch (err) {
-          console.error("[AgriAdmin] Failed to update classroom code:", err);
-          btn.disabled = false;
-        }
-      });
-    });
-    classroomCodesList.querySelectorAll(".delete-classroom-code-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete this classroom code submission?")) return;
-        btn.disabled = true;
-        try {
-          await deleteDoc(doc(db, "classroomCodes", btn.dataset.id));
-          loadClassroomCodes();
-        } catch (err) {
-          console.error("[AgriAdmin] Failed to delete classroom code:", err);
-          btn.disabled = false;
-        }
-      });
-    });
-  } catch (err) {
-    showLoadError(classroomCodesList, "classroom codes", err);
-  }
-}
-
-// ============================================
 // DANGER ZONE — bulk delete (clear test data)
 // ============================================
 const dangerResult = document.getElementById("danger-result");
@@ -895,8 +567,6 @@ document.querySelectorAll(".danger-delete-btn").forEach(btn => {
       if (collectionName === "registrations") loadRegistrations();
       if (collectionName === "timeline") loadTimeline();
       if (collectionName === "messages") loadMessages();
-      if (collectionName === "classroomCodes") loadClassroomCodes();
-      if (collectionName === "blogPosts") loadBlogPosts();
     } catch (err) {
       console.error("[AgriAdmin] bulk delete failed:", err);
       dangerResult.textContent = `❌ Something went wrong deleting "${label}". Please try again.`;
@@ -920,18 +590,13 @@ const EDIT_SCHEMAS = {
     title: "Edit Resource",
     reload: loadResources,
     cache: resourcesCache,
-    // Every field here mirrors a field the upload forms in js/resources.js
-    // actually write to the doc, so admin can correct anything a student
-    // submitted — not just a fixed subset.
     fields: [
       { key: "courseCode", label: "Course Code", type: "text" },
       { key: "courseName", label: "Course Name", type: "text" },
       { key: "facultyName", label: "Faculty Name", type: "text" },
       { key: "examType", label: "Exam Type", type: "text" },
-      { key: "fileType", label: "File Type", type: "select", options: { pdf: "PDF", image: "Image", ppt: "PPT" } },
-      { key: "noteType", label: "Note Type", type: "select", options: { hand_notes: "Hand Notes", class_slide: "Class Slide", others: "Others" } },
-      { key: "uploaderEmail", label: "Uploader Email", type: "text" },
-      { key: "uploaderStudentId", label: "Uploader Student ID", type: "text" }
+      { key: "uploaderName", label: "Uploader Name", type: "text" },
+      { key: "uploaderEmail", label: "Uploader Email", type: "text" }
     ]
   },
   terms: {
@@ -942,8 +607,7 @@ const EDIT_SCHEMAS = {
     fields: [
       { key: "name", label: "Term Name", type: "text" },
       { key: "description", label: "Description", type: "textarea" },
-      { key: "imageUrl", label: "Image URL", type: "text" },
-      { key: "uploaderEmail", label: "Uploader Email", type: "text" }
+      { key: "imageUrl", label: "Image URL", type: "text" }
     ]
   },
   timeline: {
@@ -1043,7 +707,7 @@ editModalForm.addEventListener("submit", async (e) => {
       updateData[f.key] = input.value ? Timestamp.fromDate(new Date(input.value + "T00:00:00")) : null;
     } else if (f.key === "email" || f.key === "uploaderEmail") {
       updateData[f.key] = normalizeEmail(input.value);
-    } else if (f.key === "studentIdNumber" || f.key === "uploaderStudentId") {
+    } else if (f.key === "studentIdNumber") {
       updateData[f.key] = normalizeStudentId(input.value);
     } else {
       updateData[f.key] = input.value.trim();

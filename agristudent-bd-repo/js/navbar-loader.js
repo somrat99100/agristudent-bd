@@ -13,14 +13,6 @@
 
       // Mark active link
       const current = location.pathname.split("/").pop() || "index.html";
-
-      // The scrolling announcement bar (top moving line) lives in the
-      // shared navbar markup so every page gets it by default. Per request,
-      // it's removed on the homepage only — other pages keep it.
-      if (current === "index.html" || current === "") {
-        const announceBar = document.querySelector(".announce-bar");
-        if (announceBar) announceBar.remove();
-      }
       document.querySelectorAll(".nav-links a").forEach(a => {
         const href = a.getAttribute("href");
         if (href === current || (current === "" && href === "index.html")) {
