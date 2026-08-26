@@ -29,8 +29,20 @@ service cloud.firestore {
         resource.data.status == "verified" ||
         request.auth != null;
 
-      // Admin panel only (js/admin.js approve/reject + generic edit modal)
-      allow update, delete: if request.auth != null;
+      // Admin panel only (js/admin.js approve/reject + generic edit modal),
+      // OR a student updating just their own profile photo. Students never
+      // hold a Firebase Auth session (same trust model as the rest of this
+      // file), so this can't verify "your own" doc beyond knowing its ID —
+      // consistent with the public-write-with-field-validation model used
+      // for blogPosts/resources elsewhere in this file. Scoped tightly so
+      // it can ONLY ever touch the avatarUrl field, and only to a real
+      // Cloudinary URL, never anything else on the record.
+      allow update: if request.auth != null || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl']) &&
+        request.resource.data.avatarUrl is string &&
+        request.resource.data.avatarUrl.matches('^https://res[.]cloudinary[.]com/.*')
+      );
+      allow delete: if request.auth != null;
     }
 
     // ============================================

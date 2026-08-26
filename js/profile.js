@@ -1,6 +1,6 @@
-import { db } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  doc, getDoc, collection, query, where, getDocs
+  doc, getDoc, updateDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
@@ -27,6 +27,83 @@ function showLoggedOut() {
   contentEl.classList.add("hidden");
   loggedOutEl.classList.remove("hidden");
 }
+
+// ============================================
+// PROFILE AVATAR UPLOAD — tap the camera badge on the circular avatar
+// to replace it. Uploads to Cloudinary (same pipeline as blog images),
+// then saves the URL onto the student's own registration doc.
+// ============================================
+const MAX_AVATAR_SIZE = 8 * 1024 * 1024; // 8MB
+const avatarWrap = document.getElementById("profile-avatar-wrap");
+const avatarImg = document.getElementById("profile-avatar");
+const avatarEditBtn = document.getElementById("profile-avatar-edit-btn");
+const avatarInput = document.getElementById("profile-avatar-input");
+const avatarStatus = document.getElementById("profile-avatar-status");
+
+avatarEditBtn?.addEventListener("click", () => avatarInput?.click());
+
+avatarInput?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  avatarInput.value = "";
+  if (!file) return;
+
+  const session = getSession();
+  if (!session) return;
+
+  avatarStatus.classList.remove("is-error");
+
+  if (!file.type.startsWith("image/")) {
+    avatarStatus.textContent = "Please choose an image file.";
+    avatarStatus.classList.add("is-error");
+    return;
+  }
+  if (file.size > MAX_AVATAR_SIZE) {
+    avatarStatus.textContent = "Image too large (max 8MB).";
+    avatarStatus.classList.add("is-error");
+    return;
+  }
+
+  avatarStatus.textContent = "Uploading…";
+  avatarWrap.classList.add("is-uploading");
+  avatarEditBtn.disabled = true;
+
+  // Instant local preview while the real upload runs in the background.
+  const previewUrl = URL.createObjectURL(file);
+  avatarImg.src = previewUrl;
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: formData });
+    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+    const data = await response.json();
+    if (!data.secure_url) throw new Error("Upload failed");
+
+    await updateDoc(doc(db, "registrations", session.regId), { avatarUrl: data.secure_url });
+
+    avatarImg.src = data.secure_url;
+    saveSession({ ...session, avatarUrl: data.secure_url });
+
+    // Reflect the change in the navbar avatar immediately too, without
+    // needing a page reload.
+    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = data.secure_url; });
+
+    avatarStatus.textContent = "Profile photo updated ✅";
+    setTimeout(() => {
+      if (avatarStatus.textContent === "Profile photo updated ✅") avatarStatus.textContent = "";
+    }, 3000);
+  } catch (err) {
+    console.error("[Profile] avatar upload failed:", err);
+    avatarImg.src = session.avatarUrl || (session.gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg");
+    avatarStatus.textContent = "Upload failed — check your connection and try again.";
+    avatarStatus.classList.add("is-error");
+  } finally {
+    avatarWrap.classList.remove("is-uploading");
+    avatarEditBtn.disabled = false;
+    URL.revokeObjectURL(previewUrl);
+  }
+});
 
 async function init() {
   const session = getSession();

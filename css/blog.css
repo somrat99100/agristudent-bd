@@ -18,6 +18,18 @@
   font-size:.8rem;
   margin-bottom:.9rem;
 }
+.blog-page-title{
+  text-align:center;
+  font-family:var(--font-display);
+  font-size:1.9rem;
+  font-weight:700;
+  color:var(--moss-900);
+  margin:0 0 1.2rem;
+  letter-spacing:-.01em;
+}
+@media (max-width:560px){
+  .blog-page-title{ font-size:1.5rem; margin-bottom:1rem; }
+}
 
 /* ============================================
    COMPOSER TRIGGER (collapsed "What's on your mind?" bar)
@@ -109,6 +121,11 @@
   transition:background .16s ease, border-color .16s ease;
 }
 .composer-format-btn:hover, .composer-image-btn:hover{ background:#fff; border-color:var(--leaf-500); }
+.composer-image-btn.is-disabled{
+  opacity:.35;
+  cursor:not-allowed;
+  pointer-events:none;
+}
 
 #post-body-input{
   min-height:160px;
@@ -467,26 +484,27 @@
 }
 
 /* ============================================
-   BLOG POST IMAGE GALLERY — Facebook-style grid
+   BLOG POST IMAGE GALLERY — premium Facebook-style grid
    ============================================ */
 .blog-gallery{
   margin-bottom:.8rem;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 1px 2px rgba(31,46,34,.04), 0 12px 28px -18px rgba(31,46,34,.35);
 }
 
 .blog-gallery-grid{
   display:grid;
-  gap:4px;
-  border-radius:12px;
-  overflow:hidden;
-  background:#f0f0f0;
+  gap:3px;
+  background:var(--moss-900);
 }
 
-/* Single image — full width */
+/* Single image — full width, generous height, never distorted */
 .blog-gallery.gallery-1 .blog-gallery-grid{
   grid-template-columns:1fr;
 }
 .blog-gallery.gallery-1 .blog-gallery-tile{
-  aspect-ratio:16/9;
+  aspect-ratio:4/3;
 }
 
 /* Two images — 50-50 split */
@@ -530,17 +548,52 @@
 .blog-gallery-tile{
   position:relative;
   overflow:hidden;
-  background:#f5f5f5;
-  cursor:pointer;
-  transition:opacity .2s ease;
+  background:var(--paper-100);
+  cursor:zoom-in;
 }
-.blog-gallery-tile:hover{ opacity:.85; }
 
 .blog-gallery-tile img{
   width:100%;
   height:100%;
   object-fit:cover;
   display:block;
+  transition:transform .35s cubic-bezier(.22,1,.36,1), filter .25s ease;
+}
+
+/* Premium hover: subtle zoom + a soft darkening so the cursor/zoom
+   affordance reads clearly, without any layout shift (scale happens
+   on the img, clipped by the tile's overflow:hidden). */
+@media (hover:hover){
+  .blog-gallery-tile:hover img{
+    transform:scale(1.06);
+  }
+  .blog-gallery-tile::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,.28) 100%);
+    opacity:0;
+    transition:opacity .25s ease;
+    pointer-events:none;
+    z-index:1;
+  }
+  .blog-gallery-tile:hover::before{ opacity:1; }
+  .blog-gallery-tile::after{
+    content:"🔍";
+    position:absolute;
+    right:.6rem; bottom:.6rem;
+    width:30px; height:30px;
+    border-radius:50%;
+    background:rgba(255,255,255,.9);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.85rem;
+    opacity:0;
+    transform:translateY(4px);
+    transition:opacity .2s ease, transform .2s ease;
+    z-index:2;
+    box-shadow:0 4px 10px rgba(0,0,0,.2);
+  }
+  .blog-gallery-tile:hover::after{ opacity:1; transform:translateY(0); }
 }
 
 /* +N overlay for 5+ images — shows the actual photo, dimmed, with the count on top */
@@ -549,12 +602,8 @@
   align-items:center;
   justify-content:center;
 }
-.blog-gallery-tile.tile-overflow img{
-  display:block;
-  filter:brightness(.55);
-}
 .blog-gallery-tile.tile-overflow::after{
-  content:attr(data-overflow);
+  content:attr(data-overflow) !important;
   position:absolute;
   inset:0;
   display:flex;
@@ -564,7 +613,16 @@
   font-size:1.8rem;
   font-weight:700;
   text-shadow:0 2px 4px rgba(0,0,0,.35);
-  background:linear-gradient(135deg, rgba(0,0,0,.15), rgba(0,0,0,.35));
+  background:linear-gradient(135deg, rgba(0,0,0,.2), rgba(0,0,0,.45));
+  opacity:1 !important;
+  transform:none !important;
+  border-radius:0;
+  width:auto; height:auto;
+}
+.blog-gallery-tile.tile-overflow:hover img{ transform:none; }
+.blog-gallery-tile.tile-overflow img{
+  display:block;
+  filter:brightness(.6);
 }
 
 .blog-post-body ul, .blog-post-body ol{ padding-left:1.4rem; }
@@ -657,6 +715,21 @@
 .blog-fullpost-modal #full-post-header{ margin-top:0; }
 .blog-fullpost-modal .blog-post-body--full{ max-height:none; overflow:visible; }
 .blog-fullpost-modal .blog-post-body--full::after{ display:none; }
+
+/* Bug fix: a generic ".modal-box img" rule elsewhere (style.css, used for
+   hero images in other modals) has higher specificity than the plain
+   ".blog-post-avatar" class and was stretching the round 44px avatar to
+   the modal's full width, cropped to 240px tall. Scope it back down
+   explicitly here so the avatar always renders as a proper small circle
+   inside the "See more" popup. */
+.blog-fullpost-modal .modal-box img.blog-post-avatar{
+  width:44px !important;
+  height:44px !important;
+  max-height:44px !important;
+  border-radius:50% !important;
+  object-fit:cover !important;
+  flex-shrink:0;
+}
 
 /* ============================================
    IMAGE LIGHTBOX

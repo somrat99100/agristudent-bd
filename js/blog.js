@@ -197,6 +197,8 @@ function captureBodySelection() {
 
 const composerImagePreview = document.getElementById("composer-image-preview");
 const composerPreviewGrid = document.getElementById("composer-preview-grid");
+const postGalleryImageLabel = document.getElementById("post-gallery-image-label");
+const composerImageHint = document.getElementById("composer-image-hint");
 
 const blogFeed = document.getElementById("blog-feed");
 const blogFeedEmpty = document.getElementById("blog-feed-empty");
@@ -239,6 +241,7 @@ function updateComposerUI() {
 composerOpenBtn?.addEventListener("click", () => {
   composerModal.classList.remove("hidden");
   postTitleInput.focus();
+  updateImageModeUI();
 });
 
 composerCloseBtn?.addEventListener("click", () => {
@@ -265,6 +268,7 @@ function resetComposer() {
   savedRange = null;
   composerImagePreview.classList.add("hidden");
   composerPreviewGrid.innerHTML = "";
+  updateImageModeUI();
 }
 
 // ============================================
@@ -273,6 +277,7 @@ function resetComposer() {
 function updateImagePreview() {
   if (pendingImages.length === 0) {
     composerImagePreview.classList.add("hidden");
+    updateImageModeUI();
     return;
   }
   composerImagePreview.classList.remove("hidden");
@@ -290,16 +295,67 @@ function updateImagePreview() {
       const idx = parseInt(btn.dataset.idx);
       pendingImages.splice(idx, 1);
       updateImagePreview();
+      updateImageModeUI();
     });
   });
+
+  updateImageModeUI();
 }
 
 function totalImageCount() {
   return pendingImages.length + postBodyInput.querySelectorAll(".inline-image").length;
 }
 
+// ============================================
+// IMAGE MODE LOCK — a post uses ONE image system at a time: either
+// inline images (dropped into the text) or a gallery grid (below the
+// post), never both. Whichever one already has images locks out the
+// other button until it's emptied again, so people can't accidentally
+// mix the two.
+// ============================================
+function updateImageModeUI() {
+  const inlineCount = postBodyInput.querySelectorAll(".inline-image").length;
+  const galleryCount = pendingImages.length;
+
+  const galleryLocked = inlineCount > 0 && galleryCount === 0;
+  const inlineLocked = galleryCount > 0 && inlineCount === 0;
+
+  postGalleryImageLabel?.classList.toggle("is-disabled", galleryLocked);
+  if (postImageInput) postImageInput.disabled = galleryLocked;
+  if (postGalleryImageLabel) {
+    postGalleryImageLabel.title = galleryLocked
+      ? "Remove your inline images first to switch to a photo grid"
+      : "Add photos to a grid below the post";
+  }
+
+  postInlineImageLabel?.classList.toggle("is-disabled", inlineLocked);
+  if (postInlineImageInput) postInlineImageInput.disabled = inlineLocked;
+  if (postInlineImageLabel) {
+    postInlineImageLabel.title = inlineLocked
+      ? "Remove your photo grid first to switch to inline images"
+      : "Insert an image inside the text — drag & resize it";
+  }
+
+  if (composerImageHint) {
+    if (inlineCount > 0) {
+      composerImageHint.textContent = "📄 Using inline images for this post — click one to resize, drag the corner, or drag it to move. Remove all inline images to switch to a photo grid instead.";
+    } else if (galleryCount > 0) {
+      composerImageHint.textContent = "🖼️ Using a photo grid for this post — remove all grid photos to switch to inline images instead.";
+    } else {
+      composerImageHint.textContent = "📄 Inline — drops an image right in your text; click it to resize, drag the corner, or drag the whole image to move it, just like laying out a page. 🖼️ Gallery — adds a premium photo grid under the post. A post can use one style of images at a time (inline OR grid) — or none at all for a text-only post.";
+    }
+  }
+}
+
 postImageInput?.addEventListener("change", (e) => {
   const files = Array.from(e.target.files || []);
+
+  if (postBodyInput.querySelectorAll(".inline-image").length > 0) {
+    postError.classList.remove("hidden");
+    postError.textContent = "This post already uses inline images — remove them first to use a photo grid instead.";
+    postImageInput.value = "";
+    return;
+  }
 
   // Validate total images (gallery + inline combined)
   if (totalImageCount() + files.length > MAX_IMAGES_PER_POST) {
@@ -349,6 +405,12 @@ postInlineImageInput?.addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
   postInlineImageInput.value = "";
 
+  if (pendingImages.length > 0) {
+    postError.classList.remove("hidden");
+    postError.textContent = "This post already uses a photo grid — remove those photos first to use inline images instead.";
+    return;
+  }
+
   if (totalImageCount() + files.length > MAX_IMAGES_PER_POST) {
     postError.classList.remove("hidden");
     postError.textContent = `Max ${MAX_IMAGES_PER_POST} images per post`;
@@ -368,6 +430,7 @@ postInlineImageInput?.addEventListener("change", async (e) => {
     }
     postError.classList.add("hidden");
     await insertInlineImage(file);
+    updateImageModeUI();
   }
 });
 
@@ -473,6 +536,7 @@ function wireInlineImageWrapper(wrapper) {
     ev.preventDefault();
     ev.stopPropagation();
     wrapper.remove();
+    updateImageModeUI();
   });
 
   // Alignment — "none" sits inline in the paragraph; left/right float so text wraps beside it; center stands alone
