@@ -220,6 +220,7 @@ const lightboxClose = document.getElementById("lightbox-close");
 const lightboxPrev = document.getElementById("lightbox-prev");
 const lightboxNext = document.getElementById("lightbox-next");
 const lightboxCounter = document.getElementById("lightbox-counter");
+const lightboxCaption = document.getElementById("lightbox-caption");
 let lightboxGallery = [];
 let lightboxIndex = 0;
 
@@ -268,7 +269,38 @@ function resetComposer() {
   savedRange = null;
   composerImagePreview.classList.add("hidden");
   composerPreviewGrid.innerHTML = "";
+  // Always clear edit mode here — this is the one place every "close the
+  // composer" path (cancel, backdrop click, successful submit) runs
+  // through, so a cancelled edit can never leak into the next new post.
+  delete composerModal.dataset.editingPostId;
+  postSubmitBtn.textContent = "📝 Post";
   updateImageModeUI();
+}
+
+// ============================================
+// OPEN COMPOSER IN EDIT MODE — loads an existing post's title, body, and
+// gallery images into the composer so saving updates the SAME document
+// (never creates a new one). Existing gallery images are re-added to
+// pendingImages as already-hosted URLs (no .file), which
+// uploadPendingImages() passes straight through instead of re-uploading —
+// so they're kept unless the user removes them from the preview.
+// ============================================
+function openPostEditor(id, item) {
+  resetComposer();
+  postTitleInput.value = item.title || "";
+  postBodyInput.innerHTML = item.content || "";
+  // Normalizes both the old format (imageUrls as plain URL strings, from
+  // before per-image titles existed) and the new format (objects with a
+  // url + title) into the same pendingImages shape the composer uses.
+  pendingImages = (item.imageUrls || []).map(entry => {
+    if (typeof entry === "string") return { name: "existing-image", url: entry, title: "" };
+    return { name: "existing-image", url: entry.url, title: entry.title || "" };
+  });
+  updateImagePreview();
+  composerModal.dataset.editingPostId = id;
+  composerModal.classList.remove("hidden");
+  postSubmitBtn.textContent = "💾 Save Changes";
+  postTitleInput.focus();
 }
 
 // ============================================
@@ -283,8 +315,12 @@ function updateImagePreview() {
   composerImagePreview.classList.remove("hidden");
   composerPreviewGrid.innerHTML = pendingImages.map((img, idx) => `
     <div class="composer-preview-item">
-      <img src="${typeof img.url === "string" ? img.url : URL.createObjectURL(img.url)}" alt="">
-      <button type="button" class="composer-preview-remove" data-idx="${idx}">✕</button>
+      <div class="composer-preview-thumb">
+        <img src="${typeof img.url === "string" ? img.url : URL.createObjectURL(img.url)}" alt="">
+        <button type="button" class="composer-preview-remove" data-idx="${idx}">✕</button>
+      </div>
+      <input type="text" class="composer-preview-title-input" data-idx="${idx}"
+        placeholder="Add a title (optional)" value="${esc(img.title || "")}" maxlength="120">
     </div>
   `).join("");
 
@@ -296,6 +332,16 @@ function updateImagePreview() {
       pendingImages.splice(idx, 1);
       updateImagePreview();
       updateImageModeUI();
+    });
+  });
+
+  // Wire title inputs — keep pendingImages in sync as the author types,
+  // so the title travels with the image whether it's a fresh upload or
+  // one carried over from editing an existing post.
+  composerPreviewGrid.querySelectorAll(".composer-preview-title-input").forEach(input => {
+    input.addEventListener("input", () => {
+      const idx = parseInt(input.dataset.idx);
+      if (pendingImages[idx]) pendingImages[idx].title = input.value;
     });
   });
 
@@ -380,7 +426,7 @@ postImageInput?.addEventListener("change", (e) => {
 
   // Add to pending
   files.forEach(file => {
-    pendingImages.push({ name: file.name, url: file, file });
+    pendingImages.push({ name: file.name, url: file, file, title: "" });
   });
   postError.classList.add("hidden");
   updateImagePreview();
@@ -749,16 +795,26 @@ async function uploadPendingImages() {
   if (pendingImages.length === 0) return [];
 
   const urls = [];
-  postUploadStatus.textContent = `Uploading ${pendingImages.length} image(s)...`;
+  // Only entries that came from a fresh file picker have `.file` — entries
+  // carried over from an edited post are already-hosted Cloudinary URLs and
+  // just pass through unchanged, so they never get re-uploaded or dropped.
+  // Every entry is saved as { url, title } so each image keeps its own title.
+  const toUploadCount = pendingImages.filter(img => img.file).length;
+  if (toUploadCount > 0) postUploadStatus.textContent = `Uploading ${toUploadCount} image(s)...`;
 
-  for (let i = 0; i < pendingImages.length; i++) {
-    const img = pendingImages[i];
+  let uploadedSoFar = 0;
+  for (const img of pendingImages) {
+    if (!img.file) {
+      urls.push({ url: img.url, title: img.title || "" });
+      continue;
+    }
     try {
       const url = await uploadOneImage(img.file);
-      urls.push(url);
-      postUploadStatus.textContent = `Uploading image ${i + 1}/${pendingImages.length}...`;
+      urls.push({ url, title: img.title || "" });
+      uploadedSoFar++;
+      postUploadStatus.textContent = `Uploading image ${uploadedSoFar}/${toUploadCount}...`;
     } catch (err) {
-      console.error(`Failed to upload image ${i + 1}:`, err);
+      console.error(`Failed to upload image:`, err);
       throw new Error(`Failed to upload image: ${img.name}`);
     }
   }
@@ -876,6 +932,17 @@ postSubmitBtn?.addEventListener("click", async () => {
 // ============================================
 // IMAGE GALLERY BUILDER (Facebook-style)
 // ============================================
+// Gallery entries can be either a plain URL string (older posts, saved
+// before per-image titles existed) or a { url, title } object (current
+// format) — these two helpers read either shape the same way everywhere
+// a gallery image is displayed.
+function galleryImgUrl(entry) {
+  return typeof entry === "string" ? entry : (entry?.url || "");
+}
+function galleryImgTitle(entry) {
+  return typeof entry === "string" ? "" : (entry?.title || "");
+}
+
 function buildGalleryHTML(imageUrls) {
   if (!imageUrls || imageUrls.length === 0) return "";
 
@@ -886,14 +953,16 @@ function buildGalleryHTML(imageUrls) {
   let galleryClass = `gallery-${count}`;
   if (imageUrls.length > 4) galleryClass = "gallery-5plus";
 
-  const tileHTML = visibleUrls.map((url, idx) => {
+  const tileHTML = visibleUrls.map((entry, idx) => {
     const isOverflow = (idx === 3 && overflowCount > 0);
+    const url = galleryImgUrl(entry);
+    const title = galleryImgTitle(entry);
     return `
       <div class="blog-gallery-tile ${isOverflow ? "tile-overflow" : ""}" 
            data-overflow="+${overflowCount}" 
            data-index="${idx}"
            data-full-index="${idx}">
-        <img src="${esc(url)}" alt="Post image" loading="lazy">
+        <img src="${esc(url)}" alt="${esc(title || "Post image")}" loading="lazy">
       </div>
     `;
   }).join("");
@@ -927,8 +996,15 @@ function closeLightbox() {
 
 function showLightboxImage() {
   if (lightboxGallery.length === 0) return;
-  const url = lightboxGallery[lightboxIndex];
+  const entry = lightboxGallery[lightboxIndex];
+  const url = galleryImgUrl(entry);
+  const title = galleryImgTitle(entry);
   lightboxImage.src = url;
+  lightboxImage.alt = title || "Post image";
+  if (lightboxCaption) {
+    lightboxCaption.textContent = title;
+    lightboxCaption.classList.toggle("hidden", !title);
+  }
   lightboxCounter.textContent = `${lightboxIndex + 1} / ${lightboxGallery.length}`;
   
   lightboxPrev.classList.toggle("disabled", lightboxIndex === 0);
@@ -1009,22 +1085,31 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Collapses a post body to 2 lines (via -webkit-line-clamp) once it's
-// tall enough to overflow that, and adds a "See more" popup trigger.
-// Re-checks after any images inside finish loading, since those can push
-// the true height past the threshold only once they've rendered.
+// tall enough to overflow that, and adds a "See more" toggle that expands
+// it in place and swaps to "See less" to collapse it back. Re-checks
+// after any images inside finish loading, since those can push the true
+// height past the threshold only once they've rendered — but only ever
+// makes that collapse/no-collapse decision once, so it doesn't fight with
+// the user's own See more / See less clicks afterward.
 function wireSeeMore(bodyEl, item) {
   if (!bodyEl || bodyEl.dataset.seeMoreWired) return;
   const evaluate = () => {
-    if (bodyEl.classList.contains("is-collapsed")) return;
+    if (bodyEl.dataset.seeMoreAdded) return;
     const lineHeight = parseFloat(getComputedStyle(bodyEl).lineHeight) || 24;
     const twoLineHeight = lineHeight * 2;
     if (bodyEl.scrollHeight > twoLineHeight + 4) {
+      bodyEl.dataset.seeMoreAdded = "1";
       bodyEl.classList.add("is-collapsed");
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "blog-see-more-btn";
       btn.textContent = "See more";
-      btn.addEventListener("click", () => openFullPostModal(item));
+      let expanded = false;
+      btn.addEventListener("click", () => {
+        expanded = !expanded;
+        bodyEl.classList.toggle("is-collapsed", !expanded);
+        btn.textContent = expanded ? "See less" : "See more";
+      });
       bodyEl.insertAdjacentElement("afterend", btn);
     }
   };
@@ -1058,7 +1143,6 @@ function renderPostCard(id, item) {
   article.dataset.searchTitle = (item.title || "").toLowerCase();
   article.dataset.searchAuthor = (item.authorName || "").toLowerCase();
 
-  const viewed = getViewedSet();
   const alreadyLiked = localStorage.getItem(`agri_blog_liked_${id}`) === "1";
 
   // Build gallery HTML
@@ -1066,7 +1150,10 @@ function renderPostCard(id, item) {
 
   const s = getSession();
   const isAuthor = s && normalizeEmail(s.email) === item.authorEmail;
-  const isEdited = item.editedAt && item.editedAt.getTime?.() > (item.createdAt?.getTime?.() || 0);
+  // Firestore Timestamp objects don't have .getTime(), so the old check
+  // here always silently evaluated to false — the badge never actually
+  // reflected an edit. Reading the status field directly is what's true.
+  const isEdited = item.status === "pending_edit";
 
   article.innerHTML = `
     <header class="blog-post-header">
@@ -1106,42 +1193,53 @@ function renderPostCard(id, item) {
   wirePostCard(article, id, item);
   wireSeeMore(article.querySelector(".blog-post-body"), item);
 
-  // View tracking — count views every 10 seconds of scrolling/viewing
+  // ============================================
+  // VIEW TRACKING
+  // - The first time a browser ever sees this post, it's counted the
+  //   instant it scrolls into view — that's "view 1".
+  // - After that, every additional 5 seconds it stays visible on screen
+  //   adds one more view ("view 2", "view 3", ...). Scrolling away and
+  //   back starts that 5-second cycle over.
+  // ============================================
   let viewCountInterval = null;
-  let viewsCountedThisSession = new Set();
-  
+
+  async function bumpView() {
+    try {
+      await updateDoc(doc(db, "blogPosts", id), { views: increment(1) });
+      const el = article.querySelector(".blog-post-stats span");
+      if (el) {
+        const currentViews = parseInt(el.textContent) || 0;
+        el.textContent = `👁️ ${currentViews + 1} views`;
+      }
+    } catch (err) {
+      console.error("[Blog] View update failed:", err);
+    }
+  }
+
   const io = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        // Post is in view — start counting views every 10 seconds
-        if (!viewCountInterval) {
-          viewCountInterval = setInterval(async () => {
-            const viewKey = `${id}_${new Date().getTime() / 10000 | 0}`;
-            if (!viewsCountedThisSession.has(viewKey)) {
-              viewsCountedThisSession.add(viewKey);
-              try {
-                await updateDoc(doc(db, "blogPosts", id), { views: increment(1) });
-                const el = article.querySelector(".blog-post-stats span");
-                if (el) {
-                  const currentViews = parseInt(el.textContent) || 0;
-                  el.textContent = `👁️ ${currentViews + 1} views`;
-                }
-              } catch (err) {
-                console.error("[Blog] View update failed:", err);
-              }
-            }
-          }, 10000); // Every 10 seconds
+        if (viewCountInterval) return; // already counting this viewing session
+
+        const viewedSet = getViewedSet();
+        if (!viewedSet.has(id)) {
+          // First-ever view of this post from this browser — counts immediately
+          markViewed(id);
+          bumpView();
         }
+
+        // Keep counting one more view for every 5s it stays on screen
+        viewCountInterval = setInterval(bumpView, 5000);
       } else {
-        // Post left view — stop counting
+        // Post left view — stop the 5s cycle; it restarts fresh if it comes back
         if (viewCountInterval) {
           clearInterval(viewCountInterval);
           viewCountInterval = null;
         }
       }
     });
-  }, { threshold: 0.2 });
-  
+  }, { threshold: 0.5 });
+
   io.observe(article);
 
   return article;
@@ -1171,24 +1269,7 @@ function wirePostCard(article, id, item) {
       alert("You can only edit your own posts");
       return;
     }
-    // Load post data into composer
-    postTitleInput.value = item.title;
-    postBodyInput.innerHTML = item.content;
-    if (item.imageUrls && item.imageUrls.length > 0) {
-      item.imageUrls.forEach(url => {
-        const li = document.createElement("li");
-        li.className = "composer-preview-item";
-        li.innerHTML = `<img src="${esc(url)}" alt=""><button type="button" data-url="${esc(url)}">Remove</button>`;
-        li.querySelector("button").addEventListener("click", () => li.remove());
-        document.getElementById("composer-preview-grid").appendChild(li);
-      });
-      document.getElementById("composer-image-preview").classList.remove("hidden");
-    }
-    // Mark as editing
-    article.dataset.editingPostId = id;
-    composerModal.classList.remove("hidden");
-    postSubmitBtn.textContent = "💾 Save Changes";
-    postTitleInput.focus();
+    openPostEditor(id, item);
   });
 
   // Delete button
@@ -1504,8 +1585,33 @@ async function loadDeepLinkedPost() {
 }
 
 // ============================================
+// DEEP LINK — ?editPost=ID  (opened from the "Edit" button on the
+// profile page's "My Blog Posts" list)
+// ============================================
+async function loadDeepLinkedEdit() {
+  const params = new URLSearchParams(window.location.search);
+  const postId = params.get("editPost");
+  if (!postId) return;
+  const s = getSession();
+  if (!s) return;
+  try {
+    const snap = await getDoc(doc(db, "blogPosts", postId));
+    if (!snap.exists()) return;
+    const item = snap.data();
+    if (normalizeEmail(s.email) !== item.authorEmail) {
+      alert("You can only edit your own posts");
+      return;
+    }
+    openPostEditor(postId, item);
+  } catch (err) {
+    console.error("[Blog] failed to load post for editing:", err);
+  }
+}
+
+// ============================================
 // INIT
 // ============================================
 updateComposerUI();
 loadDeepLinkedPost();
+loadDeepLinkedEdit();
 loadMorePosts();

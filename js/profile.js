@@ -1,6 +1,6 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  doc, getDoc, updateDoc, collection, query, where, getDocs
+  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
@@ -133,6 +133,7 @@ async function init() {
 
     renderIdentity(reg);
     await renderCredits(normalizeEmail(reg.email), reg.fullName);
+    await renderMyBlogPosts(normalizeEmail(reg.email));
 
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
@@ -218,6 +219,85 @@ async function renderCredits(email, fullName) {
         <span class="status-tag ${esc(status)}">${status === "approved" ? "✅ Approved" : status === "rejected" ? "❌ Rejected" : "⏳ Pending"}</span>
       </div>`;
   }).join("");
+}
+
+// ============================================
+// MY BLOG POSTS — lets the student edit or delete their own posts
+// without hunting for them in the main feed. Edit hands off to
+// blog.html?editPost=ID, which loads the same composer used on the
+// blog page itself (title, body, and gallery images all carried over,
+// updating the original post in place rather than creating a new one).
+// ============================================
+function blogStatusTag(status) {
+  if (status === "pending_edit") return { cls: "pending", text: "📝 Pending Approval" };
+  if (status === "approved") return { cls: "approved", text: "✅ Verified" };
+  if (status === "rejected") return { cls: "rejected", text: "❌ Rejected" };
+  return { cls: "pending", text: "🕓 Not verified" };
+}
+
+async function renderMyBlogPosts(email) {
+  const listEl = document.getElementById("my-posts-list");
+  const emptyEl = document.getElementById("my-posts-empty");
+  if (!listEl) return;
+
+  let posts;
+  try {
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorEmail", "==", email)));
+    posts = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
+  } catch (err) {
+    console.error("[Profile] failed to load blog posts:", err);
+    return;
+  }
+
+  if (posts.length === 0) {
+    listEl.innerHTML = "";
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+
+  listEl.innerHTML = posts.map(item => {
+    const tag = blogStatusTag(item.status);
+    const date = item.createdAt?.toDate?.()?.toLocaleDateString?.() || "";
+    return `
+      <div class="upload-row" data-post-id="${esc(item.id)}">
+        <div>
+          <div style="font-weight:600;font-size:.92rem;">${esc(item.title || "Untitled post")}</div>
+          <div style="font-size:.75rem;color:var(--moss-600);">${date} · 👁️ ${item.views || 0} views</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span class="status-tag ${tag.cls}">${tag.text}</span>
+          <button type="button" class="my-post-edit-btn" data-id="${esc(item.id)}"
+            style="background:none;border:1px solid var(--line);border-radius:6px;padding:.3rem .6rem;font-size:.78rem;cursor:pointer;">✏️ Edit</button>
+          <button type="button" class="my-post-delete-btn" data-id="${esc(item.id)}"
+            style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);border-radius:6px;padding:.3rem .6rem;font-size:.78rem;cursor:pointer;">🗑️ Delete</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  listEl.querySelectorAll(".my-post-edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      window.location.href = `blog.html?editPost=${encodeURIComponent(btn.dataset.id)}`;
+    });
+  });
+
+  listEl.querySelectorAll(".my-post-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this blog post? This cannot be undone.")) return;
+      btn.disabled = true;
+      try {
+        await deleteDoc(doc(db, "blogPosts", btn.dataset.id));
+        listEl.querySelector(`[data-post-id="${btn.dataset.id}"]`)?.remove();
+        if (!listEl.children.length) emptyEl.classList.remove("hidden");
+      } catch (err) {
+        console.error("[Profile] failed to delete post:", err);
+        alert("Failed to delete post. Please try again.");
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 const logoutBtn = document.getElementById("profile-logout-btn");

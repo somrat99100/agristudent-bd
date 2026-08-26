@@ -414,18 +414,43 @@
 .composer-preview-item{
   position:relative;
   width:100%;
-  aspect-ratio:1;
   border-radius:8px;
-  overflow:hidden;
   background:var(--line);
   border:1px solid var(--line);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.composer-preview-thumb{
+  position:relative;
+  width:100%;
+  aspect-ratio:1;
+  overflow:hidden;
 }
 
 .composer-preview-item img{
   width:100%;
   height:100%;
   object-fit:cover;
+  display:block;
 }
+
+.composer-preview-title-input{
+  width:100%;
+  border:none;
+  border-top:1px solid var(--line);
+  background:#fff;
+  font-family:var(--font-body);
+  font-size:.72rem;
+  color:var(--moss-700);
+  padding:.35rem .45rem;
+}
+.composer-preview-title-input:focus{
+  outline:2px solid var(--leaf-500);
+  outline-offset:-2px;
+}
+.composer-preview-title-input::placeholder{ color:var(--moss-600); opacity:.6; }
 
 .composer-preview-remove{
   position:absolute;
@@ -773,7 +798,7 @@
 
 /* ============================================
    "SEE MORE" — collapsed long post bodies expand
-   into the full-post popup instead of inline
+   in place; "See less" collapses them back
    ============================================ */
 .blog-post-body.is-collapsed{
   display:-webkit-box;
@@ -891,6 +916,22 @@
 .lightbox-prev{ left:1rem; }
 .lightbox-next{ right:1rem; }
 .lightbox-nav.disabled{ opacity:.4; cursor:not-allowed; }
+
+.lightbox-caption{
+  position:absolute;
+  bottom:3.6rem;
+  left:50%;
+  transform:translateX(-50%);
+  max-width:88vw;
+  background:rgba(0,0,0,.55);
+  color:#fff;
+  padding:.5rem 1rem;
+  border-radius:10px;
+  font-size:.9rem;
+  text-align:center;
+  z-index:10001;
+}
+.lightbox-caption.hidden{ display:none; }
 
 .lightbox-counter{
   position:absolute;
