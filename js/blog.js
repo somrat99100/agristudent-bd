@@ -976,14 +976,17 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !fullPostModal.classList.contains("hidden")) closeFullPostModal();
 });
 
-// Collapses a post body once it's tall enough to need a "See more" popup.
+// Collapses a post body to 2 lines (via -webkit-line-clamp) once it's
+// tall enough to overflow that, and adds a "See more" popup trigger.
 // Re-checks after any images inside finish loading, since those can push
 // the true height past the threshold only once they've rendered.
 function wireSeeMore(bodyEl, item) {
   if (!bodyEl || bodyEl.dataset.seeMoreWired) return;
   const evaluate = () => {
     if (bodyEl.classList.contains("is-collapsed")) return;
-    if (bodyEl.scrollHeight > 230 + 60) {
+    const lineHeight = parseFloat(getComputedStyle(bodyEl).lineHeight) || 24;
+    const twoLineHeight = lineHeight * 2;
+    if (bodyEl.scrollHeight > twoLineHeight + 4) {
       bodyEl.classList.add("is-collapsed");
       const btn = document.createElement("button");
       btn.type = "button";
@@ -1003,9 +1006,12 @@ function wireSeeMore(bodyEl, item) {
 // ============================================
 // FEED — RENDER POST CARD
 // ============================================
+// Only two labels are ever shown to visitors: a post is either
+// "Verified" (admin-approved) or "Not verified" (still pending review).
+// Rejected posts are never rendered in the public feed/deep-link flow,
+// so there's no separate "Not approved" label to show.
 function statusBadgeHTML(status) {
-  if (status === "approved") return `<span class="blog-badge blog-badge--approved">✅ Approved</span>`;
-  if (status === "rejected") return `<span class="blog-badge blog-badge--rejected">❌ Not approved</span>`;
+  if (status === "approved") return `<span class="blog-badge blog-badge--approved">✅ Verified</span>`;
   return `<span class="blog-badge blog-badge--pending">🕓 Not verified</span>`;
 }
 
@@ -1014,6 +1020,10 @@ function renderPostCard(id, item) {
   const article = document.createElement("article");
   article.className = "blog-post-card";
   article.dataset.id = id;
+  // Lowercased search haystacks — read by applyBlogSearch() so filtering
+  // never has to re-parse the rendered HTML.
+  article.dataset.searchTitle = (item.title || "").toLowerCase();
+  article.dataset.searchAuthor = (item.authorName || "").toLowerCase();
 
   const viewed = getViewedSet();
   const alreadyLiked = localStorage.getItem(`agri_blog_liked_${id}`) === "1";
@@ -1022,7 +1032,6 @@ function renderPostCard(id, item) {
   const galleryHTML = buildGalleryHTML(item.imageUrls);
 
   article.innerHTML = `
-    ${statusBadgeHTML(item.status)}
     <header class="blog-post-header">
       <img class="blog-post-avatar" src="${esc(item.authorAvatar || "assets/avatar-male.svg")}" alt="">
       <div>
@@ -1031,6 +1040,7 @@ function renderPostCard(id, item) {
       </div>
     </header>
     <h2 class="blog-post-title">${esc(item.title)}</h2>
+    ${statusBadgeHTML(item.status)}
     <div class="blog-post-body">${item.content}</div>
     ${galleryHTML}
     <div class="blog-post-stats">
@@ -1290,6 +1300,76 @@ async function loadMorePosts() {
 loadMoreBtn?.addEventListener("click", loadMorePosts);
 
 // ============================================
+// FEED — SEARCH (by title or author)
+// ============================================
+// Firestore has no free-text index for these fields, so search works
+// client-side over what's already loaded. When a search starts, we
+// page in the rest of the feed first (reusing loadMorePosts) so the
+// search covers the whole timeline, not just the first page.
+const searchInput = document.getElementById("blog-search-input");
+const searchClearBtn = document.getElementById("blog-search-clear");
+const searchEmptyEl = document.getElementById("blog-search-empty");
+const searchEmptyTermEl = document.getElementById("blog-search-empty-term");
+
+let searchDebounceTimer = null;
+let isLoadingFullFeedForSearch = false;
+
+async function ensureFullFeedLoaded() {
+  if (isLoadingFullFeedForSearch) return;
+  isLoadingFullFeedForSearch = true;
+  loadMoreBtn.classList.add("hidden");
+  try {
+    while (!feedDone) {
+      await loadMorePosts();
+    }
+  } finally {
+    isLoadingFullFeedForSearch = false;
+  }
+}
+
+function applyBlogSearch(rawQuery) {
+  const q = rawQuery.trim().toLowerCase();
+  searchClearBtn.classList.toggle("hidden", q.length === 0);
+
+  if (q.length === 0) {
+    blogFeed.querySelectorAll(".blog-post-card").forEach(card => card.classList.remove("search-hidden"));
+    searchEmptyEl.classList.add("hidden");
+    blogFeedEmpty.classList.toggle("hidden", blogFeed.querySelector(".blog-post-card") != null);
+    loadMoreBtn.classList.toggle("hidden", feedDone);
+    return;
+  }
+
+  let anyVisible = false;
+  blogFeed.querySelectorAll(".blog-post-card").forEach(card => {
+    const matches = card.dataset.searchTitle.includes(q) || card.dataset.searchAuthor.includes(q);
+    card.classList.toggle("search-hidden", !matches);
+    if (matches) anyVisible = true;
+  });
+
+  blogFeedEmpty.classList.add("hidden");
+  loadMoreBtn.classList.add("hidden");
+  searchEmptyTermEl.textContent = rawQuery.trim();
+  searchEmptyEl.classList.toggle("hidden", anyVisible);
+}
+
+searchInput?.addEventListener("input", () => {
+  clearTimeout(searchDebounceTimer);
+  const value = searchInput.value;
+  searchDebounceTimer = setTimeout(async () => {
+    if (value.trim().length > 0) {
+      await ensureFullFeedLoaded();
+    }
+    applyBlogSearch(searchInput.value);
+  }, 250);
+});
+
+searchClearBtn?.addEventListener("click", () => {
+  searchInput.value = "";
+  applyBlogSearch("");
+  searchInput.focus();
+});
+
+// ============================================
 // DEEP LINK — ?post=ID
 // ============================================
 async function loadDeepLinkedPost() {
@@ -1300,6 +1380,7 @@ async function loadDeepLinkedPost() {
     const snap = await getDoc(doc(db, "blogPosts", postId));
     if (!snap.exists()) return;
     const item = snap.data();
+    if (item.status === "rejected") return;
     const wrapper = document.createElement("div");
     wrapper.className = "blog-pinned-post";
     wrapper.innerHTML = `<div class="blog-pinned-label">📌 Shared post</div>`;

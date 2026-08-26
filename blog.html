@@ -44,6 +44,12 @@
     </div>
 
     <!-- FEED -->
+    <div class="blog-search-bar">
+      <span class="blog-search-icon">🔍</span>
+      <input type="text" id="blog-search-input" placeholder="Search by title or author…" autocomplete="off">
+      <button type="button" id="blog-search-clear" class="hidden" aria-label="Clear search">✕</button>
+    </div>
+    <p id="blog-search-empty" class="hidden">No posts match "<span id="blog-search-empty-term"></span>".</p>
     <div id="blog-feed" class="blog-feed"></div>
     <p id="blog-feed-empty" class="hidden">No posts yet — be the first to share something with the community!</p>
     <button type="button" id="blog-load-more">Load more</button>
@@ -96,9 +102,9 @@
   <div class="modal-box">
     <button type="button" class="modal-close" id="full-post-close">✕</button>
     <div class="modal-body">
-      <div id="full-post-badge"></div>
       <header class="blog-post-header" id="full-post-header"></header>
       <h2 class="blog-post-title" id="full-post-title"></h2>
+      <div id="full-post-badge"></div>
       <div class="blog-post-body blog-post-body--full" id="full-post-body"></div>
       <div id="full-post-gallery"></div>
     </div>

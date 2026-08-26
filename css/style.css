@@ -911,7 +911,15 @@ img{ max-width:100%; display:block; }
   background:rgba(15,23,17,.46);
   backdrop-filter:blur(2px);
   -webkit-backdrop-filter:blur(2px);
-  z-index:850;
+  /* Must stay BELOW .navbar's own z-index (500). .navbar is
+     position:sticky with an explicit z-index, so it creates its own
+     stacking context -- the drawer (.nav-links) lives inside that
+     context and is compared against siblings like this backdrop using
+     .navbar's z-index (500), not the drawer's own (860). A backdrop
+     value above 500 used to win that comparison and paint over the
+     entire navbar box, including the open drawer -- which is what
+     made the menu look permanently blurred and unresponsive to taps. */
+  z-index:495;
   opacity:0;
   transition:opacity .25s ease;
 }
