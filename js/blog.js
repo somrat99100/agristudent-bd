@@ -1236,8 +1236,8 @@ function renderPostCard(id, item) {
   // VIEW TRACKING
   // A view counts once a visitor — logged in, logged out, registered or
   // not, doesn't matter — has kept this post at least half on-screen for
-  // 15 continuous seconds. Leaving the post (scrolling away) before 15s
-  // is up cancels the timer; it starts over from 0 if they scroll back.
+  // 5 continuous seconds. Leaving the post (scrolling away) before 5s is
+  // up cancels the timer; it starts over from 0 if they scroll back.
   // Once it counts, that browser is marked as having viewed this post
   // (localStorage, so it survives a refresh) — but only for 24 hours.
   // Coming back to the same post after 24 hours counts as a fresh view
@@ -1254,7 +1254,11 @@ function renderPostCard(id, item) {
         el.textContent = `👁️ ${currentViews + 1} views`;
       }
     } catch (err) {
-      console.error("[Blog] View update failed:", err);
+      // A permission-denied error here almost always means the
+      // firestore.rules views-increment rule hasn't been published to
+      // Firebase yet (Console → Firestore Database → Rules → Publish) —
+      // the count silently fails to save without that.
+      console.error("[Blog] View update failed (check firestore.rules is published):", err);
     }
   }
 
@@ -1271,9 +1275,9 @@ function renderPostCard(id, item) {
           markViewed(id);
           bumpView();
           io.disconnect();
-        }, 15000);
+        }, 5000);
       } else if (dwellTimer) {
-        // Left the post before 15s of continuous viewing — doesn't count;
+        // Left the post before 5s of continuous viewing — doesn't count;
         // timer restarts fresh if it comes back into view.
         clearTimeout(dwellTimer);
         dwellTimer = null;
