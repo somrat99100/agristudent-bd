@@ -545,14 +545,14 @@
 .blog-post-header{
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  gap:.7rem;
+  gap:.5rem;
   margin-bottom:.75rem;
 }
 
 .blog-post-menu{
   display:flex;
   gap:.4rem;
+  margin-left:auto;
 }
 
 .blog-menu-btn{

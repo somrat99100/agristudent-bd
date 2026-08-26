@@ -139,16 +139,38 @@ function requireSession() {
 
 // ============================================
 // VIEW TRACKING (localStorage)
+// Stores a timestamp per post instead of a permanent flag, so the same
+// browser only counts one view per post per 24h — coming back to a post
+// after 24 hours counts as a fresh view again.
 // ============================================
-function getViewedSet() {
-  const viewed = localStorage.getItem("agri_blog_viewed");
-  return new Set(viewed ? viewed.split(",") : []);
+const VIEW_RECOUNT_MS = 24 * 60 * 60 * 1000;
+
+function getViewedMap() {
+  try {
+    const raw = localStorage.getItem("agri_blog_viewed");
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === "object") ? parsed : {};
+  } catch {
+    // Old format (comma-separated ids, no timestamps) or corrupt data —
+    // treat as empty so those posts are simply eligible to count again.
+    return {};
+  }
+}
+
+function hasRecentView(id) {
+  const ts = getViewedMap()[id];
+  return !!ts && (Date.now() - ts) < VIEW_RECOUNT_MS;
 }
 
 function markViewed(id) {
-  const viewed = getViewedSet();
-  viewed.add(id);
-  localStorage.setItem("agri_blog_viewed", Array.from(viewed).join(","));
+  const map = getViewedMap();
+  map[id] = Date.now();
+  try {
+    localStorage.setItem("agri_blog_viewed", JSON.stringify(map));
+  } catch (err) {
+    console.error("[Blog] Failed to persist view timestamp:", err);
+  }
 }
 
 // ============================================
@@ -1105,10 +1127,22 @@ function wireSeeMore(bodyEl, item) {
       btn.className = "blog-see-more-btn";
       btn.textContent = "See more";
       let expanded = false;
-      btn.addEventListener("click", () => {
-        expanded = !expanded;
+      const setExpanded = (next) => {
+        expanded = next;
         bodyEl.classList.toggle("is-collapsed", !expanded);
         btn.textContent = expanded ? "See less" : "See more";
+      };
+      btn.addEventListener("click", () => setExpanded(!expanded));
+      // Once expanded, clicking anywhere in the body text itself (not
+      // just the See less button) collapses it back — matches the
+      // Facebook-style behavior the user asked for. Skipped while the
+      // user is actively selecting text, so this never fights a normal
+      // copy/highlight drag.
+      bodyEl.addEventListener("click", () => {
+        if (!expanded) return;
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) return;
+        setExpanded(false);
       });
       bodyEl.insertAdjacentElement("afterend", btn);
     }
@@ -1200,13 +1234,16 @@ function renderPostCard(id, item) {
 
   // ============================================
   // VIEW TRACKING
-  // - The first time a browser ever sees this post, it's counted the
-  //   instant it scrolls into view — that's "view 1".
-  // - After that, every additional 5 seconds it stays visible on screen
-  //   adds one more view ("view 2", "view 3", ...). Scrolling away and
-  //   back starts that 5-second cycle over.
+  // A view counts once a visitor — logged in, logged out, registered or
+  // not, doesn't matter — has kept this post at least half on-screen for
+  // 15 continuous seconds. Leaving the post (scrolling away) before 15s
+  // is up cancels the timer; it starts over from 0 if they scroll back.
+  // Once it counts, that browser is marked as having viewed this post
+  // (localStorage, so it survives a refresh) — but only for 24 hours.
+  // Coming back to the same post after 24 hours counts as a fresh view
+  // again, same as a brand-new visitor.
   // ============================================
-  let viewCountInterval = null;
+  let dwellTimer = null;
 
   async function bumpView() {
     try {
@@ -1223,24 +1260,23 @@ function renderPostCard(id, item) {
 
   const io = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
+      if (hasRecentView(id)) {
+        io.disconnect(); // already counted from this browser within the last 24h
+        return;
+      }
       if (entry.isIntersecting) {
-        if (viewCountInterval) return; // already counting this viewing session
-
-        const viewedSet = getViewedSet();
-        if (!viewedSet.has(id)) {
-          // First-ever view of this post from this browser — counts immediately
+        if (dwellTimer) return; // already counting down for this viewing session
+        dwellTimer = setTimeout(() => {
+          dwellTimer = null;
           markViewed(id);
           bumpView();
-        }
-
-        // Keep counting one more view for every 5s it stays on screen
-        viewCountInterval = setInterval(bumpView, 5000);
-      } else {
-        // Post left view — stop the 5s cycle; it restarts fresh if it comes back
-        if (viewCountInterval) {
-          clearInterval(viewCountInterval);
-          viewCountInterval = null;
-        }
+          io.disconnect();
+        }, 15000);
+      } else if (dwellTimer) {
+        // Left the post before 15s of continuous viewing — doesn't count;
+        // timer restarts fresh if it comes back into view.
+        clearTimeout(dwellTimer);
+        dwellTimer = null;
       }
     });
   }, { threshold: 0.5 });
