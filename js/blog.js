@@ -201,6 +201,17 @@ const composerPreviewGrid = document.getElementById("composer-preview-grid");
 const blogFeed = document.getElementById("blog-feed");
 const blogFeedEmpty = document.getElementById("blog-feed-empty");
 const loadMoreBtn = document.getElementById("blog-load-more");
+const blogFeedScroll = document.getElementById("blog-feed-scroll");
+const blogStickyTop = document.getElementById("blog-sticky-top");
+
+// Full post modal (Facebook-style "See more" popup)
+const fullPostModal = document.getElementById("full-post-modal");
+const fullPostClose = document.getElementById("full-post-close");
+const fullPostBadge = document.getElementById("full-post-badge");
+const fullPostTitle = document.getElementById("full-post-title");
+const fullPostHeader = document.getElementById("full-post-header");
+const fullPostBody = document.getElementById("full-post-body");
+const fullPostGallery = document.getElementById("full-post-gallery");
 
 // Lightbox elements
 const imageLightbox = document.getElementById("image-lightbox");
@@ -369,29 +380,40 @@ function insertNodeAtCursor(node) {
   // start of the contenteditable — so checking the live selection first
   // would wrongly pick up that "start" position and silently override the
   // spot the user actually placed their cursor at.
-  let range;
-  if (savedRange && postBodyInput.contains(savedRange.startContainer) && postBodyInput.contains(savedRange.endContainer)) {
-    range = savedRange;
-  } else {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer)) {
-      range = sel.getRangeAt(0);
+  try {
+    let range;
+    if (savedRange && postBodyInput.contains(savedRange.startContainer) && postBodyInput.contains(savedRange.endContainer)) {
+      range = savedRange;
     } else {
-      range = document.createRange();
-      range.selectNodeContents(postBodyInput);
-      range.collapse(false); // end of content
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && postBodyInput.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        range = sel.getRangeAt(0);
+      } else {
+        range = document.createRange();
+        range.selectNodeContents(postBodyInput);
+        range.collapse(false); // end of content
+      }
     }
-  }
-  range.deleteContents();
-  range.insertNode(node);
-  range.setStartAfter(node);
-  range.collapse(true);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
 
-  postBodyInput.focus();
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-  savedRange = range.cloneRange();
+    postBodyInput.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    savedRange = range.cloneRange();
+  } catch (err) {
+    // A stale savedRange (e.g. the editor's content shifted since the cursor
+    // position was captured) can throw here. Previously that exception
+    // stopped insertInlineImage() before it ever reached the upload step,
+    // leaving the image permanently stuck on its initial "Uploading…" state
+    // with no way to recover. Fall back to appending at the end instead of
+    // losing the image or freezing its spinner.
+    console.warn("[Blog] cursor position was stale, appending image at the end instead:", err);
+    if (!node.isConnected) postBodyInput.appendChild(node);
+  }
 }
 
 function wireInlineImageWrapper(wrapper) {
@@ -506,8 +528,17 @@ async function insertInlineImage(file) {
   deleteBtn.textContent = "✕";
   wrapper.appendChild(deleteBtn);
 
-  wireInlineImageWrapper(wrapper);
-  insertNodeAtCursor(wrapper);
+  try {
+    wireInlineImageWrapper(wrapper);
+    insertNodeAtCursor(wrapper);
+  } catch (err) {
+    // Whatever went wrong, get the image into the document some way rather
+    // than leaving it detached — the line below only fires runInlineUpload
+    // when the wrapper is actually attached, and a detached-but-uploading
+    // node is exactly how the spinner used to get stuck forever.
+    console.error("[Blog] inline image insertion failed, appending as fallback:", err);
+    if (!wrapper.isConnected) postBodyInput.appendChild(wrapper);
+  }
 
   await runInlineUpload(wrapper, img, spinner, file);
 }
@@ -839,6 +870,99 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ============================================
+// STICKY LAYOUT — navbar + hero/composer stay put,
+// only the post feed underneath scrolls
+// ============================================
+const navbarPlaceholder = document.getElementById("navbar-placeholder");
+const MIN_FEED_HEIGHT = 320; // never shrink the scroll pane below this
+
+function recalcStickyLayout() {
+  if (!blogStickyTop || !blogFeedScroll) return;
+  const navbarHeight = navbarPlaceholder ? navbarPlaceholder.getBoundingClientRect().height : 0;
+  document.documentElement.style.setProperty("--blog-sticky-offset", `${navbarHeight}px`);
+
+  const stickyHeight = blogStickyTop.getBoundingClientRect().height;
+  const available = window.innerHeight - navbarHeight - stickyHeight - 24; // small bottom breathing room
+  const feedHeight = Math.max(available, MIN_FEED_HEIGHT);
+  document.documentElement.style.setProperty("--blog-feed-max-h", `${feedHeight}px`);
+}
+
+window.addEventListener("resize", recalcStickyLayout);
+window.addEventListener("load", recalcStickyLayout);
+
+// The shared navbar is injected asynchronously by js/navbar-loader.js, and the
+// composer trigger's visibility flips once the session check resolves — both
+// change the height of things above the feed, so re-measure whenever they do.
+if (navbarPlaceholder && "MutationObserver" in window) {
+  new MutationObserver(recalcStickyLayout).observe(navbarPlaceholder, { childList: true, subtree: true });
+}
+if (blogStickyTop && "ResizeObserver" in window) {
+  new ResizeObserver(recalcStickyLayout).observe(blogStickyTop);
+}
+recalcStickyLayout();
+
+// ============================================
+// FULL POST MODAL — "See more" popup
+// ============================================
+function openFullPostModal(item) {
+  fullPostBadge.innerHTML = statusBadgeHTML(item.status);
+  fullPostTitle.textContent = item.title || "";
+  const created = item.createdAt?.toDate?.() || null;
+  fullPostHeader.innerHTML = `
+    <img class="blog-post-avatar" src="${esc(item.authorAvatar || "assets/avatar-male.svg")}" alt="">
+    <div>
+      <div class="blog-post-author">${esc(item.authorName || "Student")}${item.authorStudentId ? ` <span class="blog-post-studentid">· ${esc(item.authorStudentId)}</span>` : ""}</div>
+      <div class="blog-post-time">${esc(timeAgo(created))}</div>
+    </div>
+  `;
+  fullPostBody.innerHTML = item.content;
+  fullPostGallery.innerHTML = buildGalleryHTML(item.imageUrls);
+
+  const galleryTiles = fullPostGallery.querySelectorAll(".blog-gallery-tile");
+  galleryTiles.forEach((tile, idx) => {
+    tile.addEventListener("click", () => openLightbox(item.imageUrls || [], idx));
+  });
+
+  fullPostModal.classList.remove("hidden");
+}
+
+function closeFullPostModal() {
+  fullPostModal.classList.add("hidden");
+}
+
+fullPostClose?.addEventListener("click", closeFullPostModal);
+fullPostModal?.addEventListener("click", (e) => {
+  if (e.target === fullPostModal) closeFullPostModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !fullPostModal.classList.contains("hidden")) closeFullPostModal();
+});
+
+// Collapses a post body once it's tall enough to need a "See more" popup.
+// Re-checks after any images inside finish loading, since those can push
+// the true height past the threshold only once they've rendered.
+function wireSeeMore(bodyEl, item) {
+  if (!bodyEl || bodyEl.dataset.seeMoreWired) return;
+  const evaluate = () => {
+    if (bodyEl.classList.contains("is-collapsed")) return;
+    if (bodyEl.scrollHeight > 230 + 60) {
+      bodyEl.classList.add("is-collapsed");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "blog-see-more-btn";
+      btn.textContent = "See more";
+      btn.addEventListener("click", () => openFullPostModal(item));
+      bodyEl.insertAdjacentElement("afterend", btn);
+    }
+  };
+  bodyEl.dataset.seeMoreWired = "1";
+  evaluate();
+  bodyEl.querySelectorAll("img").forEach(img => {
+    if (!img.complete) img.addEventListener("load", evaluate, { once: true });
+  });
+}
+
+// ============================================
 // FEED — RENDER POST CARD
 // ============================================
 function statusBadgeHTML(status) {
@@ -891,6 +1015,7 @@ function renderPostCard(id, item) {
   `;
 
   wirePostCard(article, id, item);
+  wireSeeMore(article.querySelector(".blog-post-body"), item);
 
   // View tracking
   if (!viewed.has(id)) {

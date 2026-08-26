@@ -7,9 +7,45 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupNavToggle() {
     const toggle = document.querySelector('.nav-toggle');
     const links = document.querySelector('.nav-links');
+    const closeBtn = document.querySelector('.nav-links-close');
+    const backdrop = document.getElementById('nav-drawer-backdrop');
     if (toggle && links && !toggle.dataset.bound) {
       toggle.dataset.bound = "true";
-      toggle.addEventListener('click', () => links.classList.toggle('open'));
+
+      function openDrawer() {
+        links.classList.add('open');
+        backdrop?.classList.add('open');
+        toggle.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+      }
+      function closeDrawer() {
+        links.classList.remove('open');
+        backdrop?.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+      }
+
+      toggle.addEventListener('click', () => {
+        links.classList.contains('open') ? closeDrawer() : openDrawer();
+      });
+      closeBtn?.addEventListener('click', closeDrawer);
+      backdrop?.addEventListener('click', closeDrawer);
+      // Tapping a menu link should navigate AND close the drawer behind it
+      links.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && links.classList.contains('open')) closeDrawer();
+      });
+    }
+
+    // Subtle shadow once the page has scrolled past the very top — makes
+    // the sticky navbar read as "lifted" above the content instead of
+    // blending into it.
+    const navbar = document.querySelector('.navbar');
+    if (navbar && !navbar.dataset.scrollBound) {
+      navbar.dataset.scrollBound = "true";
+      const updateShadow = () => navbar.classList.toggle('is-scrolled', window.scrollY > 4);
+      updateShadow();
+      window.addEventListener('scroll', updateShadow, { passive: true });
     }
   }
   // navbar.html is injected asynchronously (fetch), so bind as soon as it's

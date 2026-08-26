@@ -636,6 +636,88 @@
 .blog-like-btn.is-active{ color:var(--terracotta-500); }
 
 /* ============================================
+   STICKY HEADER + INDEPENDENTLY SCROLLING FEED
+   The hero + composer stay in view; only the post
+   list underneath scrolls, Facebook-column style.
+   The --blog-sticky-offset / --blog-feed-max-h vars
+   are set from js/blog.js once the shared navbar
+   has finished loading (its height varies by page).
+   ============================================ */
+.blog-sticky-top{
+  position:sticky;
+  top:var(--blog-sticky-offset, 0px);
+  z-index:6;
+  background:var(--paper-50, #F7F5EF);
+  padding-top:.4rem;
+  margin:0 -.2rem;
+  padding-left:.2rem;
+  padding-right:.2rem;
+}
+.blog-sticky-top::after{
+  content:"";
+  display:block;
+  height:14px;
+  margin:0 -.2rem;
+  background:linear-gradient(to bottom, rgba(31,46,34,.06), rgba(31,46,34,0));
+  pointer-events:none;
+}
+.blog-feed-scroll{
+  overflow-y:auto;
+  overflow-x:hidden;
+  height:var(--blog-feed-max-h, auto);
+  padding-top:1.2rem;
+  padding-bottom:.4rem;
+  /* nicer scrollbar, falls back silently where unsupported */
+  scrollbar-width:thin;
+  scrollbar-color:var(--line, #ddd) transparent;
+}
+.blog-feed-scroll::-webkit-scrollbar{ width:8px; }
+.blog-feed-scroll::-webkit-scrollbar-thumb{ background:var(--line, #ddd); border-radius:99px; }
+.blog-feed-scroll::-webkit-scrollbar-track{ background:transparent; }
+
+/* ============================================
+   "SEE MORE" — collapsed long post bodies expand
+   into the full-post popup instead of inline
+   ============================================ */
+.blog-post-body.is-collapsed{
+  max-height:230px;
+  overflow:hidden;
+  position:relative;
+}
+.blog-post-body.is-collapsed::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:56px;
+  background:linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+  pointer-events:none;
+}
+.blog-see-more-btn{
+  display:inline-block;
+  background:none;
+  border:none;
+  padding:0 0 .8rem;
+  margin-top:-.3rem;
+  font-family:var(--font-body);
+  font-weight:700;
+  font-size:.87rem;
+  color:var(--leaf-500);
+  cursor:pointer;
+}
+.blog-see-more-btn:hover{ text-decoration:underline; }
+
+/* ============================================
+   FULL POST MODAL — Facebook-style expanded view
+   ============================================ */
+.blog-fullpost-modal .modal-box{ max-width:600px; max-height:88vh; overflow-y:auto; }
+.blog-fullpost-modal .modal-body{ padding:1.6rem 1.5rem 1.8rem; }
+.blog-fullpost-modal .blog-badge{ position:static; display:inline-block; margin-bottom:.6rem; }
+.blog-fullpost-modal .blog-badge + .blog-post-title{ margin-top:0; }
+.blog-fullpost-modal #full-post-header{ margin-top:.2rem; }
+.blog-fullpost-modal .blog-post-body--full{ max-height:none; overflow:visible; }
+.blog-fullpost-modal .blog-post-body--full::after{ display:none; }
+
+/* ============================================
    IMAGE LIGHTBOX
    ============================================ */
 .image-lightbox{

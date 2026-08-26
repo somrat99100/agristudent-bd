@@ -60,30 +60,6 @@ body {
   text-transform: uppercase;
 }
 
-.planner-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #FFF;
-  background: var(--text-main);
-  border: 1px solid var(--text-main);
-  padding: 14px 38px;
-  border-radius: 50px;
-  box-shadow: 0 8px 24px rgba(11, 28, 46, 0.15);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.planner-btn:hover {
-  transform: translateY(-3px);
-  background: transparent;
-  color: var(--text-main);
-  box-shadow: 0 12px 30px rgba(11, 28, 46, 0.1);
-}
-.arrow-icon { width: 18px; height: 18px; transition: transform 0.3s ease; }
-.planner-btn:hover .arrow-icon { transform: translateX(6px); }
-
 .card-panel {
   background: var(--panel-bg);
   border: 1px solid var(--border-light);
