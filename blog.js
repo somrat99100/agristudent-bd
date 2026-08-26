@@ -201,6 +201,8 @@ const composerPreviewGrid = document.getElementById("composer-preview-grid");
 const blogFeed = document.getElementById("blog-feed");
 const blogFeedEmpty = document.getElementById("blog-feed-empty");
 const loadMoreBtn = document.getElementById("blog-load-more");
+const blogFeedScroll = document.getElementById("blog-feed-scroll");
+const blogStickyTop = document.getElementById("blog-sticky-top");
 
 // Full post modal (Facebook-style "See more" popup)
 const fullPostModal = document.getElementById("full-post-modal");
@@ -867,13 +869,37 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Layout note: the feed used to live in its own independently-scrolling
-// box (with a sticky hero/composer pinned above it) so the page had two
-// separate scrollbars fighting each other — the disorienting "sometimes
-// the whole page moves, sometimes just part of it scrolls" feeling.
-// That's gone now: the composer trigger and the feed both flow in normal
-// document order and the whole page scrolls together, single-surface,
-// like a real Facebook timeline. Only the top navbar stays sticky.
+// ============================================
+// STICKY LAYOUT — navbar + hero/composer stay put,
+// only the post feed underneath scrolls
+// ============================================
+const navbarPlaceholder = document.getElementById("navbar-placeholder");
+const MIN_FEED_HEIGHT = 320; // never shrink the scroll pane below this
+
+function recalcStickyLayout() {
+  if (!blogStickyTop || !blogFeedScroll) return;
+  const navbarHeight = navbarPlaceholder ? navbarPlaceholder.getBoundingClientRect().height : 0;
+  document.documentElement.style.setProperty("--blog-sticky-offset", `${navbarHeight}px`);
+
+  const stickyHeight = blogStickyTop.getBoundingClientRect().height;
+  const available = window.innerHeight - navbarHeight - stickyHeight - 24; // small bottom breathing room
+  const feedHeight = Math.max(available, MIN_FEED_HEIGHT);
+  document.documentElement.style.setProperty("--blog-feed-max-h", `${feedHeight}px`);
+}
+
+window.addEventListener("resize", recalcStickyLayout);
+window.addEventListener("load", recalcStickyLayout);
+
+// The shared navbar is injected asynchronously by js/navbar-loader.js, and the
+// composer trigger's visibility flips once the session check resolves — both
+// change the height of things above the feed, so re-measure whenever they do.
+if (navbarPlaceholder && "MutationObserver" in window) {
+  new MutationObserver(recalcStickyLayout).observe(navbarPlaceholder, { childList: true, subtree: true });
+}
+if (blogStickyTop && "ResizeObserver" in window) {
+  new ResizeObserver(recalcStickyLayout).observe(blogStickyTop);
+}
+recalcStickyLayout();
 
 // ============================================
 // FULL POST MODAL — "See more" popup
@@ -959,6 +985,7 @@ function renderPostCard(id, item) {
 
   article.innerHTML = `
     ${statusBadgeHTML(item.status)}
+    <h2 class="blog-post-title">${esc(item.title)}</h2>
     <header class="blog-post-header">
       <img class="blog-post-avatar" src="${esc(item.authorAvatar || "assets/avatar-male.svg")}" alt="">
       <div>
@@ -966,7 +993,6 @@ function renderPostCard(id, item) {
         <div class="blog-post-time">${esc(timeAgo(created))}</div>
       </div>
     </header>
-    <h2 class="blog-post-title">${esc(item.title)}</h2>
     <div class="blog-post-body">${item.content}</div>
     ${galleryHTML}
     <div class="blog-post-stats">

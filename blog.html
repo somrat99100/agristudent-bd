@@ -5,7 +5,7 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,34 +22,29 @@
 <div id="navbar-placeholder"></div>
 <script src="js/navbar-loader.js"></script>
 
-<section class="section-page">
+<section class="section-page blog-page">
   <div class="container blog-container">
-    <!-- STICKY HEADER — hero + composer stay put; only the feed below scrolls -->
-    <div id="blog-sticky-top" class="blog-sticky-top">
-      <div class="blog-hero">
-        <div class="crumb"><a href="index.html">Home</a> / Blog</div>
-        <div class="blog-hero-icon">✍️</div>
-        <div class="blog-hero-eyebrow">Community Voices</div>
-        <h1>Blog</h1>
-        <p class="blog-hero-sub">Articles, guides, and stories from the agriculture student community. Every registered student can post — new posts show up right away, marked <strong>Not verified</strong> until an admin reviews them.</p>
-      </div>
+    <!-- Minimal top bar: just a breadcrumb, the composer trigger, then the
+         feed — the whole page scrolls together in one natural motion,
+         Facebook-timeline style. Nothing here is sticky or independently
+         scrollable, which is what was causing the "page moves twice"
+         feeling before. -->
+    <div class="crumb blog-crumb"><a href="index.html">Home</a> / Blog</div>
+    <h1 class="visually-hidden">Blog</h1>
 
-      <!-- COMPOSER TRIGGER -->
-      <div id="composer-logged-in" class="blog-composer-trigger hidden">
-        <img id="composer-avatar" class="blog-composer-avatar" src="assets/avatar-male.svg" alt="">
-        <button type="button" id="composer-open-btn">What's on your mind?</button>
-      </div>
-      <div id="composer-logged-out" class="blog-composer-trigger blog-composer-logged-out hidden">
-        <span><a href="login.html">Log in</a> to write a post, like, comment or share.</span>
-      </div>
+    <!-- COMPOSER TRIGGER -->
+    <div id="composer-logged-in" class="blog-composer-trigger hidden">
+      <img id="composer-avatar" class="blog-composer-avatar" src="assets/avatar-male.svg" alt="">
+      <button type="button" id="composer-open-btn">What's on your mind?</button>
+    </div>
+    <div id="composer-logged-out" class="blog-composer-trigger blog-composer-logged-out hidden">
+      <span><a href="login.html">Log in</a> to write a post, like, comment or share.</span>
     </div>
 
-    <!-- FEED (scrolls independently) -->
-    <div id="blog-feed-scroll" class="blog-feed-scroll">
-      <div id="blog-feed" class="blog-feed"></div>
-      <p id="blog-feed-empty" class="hidden">No posts yet — be the first to share something with the community!</p>
-      <button type="button" id="blog-load-more" style="margin-top:1.6rem;">Load more</button>
-    </div>
+    <!-- FEED -->
+    <div id="blog-feed" class="blog-feed"></div>
+    <p id="blog-feed-empty" class="hidden">No posts yet — be the first to share something with the community!</p>
+    <button type="button" id="blog-load-more">Load more</button>
   </div>
 </section>
 
@@ -100,8 +95,8 @@
     <button type="button" class="modal-close" id="full-post-close">✕</button>
     <div class="modal-body">
       <div id="full-post-badge"></div>
-      <h2 class="blog-post-title" id="full-post-title"></h2>
       <header class="blog-post-header" id="full-post-header"></header>
+      <h2 class="blog-post-title" id="full-post-title"></h2>
       <div class="blog-post-body blog-post-body--full" id="full-post-body"></div>
       <div id="full-post-gallery"></div>
     </div>
