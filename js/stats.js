@@ -10,36 +10,28 @@ import {
 
 // Map of element id -> function that returns a Firestore count query
 const STAT_SOURCES = {
-  // Registration records are private. Never expose a count derived from the
-  // private collection to an unauthenticated page. The UI will show an em dash
-  // until a deliberately public aggregate is configured by an administrator.
-  "stat-users": async () => ({ data: () => ({ count: 0 }) }),
+  // Registration totals are private. This public homepage deliberately does
+  // not enumerate the registrations collection. If a public aggregate is
+  // created at settings/publicStats, it may be displayed instead.
+  "stat-users": async () => {
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const snap = await getDoc(doc(db, "settings", "publicStats"));
+    return { data: () => ({ count: Number(snap.data()?.registeredUsers || 0) }) };
+  },
 
   "stat-resources": async () => {
-    // Count actual approved files (not submission/folder documents).
-    // PDFs, PPT/PPTX and uploaded images all contribute one count per file.
-    const docsSnap = await getDocs(
-      query(collection(db, "resources"), where("status", "==", "approved"), where("public", "==", true))
-    );
-    const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i;
-    const docExts = /\.(pdf|ppt|pptx)$/i;
-    let total = 0;
-    docsSnap.forEach(d => {
-      const item = d.data();
-      const files = Array.isArray(item.fileUrls) ? item.fileUrls : [];
-      const type = String(item.fileType || "").toLowerCase();
-      total += files.filter(f => {
-        const name = String(f?.name || "");
-        return type === "pdf" || type === "ppt" || type === "image" || docExts.test(name) || imageExts.test(name);
-      }).length;
-    });
-    return { data: () => ({ count: total }) };
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const snap = await getDoc(doc(db, "settings", "publicStats"));
+    return { data: () => ({ count: Number(snap.data()?.resourceFiles || 0) }) };
   },
 
   "stat-pending": async () => ({ data: () => ({ count: 0 }) }),
 
-  "stat-terms": () =>
-    getCountFromServer(query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true)))
+  "stat-terms": async () => {
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const snap = await getDoc(doc(db, "settings", "publicStats"));
+    return { data: () => ({ count: Number(snap.data()?.approvedTerms || 0) }) };
+  }
 };
 
 function animateCount(el, target) {

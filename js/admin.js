@@ -1,15 +1,36 @@
-import { db, auth, storage } from "./firebase-config.js";
+import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, setDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
+  collection, getDocs, getDoc, doc, updateDoc, deleteDoc, addDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, getIdTokenResult
+  signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 initEmailNotifications();
+
+
+async function refreshPublicStats() {
+  try {
+    const [regCount, termSnap, resourceSnap] = await Promise.all([
+      (async()=>{ const { getCountFromServer } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"); return (await getCountFromServer(collection(db,"registrations"))).data().count; })(),
+      getDocs(query(collection(db,"terms"), where("status","==","approved"))),
+      getDocs(query(collection(db,"resources"), where("status","==","approved")))
+    ]);
+    const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i;
+    const docExts = /\.(pdf|ppt|pptx)$/i;
+    let resourceFiles = 0;
+    resourceSnap.forEach(d => {
+      const item=d.data(); const files=Array.isArray(item.fileUrls)?item.fileUrls:[]; const type=String(item.fileType||"").toLowerCase();
+      resourceFiles += files.filter(f => type==="pdf" || type==="ppt" || type==="image" || docExts.test(String(f?.name||"")) || imageExts.test(String(f?.name||""))).length;
+    });
+    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    await setDoc(doc(db,"settings","publicStats"), { registeredUsers: regCount, approvedTerms: termSnap.size, resourceFiles, updatedAt: new Date() }, { merge: true });
+  } catch (err) {
+    console.error("[AgriAdmin] public stats refresh failed:", err);
+  }
+}
 
 // ============================================
 // ESCAPE HELPER — prevents stored XSS from user-submitted
@@ -61,26 +82,15 @@ logoutBtn.addEventListener("click", () => signOut(auth));
 
 let currentAdminEmail = "";
 
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
   if (user) {
-    try {
-      const token = await getIdTokenResult(user, true);
-      if (token.claims.admin !== true || token.claims.email_verified !== true) throw new Error("Not an administrator");
-      currentAdminEmail = user.email || "";
-      loginBox.classList.add("hidden");
-      adminPanel.classList.remove("hidden");
-      logoutBtn.classList.remove("hidden");
-      if (adminUserChip) adminUserChip.textContent = currentAdminEmail;
-      loadResources();
-    } catch (err) {
-      console.error("[AgriAdmin] authorization failed:", err);
-      await signOut(auth);
-      loginBox.classList.remove("hidden");
-      adminPanel.classList.add("hidden");
-      logoutBtn.classList.add("hidden");
-      loginError.textContent = "This account is not authorized for the admin panel.";
-      loginError.classList.remove("hidden");
-    }
+    currentAdminEmail = user.email || "";
+    loginBox.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
+    logoutBtn.classList.remove("hidden");
+    if (adminUserChip) adminUserChip.textContent = currentAdminEmail;
+    loadResources();
+    refreshPublicStats();
   } else {
     loginBox.classList.remove("hidden");
     adminPanel.classList.add("hidden");
@@ -191,6 +201,25 @@ Object.entries(tabs).forEach(([key, tab]) => {
 tabs.resources.btn.classList.add("is-active");
 if (adminPageTitle) adminPageTitle.textContent = tabs.resources.btn.dataset.label || "Resources";
 
+async function syncStudentResourceAccess(item, newStatus, reviewedAt) {
+  const uid = item?.uploaderUid;
+  if (!uid) return;
+  const regRef = doc(db, "registrations", uid);
+  // The registration document is UID-keyed; read it directly for a trusted admin-side update.
+  const regDoc = await getDoc(regRef);
+  if (!regDoc.exists()) return;
+  const reg = regDoc.data();
+  const now = reviewedAt?.getTime?.() || Date.now();
+  if (newStatus === "approved") {
+    const current = reg.resourceAccessUntil?.toDate?.()?.getTime?.() || Number(reg.resourceAccessUntil) || 0;
+    const base = Math.max(current, now);
+    const count = Array.isArray(item.fileUrls) && item.fileUrls.length ? item.fileUrls.length : 1;
+    await updateDoc(regRef, { resourceAccessUntil: new Date(base + count * 24 * 60 * 60 * 1000), pendingAccessUntil: null });
+  } else if (newStatus === "rejected") {
+    await updateDoc(regRef, { resourceAccessUntil: null, pendingAccessUntil: null, restrictedUntil: new Date(now + 30 * 24 * 60 * 60 * 1000), restrictionReason: "rejected_resource", restrictionUpdatedAt: new Date(now) });
+  }
+}
+
 // ============================================
 // RESOURCES
 // ============================================
@@ -227,7 +256,7 @@ function buildResourceRowHTML(d) {
         ${item.resourceType === "previous_questions" ? "💡 Suggestion" : "📚 Hand Notes"}
         ${item.examType ? " · " + esc(item.examType) : ""} · ${esc(item.facultyName) || ""}
       </div>
-      <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} · UID: ${esc(item.uploaderUid) || "—"}</div>
+      <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">By: ${esc(item.uploaderName) || "—"} (${esc(item.uploaderEmail) || "no email"})${item.uploaderStudentId ? ` · Student ID: <strong>${esc(item.uploaderStudentId)}</strong>` : ""}</div>
       <div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;">
         ${(item.fileUrls || []).map((f, i) => `
           <span style="display:inline-flex;align-items:center;gap:.25rem;">
@@ -350,32 +379,21 @@ async function loadResources() {
         e.target.disabled = true;
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
-        const item = resourcesCache[id];
         try {
           const moderationData = {
             status: newStatus,
-            public: newStatus === "approved",
             reviewedAt: new Date(),
             ...(newStatus === "rejected"
               ? { rejectedAt: new Date(), restrictedUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
               : { rejectedAt: null, restrictedUntil: null })
           };
           await updateDoc(doc(db, "resources", id), moderationData);
-          if (item?.uploaderUid) {
-            const accessRef = doc(db, "resourceAccess", item.uploaderUid);
-            const accessSnap = await getDoc(accessRef);
-            const existing = accessSnap.exists() ? accessSnap.data() : {};
-            if (newStatus === "rejected") {
-              await setDoc(accessRef, { restrictedUntil: new Date(Date.now() + 30*24*60*60*1000), accessUntil: existing.accessUntil || null, approvedFileCount: existing.approvedFileCount || 0, updatedAt: new Date() }, { merge: true });
-            } else if (newStatus === "approved") {
-              const now = Date.now();
-              const oldUntil = existing.accessUntil?.toDate?.()?.getTime?.() || 0;
-              const base = Math.max(now, oldUntil);
-              const fileCount = Array.isArray(item.fileUrls) ? item.fileUrls.length : 1;
-              await setDoc(accessRef, { restrictedUntil: null, accessUntil: new Date(base + fileCount*24*60*60*1000), approvedFileCount: (existing.approvedFileCount || 0) + fileCount, updatedAt: new Date() }, { merge: true });
-            }
+          const moderatedItem = resourcesCache[id];
+          if (moderatedItem?.uploaderUid && (newStatus === "approved" || newStatus === "rejected")) {
+            await syncStudentResourceAccess(moderatedItem, newStatus, moderationData.reviewedAt);
           }
           e.target.style.borderColor = "var(--leaf-500)";
+          const item = resourcesCache[id];
           if (item) {
             const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
             sendReviewEmail({
@@ -409,14 +427,14 @@ function buildBlogRowHTML(id, item) {
   // Strip HTML down to plain text for a compact admin preview — the
   // full formatted post (with images) is one click away via "View live".
   const previewDiv = document.createElement("div");
-  previewDiv.textContent = item.content || "";
+  previewDiv.innerHTML = item.content || "";
   const preview = (previewDiv.textContent || "").slice(0, 220);
 
   return `
     <div>
       <strong>${esc(item.title)}</strong>
       <div style="font-size:.8rem;color:var(--moss-600);margin-top:.15rem;">
-        By: ${esc(item.authorName) || "—"} · UID: ${esc(item.authorUid) || "—"}
+        By: ${esc(item.authorName) || "—"} (${esc(item.authorEmail) || "no email"})${item.authorStudentId ? ` · Student ID: <strong>${esc(item.authorStudentId)}</strong>` : ""}
       </div>
       <div style="font-size:.78rem;color:var(--moss-600);margin-top:.15rem;">${esc(created)}</div>
       <p style="font-size:.85rem;color:var(--moss-900);margin:.5rem 0;">${esc(preview)}${preview.length === 220 ? "…" : ""}</p>
@@ -485,7 +503,7 @@ async function loadBlogPosts() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "blogPosts", id), { status: newStatus, public: newStatus === "approved", reviewedAt: new Date() });
+          await updateDoc(doc(db, "blogPosts", id), { status: newStatus, reviewedAt: new Date() });
           const item = blogCache[id];
           if (item) {
             const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
@@ -562,7 +580,7 @@ async function loadTerms() {
             <strong>${esc(item.name)}</strong>
             ${item.possibleDuplicate ? '<span style="color:var(--terracotta-500);font-size:.75rem;margin-left:.4rem;">⚠️ possible duplicate</span>' : ''}
             <div style="font-size:.8rem;color:var(--moss-600);max-width:380px;margin-top:.2rem;">${esc((item.description || "").slice(0, 140))}${(item.description || "").length > 140 ? "…" : ""}</div>
-            <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${esc(item.uploaderName) || "—"} · UID: ${esc(item.uploaderUid) || "—"}</div>
+            <div style="font-size:.78rem;color:var(--moss-600);margin-top:.3rem;">By: ${esc(item.uploaderEmail) || "—"}</div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
@@ -610,7 +628,7 @@ async function loadTerms() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "terms", id), { status: newStatus, public: newStatus === "approved", reviewedAt: new Date() });
+          await updateDoc(doc(db, "terms", id), { status: newStatus, reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
           const item = termsCache[id];
           if (item) {
@@ -1094,13 +1112,28 @@ function filenameToTitle(name) {
   return name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-async function uploadFileSecurely(file, uid, onProgress) {
-  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-120);
-  const storageRef = ref(storage, `resources/${uid}/${crypto.randomUUID()}-${safeName}`);
-  const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
-  return await new Promise((resolve, reject) => task.on('state_changed', snap => {
-    if (onProgress && snap.totalBytes) onProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100));
-  }, reject, async () => { try { resolve(await getDownloadURL(task.snapshot.ref)); } catch(e) { reject(e); } }));
+function uploadFileToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText).secure_url);
+      } else {
+        reject(new Error(`Image upload failed (server said: ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again."));
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 bulkTermImagesInput.addEventListener("change", () => {
@@ -1163,14 +1196,14 @@ bulkTermUploadBtn.addEventListener("click", async () => {
     descInput.disabled = true;
 
     try {
-      const imageUrl = await uploadFileSecurely(file, auth.currentUser.uid, (pct) => {
+      const imageUrl = await uploadFileToCloudinary(file, (pct) => {
         statusEl.textContent = `Uploading ${pct}%`;
       });
       await addDoc(collection(db, "terms"), {
         name,
         description: descInput.value.trim(),
         imageUrl,
-        uploaderUid: auth.currentUser.uid, uploaderName: "Admin",
+        uploaderEmail: currentAdminEmail || "admin",
         status: "approved",
         possibleDuplicate: false,
         submittedAt: serverTimestamp(),

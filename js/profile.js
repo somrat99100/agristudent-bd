@@ -1,11 +1,11 @@
-import { db, storage } from "./firebase-config.js";
+import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
@@ -31,7 +31,7 @@ function showLoggedOut() {
 
 // ============================================
 // PROFILE AVATAR UPLOAD — tap the camera badge on the circular avatar
-// to replace it. Uploads to Firebase Storage (same pipeline as blog images),
+// to replace it. Uploads to Cloudinary (same pipeline as blog images),
 // then saves the URL onto the student's own registration doc.
 // ============================================
 const MAX_AVATAR_SIZE = 8 * 1024 * 1024; // 8MB
@@ -73,18 +73,22 @@ avatarInput?.addEventListener("change", async (e) => {
   avatarImg.src = previewUrl;
 
   try {
-    const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-120);
-    const storageRef = ref(storage, `avatars/${session.uid}/${crypto.randomUUID()}-${safeName}`);
-    await uploadBytes(storageRef, file, { contentType: file.type });
-    const avatarUrl = await getDownloadURL(storageRef);
-    await updateDoc(doc(db, "registrations", session.uid), { avatarUrl });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: formData });
+    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+    const data = await response.json();
+    if (!data.secure_url) throw new Error("Upload failed");
 
-    avatarImg.src = avatarUrl;
-    saveSession({ ...session, avatarUrl });
+    await updateDoc(doc(db, "registrations", session.uid || session.regId), { avatarUrl: data.secure_url });
+
+    avatarImg.src = data.secure_url;
+    saveSession({ ...session, avatarUrl: data.secure_url });
 
     // Reflect the change in the navbar avatar immediately too, without
     // needing a page reload.
-    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = avatarUrl; });
+    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = data.secure_url; });
 
     avatarStatus.textContent = "Profile photo updated ✅";
     setTimeout(() => {
@@ -104,13 +108,13 @@ avatarInput?.addEventListener("change", async (e) => {
 
 async function init() {
   const session = getSession();
-  if (!session) { showLoggedOut(); return; }
+  if (!session || !auth.currentUser || auth.currentUser.uid !== (session.uid || session.regId)) { showLoggedOut(); return; }
 
   try {
     // Re-fetch the live registration record rather than trusting the
     // cached session — status can change (admin verifies/rejects) after
     // login, and this keeps the profile accurate.
-    const regSnap = await getDoc(doc(db, "registrations", session.regId));
+    const regSnap = await getDoc(doc(db, "registrations", session.uid || session.regId));
     if (!regSnap.exists()) {
       clearSession();
       showLoggedOut();
@@ -119,6 +123,7 @@ async function init() {
     const reg = regSnap.data();
     // Keep the local session in sync with any status change.
     saveSession({
+      uid: session.uid || session.regId,
       regId: session.regId,
       fullName: reg.fullName,
       email: reg.email,
@@ -129,8 +134,8 @@ async function init() {
     });
 
     renderIdentity(reg);
-    await renderCredits(reg.uid, reg.fullName);
-    await renderMyBlogPosts(reg.uid);
+    await renderCredits(normalizeEmail(reg.email), reg.fullName, session.uid || session.regId);
+    await renderMyBlogPosts(normalizeEmail(reg.email), session.uid || session.regId);
 
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
@@ -163,11 +168,10 @@ function renderIdentity(reg) {
   }
 }
 
-async function renderCredits(uid, fullName) {
-  const [resourcesSnap, termsSnap, accessSnap] = await Promise.all([
-    getDocs(query(collection(db, "resources"), where("status", "==", "approved"), where("public", "==", true), where("uploaderUid", "==", uid))),
-    getDocs(query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true), where("uploaderUid", "==", uid))),
-    getDoc(doc(db, "resourceAccess", uid))
+async function renderCredits(email, fullName, sessionUid) {
+  const [resourcesSnap, termsSnap] = await Promise.all([
+    getDocs(query(collection(db, "resources"), where("uploaderUid", "==", sessionUid))),
+    getDocs(query(collection(db, "terms"), where("uploaderUid", "==", sessionUid)))
   ]);
 
   const items = [
@@ -175,30 +179,24 @@ async function renderCredits(uid, fullName) {
     ...termsSnap.docs.map(d => ({ id: d.id, kind: "term", ...d.data() }))
   ].sort((a, b) => (b.submittedAt?.toDate?.() || 0) - (a.submittedAt?.toDate?.() || 0));
 
-  const approved = items.length;
-  const pending = 0;
-  const rejected = 0;
+  const approved = items.filter(i => i.status === "approved").length;
+  const pending = items.filter(i => (i.status || "pending") === "pending").length;
+  const rejected = items.filter(i => i.status === "rejected").length;
 
   document.getElementById("stat-total").textContent = items.length;
   document.getElementById("stat-approved").textContent = approved;
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-rejected").textContent = rejected;
 
-  const accessData = accessSnap?.exists?.() ? accessSnap.data() : {};
-  const now = Date.now();
-  const restrictedUntil = accessData.restrictedUntil?.toDate?.()?.getTime?.() || 0;
-  const accessUntil = accessData.accessUntil?.toDate?.()?.getTime?.() || 0;
-  const access = {
-    active: restrictedUntil <= now && accessUntil > now,
-    restricted: restrictedUntil > now,
-    restrictedUntil: restrictedUntil ? new Date(restrictedUntil) : null,
-    accessUntil: accessUntil ? new Date(accessUntil) : null,
-    approvedFileCount: accessData.approvedFileCount || 0, pendingActiveCount: 0,
-    daysRemaining: Math.max(0, Math.ceil((accessUntil-now)/86400000)),
-    hoursRemaining: Math.max(0, Math.ceil((accessUntil-now)/3600000)),
-    msRemaining: Math.max(0, accessUntil-now)
-  };
-  renderAccessBadge({ badgeEl: document.getElementById("access-badge"), detailEl: document.getElementById("access-detail") }, access);
+  // Resource access is based only on actual resource files. Each approved
+  // file grants 24h; pending uploads provide up to 12h temporary access.
+  const resourceItems = items.filter(i => i.kind === "resource" && i.resourceType === "slides_notes");
+  const access = computeResourceAccessStatus(resourceItems);
+  renderAccessBadge({
+    badgeEl: document.getElementById("access-badge"),
+    detailEl: document.getElementById("access-detail")
+  }, access);
+  maybeSendAccessReminder(access, { email, name: fullName });
 
   const accessDetail = document.getElementById("access-detail");
   const accessAlert = document.getElementById("resource-access-alert");
@@ -258,14 +256,14 @@ function blogStatusTag(status) {
   return { cls: "pending", text: "🕓 Not verified" };
 }
 
-async function renderMyBlogPosts(uid) {
+async function renderMyBlogPosts(email, sessionUid) {
   const listEl = document.getElementById("my-posts-list");
   const emptyEl = document.getElementById("my-posts-empty");
   if (!listEl) return;
 
   let posts;
   try {
-    const snap = await getDocs(query(collection(db, "blogPosts"), where("status", "==", "approved"), where("public", "==", true), where("authorUid", "==", uid)));
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorUid", "==", sessionUid)));
     posts = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
@@ -331,4 +329,7 @@ if (logoutBtn) {
   });
 }
 
-init();
+onAuthStateChanged(auth, (user) => {
+  if (user) init();
+  else showLoggedOut();
+});

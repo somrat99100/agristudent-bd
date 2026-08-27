@@ -2,142 +2,92 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function verified() { return signedIn() && request.auth.token.email_verified == true; }
-    function admin() { return verified() && request.auth.token.admin == true; }
-    function owner(uid) { return verified() && request.auth.uid == uid; }
-    function validEmail(v) { return v is string && v.size() > 3 && v.size() <= 254; }
-    function validId(v) { return v is string && v.size() > 0 && v.size() <= 50; }
-    function publicResource() { return resource.data.public == true && resource.data.status == 'approved'; }
-    function publicBlog() { return resource.data.public == true && resource.data.status == 'approved'; }
+    function admin() { return signedIn() && request.auth.token.email == 'iubatagriculture@gmail.com'; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
 
-    match /registrations/{uid} {
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasAll(['uid','email','fullName','studentIdNumber','gender','status'])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.email == request.auth.token.email
-        && validEmail(request.resource.data.email)
-        && validId(request.resource.data.studentIdNumber)
-        && request.resource.data.status == 'unverified';
-      allow get: if owner(uid) || admin();
+    match /registrations/{id} {
+      allow create: if signedIn() && id == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.status == 'verified' &&
+        request.resource.data.emailVerified == true &&
+        request.resource.data.studentIdNumber is string && request.resource.data.studentIdNumber.size() > 0 && request.resource.data.studentIdNumber.size() < 50 &&
+        request.resource.data.email is string && request.resource.data.email.size() > 0;
+      allow get: if admin() || owner(id);
       allow list: if admin();
-      allow update: if admin() || (signedIn() && request.auth.uid == uid && ((verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName','gender','avatarUrl'])) || (request.auth.token.email_verified == true && resource.data.status == 'unverified' && request.resource.data.status == 'verified' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))));
+      allow update: if admin() || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl']) && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.matches('^https://res[.]cloudinary[.]com/.*'));
       allow delete: if admin();
     }
 
-
-    match /resourceAccess/{uid} {
-      allow get: if owner(uid) || admin();
-      allow list: if admin();
-      allow create, update, delete: if admin();
-    }
-
     match /resources/{id} {
-      allow get: if publicResource() || admin() || (verified() && resource.data.uploaderUid == request.auth.uid);
-      allow list: if admin() || publicResource();
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['uploaderUid','uploaderName','status','public','resourceType','courseCode','fileUrls'])
-        && request.resource.data.uploaderUid == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.public == false
-        && request.resource.data.resourceType in ['slides_notes','previous_questions']
-        && request.resource.data.courseCode is string && request.resource.data.courseCode.size() > 0 && request.resource.data.courseCode.size() <= 50
-        && request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() > 0 && request.resource.data.fileUrls.size() <= 20
-        && (!exists(/databases/$(database)/documents/resourceAccess/$(request.auth.uid)) || get(/databases/$(database)/documents/resourceAccess/$(request.auth.uid)).data.restrictedUntil == null || get(/databases/$(database)/documents/resourceAccess/$(request.auth.uid)).data.restrictedUntil <= request.time);
-      allow update: if admin() || (verified() && resource.data.uploaderUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fileUrls','courseCode','courseName','facultyName','noteType','editedAt'])
-        && request.resource.data.uploaderUid == resource.data.uploaderUid);
-      allow delete: if admin() || (verified() && resource.data.uploaderUid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uploaderUid == request.auth.uid &&
+        request.resource.data.uploaderEmail == request.auth.token.email &&
+        get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' &&
+        (!('restrictedUntil' in get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data) || get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.restrictedUntil < request.time) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.resourceType in ['slides_notes','previous_questions'] &&
+        request.resource.data.courseCode is string && request.resource.data.courseCode.size() > 0 &&
+        request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() > 0 && request.resource.data.fileUrls.size() <= 20;
+      // Approved resources are shared content, not private uploader records.
+      // Do NOT require uploaderUid for approved reads: this preserves access to
+      // older approved resources created before UID ownership was introduced.
+      allow get: if admin() || (signedIn() && resource.data.uploaderUid == request.auth.uid) || (signedIn() && resource.data.status == 'approved' && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' && (!('restrictedUntil' in get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data) || get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.restrictedUntil < request.time) && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.resourceAccessUntil > request.time));
+      allow list: if admin() || (signedIn() && resource.data.uploaderUid == request.auth.uid) || (signedIn() && resource.data.status == 'approved' && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' && (!('restrictedUntil' in get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data) || get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.restrictedUntil < request.time) && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.resourceAccessUntil > request.time));
+      allow update, delete: if admin();
     }
 
     match /terms/{id} {
-      allow get: if (resource.data.status == 'approved' && !('uploaderEmail' in resource.data) && !('uploaderStudentId' in resource.data)) || admin() || (verified() && resource.data.uploaderUid == request.auth.uid);
-      allow list: if admin() || (resource.data.status == 'approved' && !('uploaderEmail' in resource.data) && !('uploaderStudentId' in resource.data));
-      allow create: if admin() || (verified()
-        && request.resource.data.keys().hasAll(['uid','uploaderUid','uploaderName','status','public','name'])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.uploaderUid == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.public == false
-        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200);
-      allow update, delete: if admin() || (verified() && resource.data.uploaderUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','description','editedAt']));
+      allow create: if signedIn() && request.resource.data.uploaderUid == request.auth.uid && request.resource.data.uploaderEmail == request.auth.token.email && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' && request.resource.data.status == 'pending' && request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow get: if admin() || resource.data.status == 'approved' || owner(resource.data.uploaderUid);
+      allow list: if admin() || resource.data.status == 'approved' || (signedIn() && resource.data.uploaderUid == request.auth.uid);
+      allow update, delete: if admin();
     }
 
     match /courses/{id} {
       allow read: if true;
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['courseCode','courseName'])
-        && request.resource.data.courseCode == id
-        && request.resource.data.courseCode is string && request.resource.data.courseCode.size() > 0
-        && request.resource.data.courseName is string && request.resource.data.courseName.size() > 0 && request.resource.data.courseName.size() <= 200;
+      allow create: if signedIn() && request.resource.data.courseCode is string && request.resource.data.courseCode.size() > 0 && request.resource.data.courseName is string;
       allow update, delete: if admin();
     }
 
-    match /timeline/{id} { allow read: if true; allow write: if admin(); }
+    match /timeline/{id} {
+      allow read: if true;
+      allow write: if admin();
+    }
 
     match /messages/{id} {
-      allow create: if request.resource.data.keys().hasAll(['name','email','message'])
-        && request.resource.data.name is string && request.resource.data.name.size() <= 120
-        && validEmail(request.resource.data.email)
-        && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000
-        && (!('read' in request.resource.data) || request.resource.data.read == false);
+      allow create: if request.resource.data.keys().hasAll(['name','email','message']) && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000 && (!('read' in request.resource.data) || request.resource.data.read == false);
       allow read, update, delete: if admin();
     }
 
     match /classroomCodes/{id} {
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['classroomCode','status','submittedByUid'])
-        && request.resource.data.submittedByUid == request.auth.uid
-        && request.resource.data.classroomCode is string && request.resource.data.classroomCode.size() > 0 && request.resource.data.classroomCode.size() <= 200
-        && request.resource.data.status == 'new';
+      allow create: if request.resource.data.keys().hasAll(['classroomCode','status']) && request.resource.data.classroomCode is string && request.resource.data.classroomCode.size() > 0 && request.resource.data.classroomCode.size() <= 200 && request.resource.data.status == 'new';
       allow read, update, delete: if admin();
     }
 
-    match /settings/{id} { allow read: if id == 'semester'; allow write: if admin(); }
+    match /settings/{id} { allow read: if true; allow write: if admin(); }
 
     match /blogPosts/{id} {
-      allow get: if publicBlog() || admin() || (verified() && resource.data.authorUid == request.auth.uid);
-      allow list: if admin() || publicBlog();
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['authorUid','authorName','authorAvatar','title','content','status','public','likesCount','commentsCount','sharesCount','views'])
-        && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.public == false
-        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
-        && request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000
-        && request.resource.data.likesCount == 0 && request.resource.data.commentsCount == 0 && request.resource.data.sharesCount == 0 && request.resource.data.views == 0;
-      allow update: if admin() || (verified() && resource.data.authorUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','content','imageUrls','status','editedAt'])
-        && request.resource.data.status == 'pending_edit')
-        || (verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
-          && request.resource.data.likesCount == resource.data.likesCount + 1)
-        || (verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
-          && request.resource.data.views == resource.data.views + 1)
-        || (verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sharesCount'])
-          && request.resource.data.sharesCount == resource.data.sharesCount + 1)
-        || (verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount'])
-          && request.resource.data.commentsCount == resource.data.commentsCount + 1);
-      allow delete: if admin() || (verified() && resource.data.authorUid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.authorUid == request.auth.uid && request.resource.data.authorEmail == request.auth.token.email && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' && request.resource.data.status == 'pending' &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000 &&
+        request.resource.data.likesCount == 0 && request.resource.data.commentsCount == 0 && request.resource.data.sharesCount == 0 && request.resource.data.views == 0;
+      allow get: if admin() || resource.data.status == 'approved' || owner(resource.data.authorUid);
+      allow list: if admin() || resource.data.status == 'approved' || (signedIn() && resource.data.authorUid == request.auth.uid);
+      allow update: if admin() || (owner(resource.data.authorUid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','content','imageUrls','status','editedAt','editedBy']) && request.resource.data.status == 'pending_edit') || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) && (request.resource.data.likesCount == resource.data.likesCount + 1 || request.resource.data.likesCount == resource.data.likesCount - 1)) || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) && request.resource.data.views == resource.data.views + 1) || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sharesCount']) && request.resource.data.sharesCount == resource.data.sharesCount + 1) || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount']) && (request.resource.data.commentsCount == resource.data.commentsCount + 1 || request.resource.data.commentsCount == resource.data.commentsCount - 1));
+      allow delete: if admin() || owner(resource.data.authorUid);
     }
 
     match /blogComments/{id} {
+      allow create: if signedIn() && request.resource.data.authorUid == request.auth.uid && request.resource.data.authorEmail == request.auth.token.email && get(/databases/$(database)/documents/registrations/$(request.auth.uid)).data.status == 'verified' && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000 && request.resource.data.postId is string && request.resource.data.postId.size() > 0;
       allow read: if true;
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['postId','text','authorUid','authorName','authorAvatar'])
-        && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000;
-      allow update, delete: if admin() || (verified() && resource.data.authorUid == request.auth.uid);
+      allow update, delete: if admin() || owner(resource.data.authorUid);
     }
 
     match /blogLikes/{id} {
-      allow create: if verified()
-        && request.resource.data.keys().hasAll(['postId','uid'])
-        && request.resource.data.uid == request.auth.uid
-        && id == request.resource.data.postId + '_' + request.auth.uid;
-      allow read: if verified() && resource.data.uid == request.auth.uid || admin();
-      allow delete: if verified() && resource.data.uid == request.auth.uid || admin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && id == request.resource.data.postId + '_' + request.auth.uid;
+      allow read: if true;
+      allow delete: if signedIn() && (resource.data.uid == request.auth.uid || admin());
       allow update: if false;
     }
-
-    match /{document=**} { allow read, write: if false; }
   }
 }

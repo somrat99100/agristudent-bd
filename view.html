@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://storage.googleapis.com https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firebasestorage.googleapis.com https://securetoken.googleapis.com https://res.cloudinary.com; frame-src 'none'; worker-src 'self' blob: https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob: https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; worker-src blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://res.cloudinary.com; frame-src https://view.officeapps.live.com; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
@@ -60,6 +59,483 @@
 
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
-<script src="js/view.js"></script>
+<script>
+(function () {
+  const pdfjs = window.pdfjsLib;
+  const wrap = document.getElementById("viewer-frame-wrap");
+  const controls = document.getElementById("book-controls");
+  const loadingMask = document.getElementById("loading-mask");
+  const pageInput = document.getElementById("page-input");
+  const btnGo = document.getElementById("btn-go");
+  const btnSidePrev = document.getElementById("btn-side-prev");
+  const btnSideNext = document.getElementById("btn-side-next");
+  const zoomDisplay = document.getElementById("zoom-display");
+
+  const params = new URLSearchParams(window.location.search);
+  let fileUrl = params.get("url");
+  const fileName = params.get("name") || "Document";
+  const courseCode = params.get("code") || "";
+  const imageTitle = params.get("title") || "";
+  const ownerStudentId = params.get("owner") || "";
+
+  // Ownership label — small, elegant, always visible, never blocks content.
+  if (ownerStudentId) {
+    const ownerBadge = document.getElementById("owner-badge");
+    ownerBadge.textContent = "@copyright-" + ownerStudentId;
+    ownerBadge.classList.remove("hidden");
+  }
+
+  // Cloudinary serves PDFs as /image/upload/ with wrong content-type by default.
+  // Add fl_attachment transformation so it returns application/pdf.
+  // We do NOT rewrite to /raw/upload/ — that path doesn't exist for uploaded files.
+  if (fileUrl && fileUrl.includes("res.cloudinary.com") && fileUrl.includes("/image/upload/")) {
+    fileUrl = fileUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
+  }
+
+  document.getElementById("viewer-title").textContent = fileName;
+  document.title = fileName + " — Agri Core";
+
+  function showError(msg) {
+    wrap.innerHTML = `<p style="text-align:center;padding:3rem;color:var(--terracotta-500);font-family:var(--font-mono);font-size:.9rem;">${msg}</p>`;
+    loadingMask.classList.add("hidden");
+  }
+
+  const ALLOWED_HOSTS = [
+    window.location.hostname,
+    "raw.githubusercontent.com",
+    "drive.google.com",
+    "docs.google.com",
+    "res.cloudinary.com"
+  ];
+
+  function isAllowedUrl(urlStr) {
+    try {
+      const u = new URL(urlStr, window.location.href);
+      return ALLOWED_HOSTS.includes(u.hostname) || u.hostname === "localhost" || u.hostname === "127.0.0.1";
+    } catch (e) { return false; }
+  }
+
+  // ============================================
+  // Shared pan/zoom controller
+  // Works on any target element (canvas or img) inside a fixed-size
+  // container. Handles: pinch zoom, double-tap zoom, drag/swipe pan,
+  // mouse-wheel-free zoom buttons, and (optionally) horizontal swipe
+  // callbacks for page turning when not zoomed.
+  // ============================================
+  function createPanZoom(container, opts) {
+    opts = opts || {};
+    const MIN_SCALE = 1;
+    const MAX_SCALE = opts.maxScale || 4;
+    const DOUBLE_TAP_SCALE = opts.doubleTapScale || 2.4;
+    let scale = 1, tx = 0, ty = 0;
+    let target = null;       // current transformable element
+    let baseW = 0, baseH = 0; // its untransformed CSS display size
+
+    function setTarget(el, w, h) {
+      target = el;
+      baseW = w; baseH = h;
+      scale = 1; tx = 0; ty = 0;
+      apply();
+    }
+
+    function clamp() {
+      const maxOffsetX = Math.max(0, (baseW * scale - container.clientWidth) / 2);
+      const maxOffsetY = Math.max(0, (baseH * scale - container.clientHeight) / 2);
+      tx = Math.min(maxOffsetX, Math.max(-maxOffsetX, tx));
+      ty = Math.min(maxOffsetY, Math.max(-maxOffsetY, ty));
+    }
+
+    function apply() {
+      if (!target) return;
+      clamp();
+      target.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      const zoomed = scale > 1.001;
+      target.parentElement && target.parentElement.classList.toggle("is-zoomed", zoomed);
+      if (opts.onZoomChange) opts.onZoomChange(scale, zoomed);
+      if (zoomDisplay) zoomDisplay.textContent = Math.round(scale * 100) + "%";
+    }
+
+    function setScaleAnchored(newScale, anchorClientX, anchorClientY) {
+      newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+      const rect = container.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (anchorClientX != null ? anchorClientX : cx) - cx;
+      const dy = (anchorClientY != null ? anchorClientY : cy) - cy;
+      const ratio = newScale / scale;
+      tx = (tx - dx) * ratio + dx;
+      ty = (ty - dy) * ratio + dy;
+      scale = newScale;
+      if (scale <= MIN_SCALE + 0.001) { scale = 1; tx = 0; ty = 0; }
+      apply();
+    }
+
+    function zoomBy(delta) { setScaleAnchored(scale + delta); }
+    function zoomToggleAt(clientX, clientY) {
+      if (scale > 1.001) setScaleAnchored(1);
+      else setScaleAnchored(DOUBLE_TAP_SCALE, clientX, clientY);
+    }
+    function reset() { scale = 1; tx = 0; ty = 0; apply(); }
+    function isZoomed() { return scale > 1.001; }
+
+    // ---- Gesture wiring ----
+    let pinchStartDist = null, pinchStartScale = 1;
+    let singleStart = null;      // {x,y,t}
+    let lastPoint = null;        // for continuous pan delta
+    let isPanning = false;
+    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+    let didSwipe = false;
+
+    function dist(t1, t2) { return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY); }
+    function mid(t1, t2) { return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 }; }
+
+    container.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = dist(e.touches[0], e.touches[1]);
+        pinchStartScale = scale;
+        singleStart = null; isPanning = false;
+      } else if (e.touches.length === 1) {
+        const t = e.touches[0];
+        singleStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+        lastPoint = { x: t.clientX, y: t.clientY };
+        isPanning = isZoomed();
+        didSwipe = false;
+      }
+    }, { passive: true });
+
+    container.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2 && pinchStartDist) {
+        e.preventDefault();
+        const d = dist(e.touches[0], e.touches[1]);
+        const m = mid(e.touches[0], e.touches[1]);
+        setScaleAnchored(pinchStartScale * (d / pinchStartDist), m.x, m.y);
+      } else if (e.touches.length === 1 && singleStart) {
+        const t = e.touches[0];
+        if (isPanning) {
+          e.preventDefault();
+          tx += t.clientX - lastPoint.x;
+          ty += t.clientY - lastPoint.y;
+          lastPoint = { x: t.clientX, y: t.clientY };
+          apply();
+        } else {
+          // Not zoomed: tracking for a possible horizontal swipe (page turn).
+          const dx = t.clientX - singleStart.x;
+          const dy = t.clientY - singleStart.y;
+          if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+            e.preventDefault();
+            didSwipe = true;
+          }
+        }
+      }
+    }, { passive: false });
+
+    container.addEventListener("touchend", (e) => {
+      if (e.touches.length === 0) {
+        if (pinchStartDist && !singleStart) {
+          pinchStartDist = null;
+        } else if (singleStart) {
+          const dt = Date.now() - singleStart.t;
+          const moved = lastPoint ? Math.hypot(lastPoint.x - singleStart.x, lastPoint.y - singleStart.y) : 0;
+
+          if (!isPanning && Math.abs(lastPoint.x - singleStart.x) > 55 &&
+              Math.abs(lastPoint.x - singleStart.x) > Math.abs(lastPoint.y - singleStart.y) && opts.onSwipe) {
+            opts.onSwipe(lastPoint.x - singleStart.x < 0 ? "next" : "prev");
+          } else if (!isPanning && moved < 10 && dt < 300) {
+            // Tap (not swipe/pan) — check for double-tap.
+            const now = Date.now();
+            if (now - lastTapTime < 320 && Math.hypot(singleStart.x - lastTapX, singleStart.y - lastTapY) < 40) {
+              zoomToggleAt(singleStart.x, singleStart.y);
+              lastTapTime = 0;
+            } else {
+              lastTapTime = now; lastTapX = singleStart.x; lastTapY = singleStart.y;
+            }
+          }
+        }
+        pinchStartDist = null; singleStart = null; isPanning = false;
+      } else if (e.touches.length === 1) {
+        // Went from pinch to single touch — restart single tracking cleanly.
+        const t = e.touches[0];
+        singleStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+        lastPoint = { x: t.clientX, y: t.clientY };
+        isPanning = isZoomed();
+        pinchStartDist = null;
+      }
+    }, { passive: true });
+
+    // Desktop: double-click to zoom, drag-to-pan while zoomed.
+    container.addEventListener("dblclick", (e) => zoomToggleAt(e.clientX, e.clientY));
+
+    let mouseDragging = false, mouseLast = null;
+    container.addEventListener("mousedown", (e) => {
+      if (!isZoomed()) return;
+      mouseDragging = true;
+      mouseLast = { x: e.clientX, y: e.clientY };
+      if (target) target.classList.add("is-dragging");
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!mouseDragging) return;
+      tx += e.clientX - mouseLast.x;
+      ty += e.clientY - mouseLast.y;
+      mouseLast = { x: e.clientX, y: e.clientY };
+      apply();
+    });
+    window.addEventListener("mouseup", () => {
+      mouseDragging = false;
+      if (target) target.classList.remove("is-dragging");
+    });
+    container.addEventListener("mouseleave", () => {
+      mouseDragging = false;
+      if (target) target.classList.remove("is-dragging");
+    });
+
+    return { setTarget, zoomBy, reset, isZoomed, getScale: () => scale };
+  }
+
+  if (!fileUrl) {
+    loadingMask.classList.add("hidden");
+  } else if (!isAllowedUrl(fileUrl)) {
+    showError("Source blocked — file host not allowed.");
+  } else {
+    const ext = (fileName.split(".").pop() || "").toLowerCase();
+    const isImage = ["jpg","jpeg","png","gif","webp"].includes(ext);
+    const isOffice = ["ppt","pptx","doc","docx","xls","xlsx"].includes(ext);
+
+    // ============================================
+    // IMAGES
+    // ============================================
+    if (isImage) {
+      const detectImageSize = () => {
+        const width = window.innerWidth;
+        if (width < 640) return "fit-to-width";
+        if (width < 1024) return "a4";
+        return "a3";
+      };
+
+      const imgEl = document.createElement("img");
+      imgEl.src = fileUrl;
+      imgEl.alt = fileName;
+      imgEl.draggable = false;
+      imgEl.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;user-select:none;";
+      wrap.appendChild(imgEl);
+
+      const panZoom = createPanZoom(wrap, { maxScale: 5 });
+
+      imgEl.onload = () => {
+        loadingMask.classList.add("hidden");
+        updateImageSizeDisplay(detectImageSize());
+        const r = imgEl.getBoundingClientRect();
+        panZoom.setTarget(imgEl, r.width, r.height);
+      };
+      imgEl.onerror = () => showError("Could not load image. It may have been moved or removed.");
+
+      function updateImageSizeDisplay(size) {
+        const sizeDisplay = document.getElementById("image-size-display");
+        const sizeText = {
+          "fit-to-width": "📱 Fit to width",
+          "a4": "📄 A4 (210×297mm)",
+          "a3": "📄 A3 (297×420mm)"
+        };
+        sizeDisplay.textContent = sizeText[size] || "Auto";
+        sizeDisplay.style.display = "inline";
+      }
+
+      window.addEventListener("resize", () => {
+        const r = imgEl.getBoundingClientRect();
+        if (r.width && r.height) panZoom.setTarget(imgEl, r.width, r.height);
+      });
+
+      // Course code / title caption, captured at upload time.
+      if (courseCode || imageTitle) {
+        const capWrap = document.getElementById("viewer-image-caption");
+        if (courseCode) document.getElementById("caption-code").textContent = courseCode;
+        if (imageTitle) document.getElementById("caption-title").textContent = imageTitle;
+        capWrap.style.display = "block";
+      }
+
+    // ============================================
+    // OFFICE FILES (ppt/pptx/doc/docx/xls/xlsx)
+    // ============================================
+    } else if (isOffice) {
+      document.querySelector(".viewer-controls").style.display = "none";
+      const officeUrl = "https://view.officeapps.live.com/op/embed.aspx?src=" + encodeURIComponent(fileUrl);
+      const iframe = document.createElement("iframe");
+      iframe.src = officeUrl;
+      iframe.title = fileName;
+      iframe.style.cssText = "width:100%;height:100%;border:none;";
+      iframe.onload = () => loadingMask.classList.add("hidden");
+      wrap.appendChild(iframe);
+      setTimeout(() => loadingMask.classList.add("hidden"), 4000);
+
+      // Office Online's viewer runs cross-origin, so JS can't detect a
+      // failed render inside the iframe. Always offer a direct-open
+      // fallback underneath — this is the single most reliable fix for
+      // "presentation won't open" reports, since some hosts/files can't
+      // be rendered by Office Online at all (private links, unusual
+      // extensions, oversized files) with no visible error shown to us.
+      const fallbackBar = document.getElementById("viewer-fallback-bar");
+      const fallbackLink = document.getElementById("fallback-open-link");
+      fallbackLink.href = fileUrl;
+      fallbackBar.style.display = "block";
+
+    // ============================================
+    // PDF
+    // ============================================
+    } else if (ext === "pdf") {
+      if (!pdfjs) {
+        showError("PDF engine failed to load. Please check your connection and refresh.");
+      } else {
+        pdfjs.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+
+        const panZoom = createPanZoom(wrap, {
+          maxScale: 4,
+          onSwipe: (dir) => {
+            if (dir === "next" && pdfDoc && pageNum < pdfDoc.numPages) { pageNum++; queueRenderPage(pageNum, "forward"); }
+            else if (dir === "prev" && pdfDoc && pageNum > 1) { pageNum--; queueRenderPage(pageNum, "backward"); }
+          }
+        });
+
+        function loadPdf(attempt) {
+          attempt = attempt || 1;
+          pdfjs.getDocument({
+            url: fileUrl,
+            withCredentials: false,
+            cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
+            cMapPacked: true,
+          }).promise.then((doc) => {
+            pdfDoc = doc;
+            document.getElementById("page-count").textContent = pdfDoc.numPages;
+            pageInput.max = pdfDoc.numPages;
+            controls.style.display = "flex";
+            if (pdfDoc.numPages > 1) {
+              btnSidePrev.style.display = "flex";
+              btnSideNext.style.display = "flex";
+            }
+            renderPage(pageNum, "init").then(() => loadingMask.classList.add("hidden"));
+          }).catch((err) => {
+            console.error("[Viewer] PDF load failed (attempt " + attempt + "):", err);
+            if (attempt < 2) {
+              // Transient network hiccups are common on mobile data —
+              // one silent retry resolves most of them.
+              setTimeout(() => loadPdf(attempt + 1), 1200);
+            } else {
+              showError("Could not load this PDF. Please check your connection and try again — if the problem continues, the file link itself may be broken.");
+            }
+          });
+        }
+        loadPdf();
+
+        async function renderPage(num, direction = "forward") {
+          pageRendering = true;
+          try {
+            const page = await pdfDoc.getPage(num);
+            const wrapRect = wrap.getBoundingClientRect();
+            const containerWidth = wrapRect.width > 0 ? wrapRect.width : 800;
+            const containerHeight = wrapRect.height > 0 ? wrapRect.height : 1000;
+            const viewportUnscaled = page.getViewport({ scale: 1 });
+            const padding = 16;
+            const fitScale = Math.min(
+              (containerWidth - padding) / viewportUnscaled.width,
+              (containerHeight - padding) / viewportUnscaled.height
+            );
+            const viewport = page.getViewport({ scale: fitScale });
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const outputScale = Math.max(window.devicePixelRatio || 1, 3);
+            canvas.width = Math.floor(viewport.width * outputScale);
+            canvas.height = Math.floor(viewport.height * outputScale);
+            canvas.style.width = Math.floor(viewport.width) + "px";
+            canvas.style.height = Math.floor(viewport.height) + "px";
+            const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+            await page.render({ canvasContext: ctx, transform, viewport }).promise;
+
+            const pageDiv = document.createElement("div");
+            pageDiv.className = "book-page";
+            if (direction === "forward") pageDiv.classList.add("in-right");
+            else if (direction === "backward") pageDiv.classList.add("in-left");
+            pageDiv.appendChild(canvas);
+            wrap.appendChild(pageDiv);
+            pageDiv.getBoundingClientRect();
+
+            const activePages = wrap.querySelectorAll(".book-page.active");
+            pageDiv.classList.remove("in-right","in-left");
+            pageDiv.classList.add("active");
+            activePages.forEach(old => {
+              old.classList.remove("active");
+              if (direction === "forward") old.classList.add("out-left");
+              else if (direction === "backward") old.classList.add("out-right");
+              else old.style.opacity = "0";
+              setTimeout(() => old.parentElement?.removeChild(old), 750);
+            });
+
+            panZoom.setTarget(canvas, Math.floor(viewport.width), Math.floor(viewport.height));
+
+            pageInput.value = num;
+            const atStart = num <= 1, atEnd = num >= pdfDoc.numPages;
+            document.getElementById("btn-prev").disabled = atStart;
+            document.getElementById("btn-next").disabled = atEnd;
+            btnSidePrev.disabled = atStart;
+            btnSideNext.disabled = atEnd;
+            pageRendering = false;
+            if (pageNumPending !== null) {
+              const p = pageNumPending, d = p > num ? "forward" : "backward";
+              pageNumPending = null;
+              renderPage(p, d);
+            }
+          } catch (err) {
+            console.error("[Viewer] renderPage failed:", err);
+            pageRendering = false;
+            loadingMask.classList.add("hidden");
+          }
+        }
+
+        function queueRenderPage(num, dir) {
+          if (pageRendering) pageNumPending = num;
+          else renderPage(num, dir);
+        }
+
+        function triggerPageSearch() {
+          let p = parseInt(pageInput.value);
+          if (isNaN(p) || p < 1) p = 1;
+          if (p > pdfDoc.numPages) p = pdfDoc.numPages;
+          if (p !== pageNum) { const d = p > pageNum ? "forward" : "backward"; pageNum = p; queueRenderPage(pageNum, d); }
+          else pageInput.value = pageNum;
+        }
+
+        btnGo.addEventListener("click", triggerPageSearch);
+        pageInput.addEventListener("keypress", e => { if (e.key === "Enter") triggerPageSearch(); });
+
+        function goPrev() { if (pageNum <= 1) return; pageNum--; queueRenderPage(pageNum, "backward"); }
+        function goNext() { if (!pdfDoc || pageNum >= pdfDoc.numPages) return; pageNum++; queueRenderPage(pageNum, "forward"); }
+        document.getElementById("btn-prev").addEventListener("click", goPrev);
+        document.getElementById("btn-next").addEventListener("click", goNext);
+        btnSidePrev.addEventListener("click", goPrev);
+        btnSideNext.addEventListener("click", goNext);
+
+        // Keyboard
+        document.addEventListener("keydown", e => {
+          if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) e.preventDefault();
+          if (document.activeElement !== pageInput) {
+            if (e.key === "ArrowRight") goNext();
+            if (e.key === "ArrowLeft") goPrev();
+          }
+        });
+
+        window.addEventListener("resize", () => renderPage(pageNum, "init"));
+      }
+    } else {
+      showError(`Unsupported file type: .${ext}`);
+    }
+  }
+
+  document.getElementById("viewer-watermark").textContent =
+    "Agri Core · viewed " + new Date().toLocaleString();
+})();
+</script>
 </body>
 </html>

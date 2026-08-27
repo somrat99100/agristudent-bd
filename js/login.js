@@ -1,20 +1,37 @@
-import { db } from './firebase-config.js';
-import { auth } from './firebase-config.js';
-import { signInWithEmailAndPassword, sendEmailVerification } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { saveSession } from './session.js';
+import { db, auth } from "./firebase-config.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { normalizeEmail, normalizeStudentId } from "./identity.js";
+import { getSession, saveSession } from "./session.js";
 
-const form=document.getElementById('login-form'), btn=document.getElementById('login-submit'), status=document.getElementById('login-status');
-function msg(t,e=false){status.textContent=t;status.style.color=e?'var(--terracotta-500)':'var(--moss-600)';status.classList.remove('hidden');}
-form.addEventListener('submit',async e=>{
- e.preventDefault(); const email=document.getElementById('login-email').value.trim().toLowerCase(); const password=document.getElementById('login-password').value;
- if(!email||!password){msg('Please enter your email and password.',true);return;} btn.disabled=true; btn.textContent='Signing in…';
- try{
-  const cred=await signInWithEmailAndPassword(auth,email,password);
-  if(!cred.user.emailVerified){ await sendEmailVerification(cred.user).catch(()=>{}); msg('Please verify your email first. A new verification link was sent.',true); return; }
-  const snap=await getDoc(doc(db,'registrations',cred.user.uid));
-  if(!snap.exists()){msg('Account profile is incomplete. Please contact the site administrator.',true);return;}
-  const r=snap.data(); await updateDoc(doc(db,'registrations',cred.user.uid),{status:'verified'}); saveSession({fullName:r.fullName,studentIdNumber:r.studentIdNumber,gender:r.gender,avatarUrl:r.avatarUrl,status:r.status});
-  msg('Logged in! Redirecting…'); setTimeout(()=>location.replace('profile.html'),300);
- }catch(err){console.error('[Login]',err); msg('Invalid email or password.',true);} finally{btn.disabled=false;btn.textContent='Log In';}
+if (getSession()) window.location.replace("profile.html");
+const form = document.getElementById("login-form");
+const submitBtn = document.getElementById("login-submit");
+const statusBox = document.getElementById("login-status");
+function showStatus(msg, isError=false){ statusBox.textContent=msg; statusBox.style.color=isError?"var(--terracotta-500)":"var(--moss-600)"; statusBox.classList.remove("hidden"); }
+
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const email=normalizeEmail(document.getElementById("login-email").value);
+  const studentId=normalizeStudentId(document.getElementById("login-studentId").value);
+  const password=document.getElementById("login-password").value;
+  if(!email||!studentId||!password){ showStatus("Please complete all fields.",true); return; }
+  submitBtn.disabled=true; submitBtn.textContent="Signing in…"; showStatus("Signing you in securely…");
+  try{
+    const credential=await signInWithEmailAndPassword(auth,email,password);
+    const uid=credential.user.uid;
+    const snap=await getDoc(doc(db,"registrations",uid));
+    if(!snap.exists() || snap.data().status!=="verified" || normalizeStudentId(snap.data().studentIdNumber)!==studentId){
+      await signOut(auth);
+      showStatus("Login details could not be verified. Please check your email, password, and Student ID.",true);
+      return;
+    }
+    const reg=snap.data();
+    saveSession({uid,regId:uid,fullName:reg.fullName,email:reg.email,studentIdNumber:reg.studentIdNumber,gender:reg.gender,avatarUrl:reg.avatarUrl,status:reg.status});
+    showStatus("✅ Logged in! Redirecting…");
+    setTimeout(()=>window.location.href="profile.html",500);
+  }catch(err){
+    console.error("[Login] failed:",err);
+    showStatus("Login failed. Please check your details and try again.",true);
+  }finally{ submitBtn.disabled=false; submitBtn.textContent="Log In"; }
 });

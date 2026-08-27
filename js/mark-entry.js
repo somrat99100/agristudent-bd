@@ -9,8 +9,6 @@
   try {
     sessionStorage.setItem("agristudentbd_entered", "true");
   } catch (err) {
-    // sessionStorage unavailable — sub-pages will fail open in this case
-    // (see auth-guard.js), so nothing further to do here.
     console.warn("Agri Core: session storage unavailable, entry not recorded.", err);
   }
 })();

@@ -1,9 +1,8 @@
-import { db, storage } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-import { ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { normalizeEmail } from "./identity.js";
 import { getSession } from "./session.js";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -124,7 +123,7 @@ modal.addEventListener("click", (e) => {
 
 async function loadTerms() {
   try {
-    const q = query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true));
+    const q = query(collection(db, "terms"), where("status", "==", "approved"));
     const snap = await getDocs(q);
     allTerms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     countLabel.textContent = `📖 Total Terms Uploaded: ${allTerms.length}`;
@@ -156,8 +155,8 @@ function renderGrid(terms) {
   }
   grid.innerHTML = terms.map(t => `
     <div class="term-card" data-id="${t.id}">
-      <img class="term-img" src="${esc(t.imageUrl)}" alt="${esc(t.name)}" loading="lazy">
-      <div class="term-name">${esc(t.name)}</div>
+      <img class="term-img" src="${t.imageUrl}" alt="${t.name}" loading="lazy">
+      <div class="term-name">${t.name}</div>
     </div>
   `).join("");
 
@@ -245,13 +244,28 @@ function showStatus(msg, isError = false) {
   if (isError) progressBar.style.stroke = "var(--terracotta-500)";
 }
 
-async function uploadImageSecurely(file, uid, onProgress) {
-  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-120);
-  const storageRef = ref(storage, `resources/${uid}/${crypto.randomUUID()}-${safeName}`);
-  const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
-  return await new Promise((resolve, reject) => task.on('state_changed', snap => {
-    if (onProgress && snap.totalBytes) onProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100));
-  }, reject, async () => { try { resolve(await getDownloadURL(task.snapshot.ref)); } catch(e) { reject(e); } }));
+function uploadImageToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText).secure_url);
+      } else {
+        reject(new Error(`Image upload failed (server said: ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again."));
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 // Live duplicate check
@@ -273,9 +287,7 @@ form.addEventListener("submit", async (e) => {
 
   const name = termNameInput.value.trim();
   const description = document.getElementById("termDescription").value.trim();
-  const session = getSession();
-  if (!session?.uid) { showError("Please log in again."); return; }
-  const uploaderUid = session.uid;
+  const uploaderEmail = normalizeEmail(document.getElementById("termUploaderEmail").value);
   const imageFile = document.getElementById("termImage").files[0];
 
   if (!imageFile) { showError("Please choose an image."); return; }
@@ -287,25 +299,24 @@ form.addEventListener("submit", async (e) => {
   showStatus("Uploading image…");
 
   try {
-    const imageUrl = await uploadImageSecurely(imageFile, getSession()?.uid || "", (pct) => {
+    const imageUrl = await uploadImageToCloudinary(imageFile, (pct) => {
       setProgress(pct);
       showStatus(pct >= 100 ? "Upload sent — processing on server, please wait…" : "Uploading image…");
     });
 
     showStatus("Saving details…");
 
-    const dupQuery = query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true));
+    const dupQuery = query(collection(db, "terms"), where("status", "==", "approved"));
     const dupSnap = await getDocs(dupQuery);
     const isDuplicate = dupSnap.docs.some(d => (d.data().name || "").toLowerCase() === name.toLowerCase());
 
+    if (!auth.currentUser) throw new Error("Please log in before submitting a term.");
     await addDoc(collection(db, "terms"), {
       name,
       imageUrl,
       description,
-      uid: session.uid,
-      uploaderUid: session.uid,
-      uploaderName: session.fullName || "Student",
-      status: "pending", public: false,
+      uploaderEmail,
+      status: "pending",
       possibleDuplicate: isDuplicate,
       submittedAt: serverTimestamp()
     });

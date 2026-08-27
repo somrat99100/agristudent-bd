@@ -13,7 +13,8 @@
       window.location.replace("index.html");
     }
   } catch (err) {
-    // sessionStorage unavailable (privacy mode) — fail open
-    console.warn("Agri Core: session storage unavailable, skipping entry check.", err);
+    // If storage is unavailable, do not silently bypass the front-door flow.
+    console.warn("Agri Core: session storage unavailable; returning to the home page.", err);
+    window.location.replace("index.html");
   }
 })();

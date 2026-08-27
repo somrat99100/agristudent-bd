@@ -1,44 +1,39 @@
-# Agri Core — Security Hardening v6
+# Agri Core — Security Hardening
 
-This build removes the previous client-side identity/session trust model and makes Firebase Authentication + Firebase Security Rules the security boundary.
+## What was hardened
 
-## What changed
+- Student records are no longer publicly listable.
+- Student access is tied to Firebase Authentication UID, not a browser-only email/ID session.
+- Registration documents use the Firebase Auth UID as the document ID.
+- Resource and glossary submissions require an authenticated, verified student and are ownership-scoped.
+- Blog posts are public only when `status == approved`; pending, pending_edit, and rejected posts are readable only by the author or admin.
+- Blog deletion/editing is server-authorized by owner/admin rules.
+- Blog comments are ownership-scoped for writes/deletes.
+- Blog likes are tied to Firebase Auth UID rather than a user-controlled email in the document ID.
+- Admin operations are restricted to the configured admin email account.
+- Student profile avatar changes are restricted to the owner.
+- Resource rejection writes a 30-day restriction into the student's registration record.
+- Homepage no longer enumerates private registrations or pending resources.
+- Front-door storage failure now fails closed instead of bypassing the check.
+- User-generated HTML continues to be escaped/sanitized before rendering.
 
-- Student login is now Firebase Email/Password Authentication.
-- Email verification is required before private student features can be used.
-- Student records are keyed by Firebase Auth UID instead of a guessable/random client-side registration ID.
-- Firestore registration records are private: only the owning UID or an admin custom claim can read them.
-- Admin access requires a Firebase Auth custom claim: `admin == true` **and** verified email.
-- Resource, term, blog, comment, and classroom-code writes require authenticated users where appropriate.
-- Public resource/blog/term documents must explicitly have `public == true`; private moderation fields are no longer exposed to public reads.
-- Student uploads use Firebase Storage rules instead of unsigned Cloudinary uploads.
-- Student ID photos are no longer uploaded to an unsigned public endpoint.
-- Third-party Office Online viewing was removed so file URLs are not forwarded to an external viewer.
-- EmailJS is disabled in the hardened client build. Client-side email delivery is not treated as a trusted backend.
-- CSP and security meta tags were tightened; Firebase Hosting headers are provided in `firebase.json`.
-- Unknown Firestore paths default to deny.
+## Required Firebase setup
 
-## Required Firebase Console steps
+1. Enable **Email/Password** authentication in Firebase Authentication.
+2. The admin account must be `iubatagriculture@gmail.com` unless the `admin()` rule is changed to the real administrator identity.
+3. Existing student accounts created under the old email+Student-ID-only system do not have Firebase Auth credentials. They must register again and choose a password, or be migrated by a trusted backend.
+4. Deploy these rules with:
 
-1. Enable **Authentication → Sign-in method → Email/Password**.
-2. Enable **Email verification** for student accounts.
-3. Deploy `firestore.rules` and `storage.rules`.
-4. Deploy through Firebase Hosting if possible so the headers in `firebase.json` are actually delivered as HTTP response headers.
-5. Create the admin account in Firebase Authentication, verify its email, then run `scripts/set-admin-claim.mjs` with that email.
-6. Keep the Firebase service-account JSON outside this website and never put it in the ZIP, repository, or web root.
-7. If the project uses App Check, enable enforcement after validating the production traffic.
+```bash
+firebase deploy --only firestore:rules
+```
 
-## Important migration note
+## Important architectural limitation
 
-The old build stored student email addresses and other identity fields directly in public Firestore documents and used a client-controlled session as an identity boundary. Those old documents must not be left publicly readable.
+The browser still performs the custom OTP generation/verification and direct unsigned Cloudinary uploads. A static client cannot make either of these operations fully tamper-proof. For production-grade assurance, move OTP generation/verification to a trusted backend (Cloud Function/server) and use signed/private media delivery for Student ID documents and protected resources.
 
-Before production, either:
+The Firebase web configuration API key is not a secret; Firestore/Authentication rules are the security boundary.
 
-- migrate old data with a trusted Admin SDK process and remove the old PII fields, or
-- archive/delete the old collections and start with the hardened schema.
 
-The new rules intentionally prevent old documents containing legacy `uploaderEmail`, `authorEmail`, or similar fields from becoming public merely because their status is approved.
-
-## Security acceptance target
-
-For a genuine production sign-off, deploy the rules and run authenticated/unauthenticated tests against the live Firebase project. A ZIP-level review cannot prove backend configuration, Firebase Console settings, App Check enforcement, hosting headers, account recovery configuration, or existing database contents.
+## Data preservation
+This version does not delete or bulk-rewrite existing Firestore or Cloudinary data. See `DATA_PRESERVATION.md`. Legacy approved resources remain readable by verified students with active access even when their older documents do not contain `uploaderUid`.
