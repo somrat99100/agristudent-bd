@@ -1,5 +1,5 @@
 // ============================================
-// AGRISTUDENT BD — blog.js (ENHANCED)
+// AGRI CORE — blog.js (ENHANCED)
 // Facebook-style student timeline with gallery image support
 // ============================================
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";

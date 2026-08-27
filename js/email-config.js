@@ -19,7 +19,7 @@
 //        {{course_code}}  — e.g. "AGR 101" (blank for registrations)
 //        {{course_name}}  — e.g. "Introduction to Agronomy"
 //        {{detail}}       — extra context line (file name, student ID, etc.)
-//        {{site_name}}    — "AgriStudent BD"
+//        {{site_name}}    — "Agri Core"
 //      In the template's "To email" field, set it to {{to_email}}.
 //   4. Account → General → copy your "Public Key".
 //   5. Paste all three values below.
@@ -39,7 +39,7 @@
 //        {{to_email}}   — recipient address
 //        {{to_name}}    — student's name
 //        {{otp_code}}   — the 6-digit code (make this big/bold in the body)
-//        {{site_name}}  — "AgriStudent BD"
+//        {{site_name}}  — "Agri Core"
 //      Mention the code expires in 10 minutes. Set "To email" to {{to_email}}.
 //   2. Copy that template's "Template ID" and paste it below.
 //
@@ -150,7 +150,7 @@ export async function sendReviewEmail({ toEmail, toName, status, itemType, cours
       course_code: courseCode || "",
       course_name: courseName || "",
       detail: detail || "",
-      site_name: "AgriStudent BD",
+      site_name: "Agri Core",
       status_icon: visuals.icon,          // NEW
       status_color: visuals.color,        // NEW
       contact_block: getContactBlock(status) // NEW
@@ -178,6 +178,6 @@ export async function sendOtpEmail({ toEmail, toName, otpCode }) {
     to_email: toEmail,
     to_name: toName || "",
     otp_code: otpCode,
-    site_name: "AgriStudent BD"
+    site_name: "Agri Core"
   });
 }

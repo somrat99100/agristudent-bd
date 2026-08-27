@@ -5,7 +5,7 @@ import {
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeAccessStatus, maybeSendAccessReminder, renderAccessBadge } from "./access.js";
+import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
 
@@ -186,13 +186,32 @@ async function renderCredits(email, fullName) {
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-rejected").textContent = rejected;
 
-  // Access window (3 days per approval, 30 days once >10 files are approved)
-  const access = computeAccessStatus(items);
+  // Resource access is based only on actual resource files. Each approved
+  // file grants 24h; pending uploads provide up to 12h temporary access.
+  const resourceItems = items.filter(i => i.kind === "resource" && i.resourceType === "slides_notes");
+  const access = computeResourceAccessStatus(resourceItems);
   renderAccessBadge({
     badgeEl: document.getElementById("access-badge"),
     detailEl: document.getElementById("access-detail")
   }, access);
   maybeSendAccessReminder(access, { email, name: fullName });
+
+  const accessDetail = document.getElementById("access-detail");
+  const accessAlert = document.getElementById("resource-access-alert");
+  if (accessAlert) {
+    if (access.restricted) {
+      accessAlert.classList.remove("hidden");
+      accessAlert.innerHTML = `⚠️ Upload relevant files only. Resource access and uploads are restricted until ${formatDate(access.restrictedUntil)}.`;
+    } else {
+      accessAlert.classList.add("hidden");
+      accessAlert.innerHTML = "";
+    }
+  }
+  if (accessDetail && access.restricted) {
+    accessDetail.innerHTML = `⚠️ <strong>Upload relevant files only.</strong> You are restricted until <strong>${formatDate(access.restrictedUntil)}</strong>.`;
+  } else if (accessDetail && access.active) {
+    accessDetail.textContent = `${access.daysRemaining} day${access.daysRemaining === 1 ? "" : "s"} remaining · expires ${formatDate(access.accessUntil)}`;
+  }
 
   const listEl = document.getElementById("uploads-list");
   const emptyEl = document.getElementById("uploads-empty");
@@ -209,7 +228,7 @@ async function renderCredits(email, fullName) {
     const title = item.kind === "term"
       ? `📖 ${esc(item.name || "Untitled term")}`
       : `📄 ${esc(item.courseCode || "Unknown course")} — ${esc(item.resourceType === "previous_questions" ? "Previous Questions" : "Slides/Notes")}`;
-    const date = item.submittedAt?.toDate?.()?.toLocaleDateString?.() || "";
+    const date = item.submittedAt?.toDate?.() ? formatDate(item.submittedAt.toDate()) : "";
     return `
       <div class="upload-row">
         <div>
@@ -260,7 +279,7 @@ async function renderMyBlogPosts(email) {
 
   listEl.innerHTML = posts.map(item => {
     const tag = blogStatusTag(item.status);
-    const date = item.createdAt?.toDate?.()?.toLocaleDateString?.() || "";
+    const date = item.createdAt?.toDate?.() ? formatDate(item.createdAt.toDate()) : "";
     return `
       <div class="upload-row" data-post-id="${esc(item.id)}">
         <div>

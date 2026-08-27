@@ -5,6 +5,7 @@ import {
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
+import { computeResourceAccessStatus, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
 
@@ -472,7 +473,7 @@ if (uploadForm) {
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
         resourceType, uploaderEmail, fileUrls, fileType: currentFileType, noteType: currentNoteType,
-        status: "pending", submittedAt: serverTimestamp()
+        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
       const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
@@ -710,39 +711,11 @@ if (handNotesGate && handNotesContent) {
 
   hnGateBackBtn?.addEventListener("click", hnExitFormOnly);
 
-  const HN_ACCESS_KEY = "agri_handnotes_access_until";
-  let resourceUploadBlockedUntil = 0;
-
-  function getStoredAccessUntil() {
-    const value = Number(localStorage.getItem(HN_ACCESS_KEY) || 0);
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  function storeAccessUntil(until) {
-    localStorage.setItem(HN_ACCESS_KEY, String(Math.max(0, Math.floor(until))));
-  }
-
-  function formatRemaining(ms) {
-    const mins = Math.max(1, Math.ceil(ms / 60000));
-    if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"}`;
-    const hours = Math.floor(mins / 60);
-    const rem = mins % 60;
-    return `${hours}h${rem ? ` ${rem}m` : ""}`;
-  }
-
-  // Every successfully uploaded file gives 30 minutes. New uploads extend
-  // the current expiry instead of replacing it, so multiple files stack.
-  function extendResourceAccess(fileCount) {
-    const now = Date.now();
-    const current = Math.max(now, getStoredAccessUntil());
-    const next = current + Math.max(1, Number(fileCount) || 1) * 30 * 60 * 1000;
-    storeAccessUntil(next);
-    return next;
-  }
-
+  // Access is calculated from Firestore moderation records. Do not use a
+  // browser-only countdown because it can be cleared or become stale.
   async function getResourceAccessState(userEmail) {
     const normalizedEmail = normalizeEmail(userEmail);
-    if (!normalizedEmail) return { restrictedUntil: 0, accessUntil: getStoredAccessUntil(), docs: [] };
+    if (!normalizedEmail) return computeResourceAccessStatus([]);
 
     const q = query(
       collection(db, "resources"),
@@ -751,121 +724,81 @@ if (handNotesGate && handNotesContent) {
     );
     const snap = await getDocs(q);
     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    let restrictedUntil = 0;
-    docs.forEach(item => {
-      if (item.status !== "rejected") return;
-      const explicit = item.restrictedUntil?.toDate?.()?.getTime?.() ||
-        (item.restrictedUntil instanceof Date ? item.restrictedUntil.getTime() : Number(item.restrictedUntil) || 0);
-      const rejectedAt = item.rejectedAt?.toDate?.()?.getTime?.() ||
-        (item.rejectedAt instanceof Date ? item.rejectedAt.getTime() : Number(item.rejectedAt) || 0);
-      const submittedAt = item.submittedAt?.toDate?.()?.getTime?.() || 0;
-      const candidate = explicit || ((rejectedAt || submittedAt || Date.now()) + 30 * 24 * 60 * 60 * 1000);
-      restrictedUntil = Math.max(restrictedUntil, candidate);
-    });
-
-    const accessUntil = getStoredAccessUntil();
-    return { restrictedUntil, accessUntil, docs };
+    return computeResourceAccessStatus(docs);
   }
 
   function renderAccessState(state, userEmail) {
-    if (!accessStatusBar) return;
+    if (!accessStatusBar) return false;
     const now = Date.now();
     accessStatusBar.classList.remove("hidden", "approved", "pending", "rejected");
-    const count = state.docs.reduce((n, d) => n + (Array.isArray(d.fileUrls) ? d.fileUrls.length : 0), 0);
 
-    if (state.restrictedUntil > now) {
+    const count = state.approvedFileCount + state.pendingActiveCount;
+    const content = accessStatusBar.querySelector(".status-content");
+    if (!content) return false;
+
+    if (state.restricted) {
       resourceUploadBlockedUntil = state.restrictedUntil;
       accessStatusBar.classList.add("rejected");
       handNotesGate.classList.remove("hidden");
       handNotesContent.classList.add("locked", "form-only");
       document.getElementById("open-another-upload")?.classList.add("hidden");
-      accessStatusBar.querySelector(".status-content").innerHTML = `
+      content.innerHTML = `
         <strong>⚠️ UPLOAD RESTRICTED FOR 30 DAYS</strong>
-        <div class="file-info">A submitted file was rejected. Uploading and Hand Notes access are paused for <strong>${formatRemaining(state.restrictedUntil - now)}</strong>.</div>
-        <div class="file-info">⚠️ Upload relevant files only. Please wait until the restriction ends before submitting another file.</div>
+        <div class="file-info">Your access and uploads are restricted until <strong>${formatDate(state.restrictedUntil)}</strong>.</div>
+        <div class="file-info">⚠️ <strong>Upload relevant files only.</strong> Please wait until the restriction ends before submitting another file.</div>
       `;
       return false;
     }
 
     resourceUploadBlockedUntil = 0;
-    const accessUntil = state.accessUntil;
-    if (accessUntil > now) {
+
+    if (state.active) {
       handNotesGate.classList.add("hidden");
       handNotesContent.classList.remove("locked", "form-only");
       document.getElementById("open-another-upload")?.classList.remove("hidden");
-      accessStatusBar.classList.add("approved");
-      accessStatusBar.querySelector(".status-content").innerHTML = `
-        <strong>🔓 ACCESS ACTIVE — ${formatRemaining(accessUntil - now)} remaining</strong>
-        <div class="file-info">Each successful file upload adds 30 minutes to your access time.</div>
-        <div class="file-info">Files submitted: <strong>${count}</strong></div>
+      accessStatusBar.classList.add(state.approvedFileCount ? "approved" : "pending");
+      const kind = state.approvedFileCount ? "APPROVED ACCESS ACTIVE" : "TEMPORARY ACCESS ACTIVE";
+      content.innerHTML = `
+        <strong>🔓 ${kind} — ${state.daysRemaining} day${state.daysRemaining === 1 ? "" : "s"} remaining</strong>
+        <div class="file-info">Access expires on <strong>${formatDate(state.accessUntil)}</strong>.</div>
+        <div class="file-info">Each approved file gives <strong>24 hours</strong> of access. A pending upload gives temporary access for up to 12 hours.</div>
+        <div class="file-info">Files counted: <strong>${count}</strong></div>
       `;
       return true;
     }
 
-    // No active timer: require another upload.
     handNotesGate.classList.remove("hidden");
     handNotesContent.classList.add("locked", "form-only");
     document.getElementById("open-another-upload")?.classList.add("hidden");
     accessStatusBar.classList.add("pending");
-    accessStatusBar.querySelector(".status-content").innerHTML = `
+    content.innerHTML = `
       <strong>🔒 ACCESS EXPIRED</strong>
-      <div class="file-info">Upload a PDF, image, or presentation to receive 30 minutes of access per file.</div>
-      <div class="file-info">Files submitted: <strong>${count}</strong></div>
+      <div class="file-info">Upload a relevant PDF, image, or presentation.</div>
+      <div class="file-info">One approved file gives <strong>24 hours</strong> of access. If a submission stays pending for 12 hours, its temporary access ends.</div>
     `;
     return false;
   }
 
-  async function hnGrantAccess(userEmail, fileCount = 0) {
-    const normalizedEmail = normalizeEmail(userEmail);
-    if (fileCount > 0) extendResourceAccess(fileCount);
-    localStorage.setItem(HN_STORAGE_KEY, normalizedEmail);
-
-    try {
-      const state = await getResourceAccessState(normalizedEmail);
-      if (state.restrictedUntil > Date.now()) {
-        renderAccessState(state, normalizedEmail);
-        return;
-      }
-      renderAccessState({
-        ...state,
-        accessUntil: Math.max(state.accessUntil, getStoredAccessUntil())
-      }, normalizedEmail);
-      (window.__onResourceAccessGranted || []).forEach(fn => fn());
-    } catch (err) {
-      console.error("[Access] status refresh failed:", err);
-    }
-  }
-
-  async function hnCheckAndDisplayStatus(userEmail) {
+  async function hnRefreshAccess(userEmail) {
     try {
       const state = await getResourceAccessState(userEmail);
-      renderAccessState(state, userEmail);
-      if (state.accessUntil > Date.now() && state.restrictedUntil <= Date.now()) {
+      const active = renderAccessState(state, userEmail);
+      if (active) {
         (window.__onResourceAccessGranted || []).forEach(fn => fn());
       }
+      return state;
     } catch (err) {
       console.error("[Access Status Check] failed:", err);
+      return null;
     }
   }
 
-  function hnSetProgress(pct) {
-    hnProgressBar.style.strokeDashoffset = HN_CIRCUMFERENCE - (pct / 100) * HN_CIRCUMFERENCE;
-    hnProgressText.textContent = pct + "%";
-  }
-
-  function hnShowStatus(msg, isError = false) {
-    hnProgressWrap.classList.remove("hidden");
-    hnStatus.textContent = msg;
-    hnStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-  }
-
-  // Restore the access timer after refresh and re-check moderation state.
-  const cachedEmail = normalizeEmail(localStorage.getItem(HN_STORAGE_KEY) || getSession()?.email || "");
+  // Refresh on load and periodically so a 12-hour pending timeout or an
+  // admin approval/rejection takes effect without a page refresh.
+  const cachedEmail = normalizeEmail(getSession()?.email || localStorage.getItem("agri_handnotes_user_email") || "");
   if (cachedEmail) {
-    hnCheckAndDisplayStatus(cachedEmail);
-    // Keep the timer and moderation restriction live while the page stays open.
-    setInterval(() => hnCheckAndDisplayStatus(cachedEmail), 15000);
+    hnRefreshAccess(cachedEmail);
+    setInterval(() => hnRefreshAccess(cachedEmail), 15000);
   }
 
   // File type selector
@@ -1010,14 +943,14 @@ if (handNotesGate && handNotesContent) {
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
           resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
-          status: "pending", submittedAt: serverTimestamp()
+          status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
         };
         const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
         if (hnUploaderStudentId) hnDocData.uploaderStudentId = hnUploaderStudentId;
         await addDoc(collection(db, "resources"), hnDocData);
 
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
-        setTimeout(() => hnGrantAccess(uploaderEmail, files.length), 700);
+        setTimeout(() => hnRefreshAccess(uploaderEmail), 700);
       } catch (err) {
         console.error("[Hand Notes Unlock] failed:", err);
         let userMessage = "Something went wrong. Please try again.";
@@ -1678,7 +1611,7 @@ if (anotherUploadBtn && anotherUploadModal) {
       const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
         resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType, noteType: auNoteType,
-        status: "pending", submittedAt: serverTimestamp()
+        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
       const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (auUploaderStudentId) auDocData.uploaderStudentId = auUploaderStudentId;
