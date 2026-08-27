@@ -22,10 +22,8 @@ service cloud.firestore {
     }
 
     match /resources/{id} {
-      allow read: if admin() || (student() && resource.data.privacyVersion == 2 && (
-        resource.data.public == true ||
-        resource.data.uploaderRegId == request.auth.token.regId
-      ));
+      allow read: if (resource.data.privacyVersion == 2 && resource.data.public == true) ||
+        admin() || (student() && resource.data.privacyVersion == 2 && resource.data.uploaderRegId == request.auth.token.regId);
       allow create: if student() &&
         request.resource.data.keys().hasAll(['status','resourceType','courseCode','fileUrls','uploaderRegId','public','privacyVersion']) &&
         !request.resource.data.keys().hasAny(['uploaderEmail','uploaderStudentId','email','studentIdNumber']) &&
@@ -40,8 +38,8 @@ service cloud.firestore {
     }
 
     match /terms/{id} {
-      allow read: if admin() || (student() && resource.data.privacyVersion == 2 &&
-        (resource.data.public == true || resource.data.uploaderRegId == request.auth.token.regId));
+      allow read: if (resource.data.privacyVersion == 2 && resource.data.public == true) ||
+        admin() || (student() && resource.data.privacyVersion == 2 && resource.data.uploaderRegId == request.auth.token.regId);
       allow create: if student() &&
         request.resource.data.keys().hasAll(['status','name','uploaderRegId','public','privacyVersion']) &&
         !request.resource.data.keys().hasAny(['uploaderEmail','email','studentIdNumber']) &&
@@ -91,10 +89,8 @@ service cloud.firestore {
     }
 
     match /blogPosts/{id} {
-      allow read: if admin() || (student() && resource.data.privacyVersion == 2 && (
-        resource.data.public == true ||
-        resource.data.authorRegId == request.auth.token.regId
-      ));
+      allow read: if (resource.data.privacyVersion == 2 && resource.data.public == true) ||
+        admin() || (student() && resource.data.privacyVersion == 2 && resource.data.authorRegId == request.auth.token.regId);
       allow create: if student() &&
         request.resource.data.keys().hasAll(['title','content','authorRegId','authorName','status','public','privacyVersion','likesCount','commentsCount','sharesCount','views']) &&
         !request.resource.data.keys().hasAny(['authorEmail','email','studentIdNumber']) &&
@@ -143,7 +139,7 @@ service cloud.firestore {
         request.resource.data.postId is string && request.resource.data.postId.size() > 0 &&
         request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000 &&
         request.resource.data.authorRegId == request.auth.token.regId && request.resource.data.privacyVersion == 2;
-      allow read: if admin() || (student() && resource.data.privacyVersion == 2);
+      allow read: if resource.data.privacyVersion == 2 || admin();
       allow update: if admin();
       allow delete: if admin() || (student() && resource.data.authorRegId == request.auth.token.regId);
     }

@@ -474,7 +474,6 @@ if (courseButtonsWrap) {
   let allSlides = [];
 
   async function loadSlides() {
-    if (!await ensureStudentAuth()) return;
     try {
       // Two equality filters — still no composite index required.
       // status must be filtered in the query itself: the security rule
@@ -943,7 +942,6 @@ if (pdfList || imageGrid) {
   let allImages = [];
 
   async function loadThreeCardLayout() {
-    if (!await ensureStudentAuth()) return;
     try {
       const q = query(
         collection(db, "resources"),
@@ -1608,7 +1606,6 @@ const pqSearchBtn = document.getElementById("pq-search-btn");
 // Guard: only run on previous-questions.html
 if (pqList) {
   async function loadPQ() {
-    if (!await ensureStudentAuth()) return;
     const facultyFilter = document.getElementById("pq-faculty")?.value.trim() || "";
     const courseFilter = (document.getElementById("pq-course")?.value.trim() || "").toUpperCase();
     const examFilter = document.getElementById("pq-exam")?.value || "";

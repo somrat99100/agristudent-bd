@@ -123,7 +123,6 @@ modal.addEventListener("click", (e) => {
 });
 
 async function loadTerms() {
-  if (!await ensureStudentAuth()) return;
   try {
     const q = query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2));
     const snap = await getDocs(q);

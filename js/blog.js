@@ -1393,7 +1393,6 @@ function wirePostCard(article, id, item) {
 // COMMENTS — LOAD & RENDER
 // ============================================
 async function loadComments(postId, listEl) {
-  if (!await ensureStudentAuth()) return;
   listEl.innerHTML = `<p class="blog-comments-loading">Loading comments…</p>`;
   try {
     const q = query(collection(db, "blogComments"), where("postId", "==", postId), where("privacyVersion", "==", 2));
@@ -1484,7 +1483,6 @@ function resetFeed() {
 }
 
 async function loadMorePosts() {
-  if (!await ensureStudentAuth()) return;
   if (feedDone) return;
   loadMoreBtn.disabled = true;
   loadMoreBtn.textContent = "Loading…";
