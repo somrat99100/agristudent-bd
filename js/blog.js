@@ -2,7 +2,7 @@
 // AGRI CORE — blog.js (ENHANCED)
 // Facebook-style student timeline with gallery image support
 // ============================================
-import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
   query, orderBy, limit, startAfter, getDocs, where, serverTimestamp, increment
@@ -893,7 +893,6 @@ postSubmitBtn?.addEventListener("click", async () => {
   postError.classList.add("hidden");
 
   try {
-    if (!auth.currentUser) throw new Error("Please log in to post.");
     // Upload images
     const imageUrls = await uploadPendingImages();
 
@@ -921,7 +920,6 @@ postSubmitBtn?.addEventListener("click", async () => {
         content: sanitized,
         imageUrls,
         authorEmail: normalizeEmail(s.email),
-        authorUid: auth.currentUser.uid,
         authorRegId: s.regId,
         authorName: s.fullName || s.email,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
@@ -1356,7 +1354,7 @@ function wirePostCard(article, id, item) {
   likeBtn.addEventListener("click", async () => {
     const s = requireSession();
     if (!s) return;
-    const likeId = `${id}_${auth.currentUser.uid}`;
+    const likeId = `${id}_${normalizeEmail(s.email)}`;
     const isLiked = likeBtn.classList.contains("is-active");
     likeBtn.disabled = true;
     try {
@@ -1368,7 +1366,7 @@ function wirePostCard(article, id, item) {
         likeBtn.innerHTML = "🤍 Like";
         localStorage.removeItem(`agri_blog_liked_${id}`);
       } else {
-        await setDoc(doc(db, "blogLikes", likeId), { postId: id, uid: auth.currentUser.uid, email: normalizeEmail(s.email), createdAt: serverTimestamp() });
+        await setDoc(doc(db, "blogLikes", likeId), { postId: id, email: normalizeEmail(s.email), createdAt: serverTimestamp() });
         await updateDoc(doc(db, "blogPosts", id), { likesCount: increment(1) });
         item.likesCount = (item.likesCount || 0) + 1;
         likeBtn.classList.add("is-active");
@@ -1470,7 +1468,6 @@ function renderCommentComposer(container, postId, listEl, commentCountEl, item) 
         postId,
         text,
         authorEmail: normalizeEmail(s.email),
-        authorUid: auth.currentUser.uid,
         authorRegId: s.regId,
         authorName: s.fullName || s.email,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
@@ -1512,8 +1509,8 @@ async function loadMorePosts() {
   loadMoreBtn.disabled = true;
   loadMoreBtn.textContent = "Loading…";
   try {
-    let q = query(collection(db, "blogPosts"), where("status", "==", "approved"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
-    if (lastDoc) q = query(collection(db, "blogPosts"), where("status", "==", "approved"), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
+    let q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
+    if (lastDoc) q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
 
     const snap = await getDocs(q);
     if (snap.empty && !lastDoc) {
@@ -1531,17 +1528,12 @@ async function loadMorePosts() {
     const viewerEmail = session ? normalizeEmail(session.email) : "";
     snap.docs.forEach(d => {
       const item = d.data();
+      const isAuthor = viewerEmail && normalizeEmail(item.authorEmail) === viewerEmail;
+      // Pending/rejected posts belong only to their author's timeline.
+      // Everyone else can see a post only after admin approval.
+      if (item.status !== "approved" && !isAuthor) return;
       blogFeed.appendChild(renderPostCard(d.id, item));
     });
-    if (!lastDoc || snap.docs.length === 0) {
-      const s = getSession();
-      if (s && auth.currentUser) {
-        const ownQ = query(collection(db, "blogPosts"), where("authorUid", "==", auth.currentUser.uid), where("status", "in", ["pending", "pending_edit", "rejected"]), orderBy("createdAt", "desc"), limit(20));
-        const ownSnap = await getDocs(ownQ);
-        const existing = new Set(snap.docs.map(d => d.id));
-        ownSnap.docs.reverse().forEach(d => { if (!existing.has(d.id)) blogFeed.insertBefore(renderPostCard(d.id, d.data()), blogFeed.firstChild); });
-      }
-    }
   } catch (err) {
     console.error("[Blog] failed to load feed:", err);
     blogFeed.insertAdjacentHTML("beforeend", `<p style="color:var(--terracotta-500);text-align:center;">Couldn't load the timeline. Please refresh.</p>`);

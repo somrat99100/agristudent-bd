@@ -310,7 +310,6 @@ form.addEventListener("submit", async (e) => {
     const dupSnap = await getDocs(dupQuery);
     const isDuplicate = dupSnap.docs.some(d => (d.data().name || "").toLowerCase() === name.toLowerCase());
 
-    if (!auth.currentUser) throw new Error("Please log in before submitting a term.");
     await addDoc(collection(db, "terms"), {
       name,
       imageUrl,

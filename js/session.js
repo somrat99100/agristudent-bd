@@ -13,8 +13,6 @@
 // single JSON blob under SESSION_KEY.
 // ============================================
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { auth } from "./firebase-config.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const SESSION_KEY = "agri_session_v1";
 
@@ -32,9 +30,8 @@ export function getSession() {
   }
 }
 
-export function saveSession({ uid, regId, fullName, email, studentIdNumber, gender, avatarUrl, status }) {
+export function saveSession({ regId, fullName, email, studentIdNumber, gender, avatarUrl, status }) {
   const session = {
-    uid: uid || regId,
     regId,
     fullName: fullName || "",
     email: normalizeEmail(email),
@@ -59,7 +56,6 @@ export function saveSession({ uid, regId, fullName, email, studentIdNumber, gend
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
-  try { signOut(auth).catch(() => {}); } catch (err) {}
   try {
     sessionStorage.removeItem("agri_student_id");
     localStorage.removeItem("agri_handnotes_user_email");

@@ -1,10 +1,9 @@
-import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
-import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { initEmailNotifications, sendOtpEmail } from "./email-config.js";
 import { startOtp, verifyOtp, resendCooldownRemaining, clearOtp } from "./otp.js";
 import { saveSession } from "./session.js";
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 initEmailNotifications();
 
@@ -114,7 +113,6 @@ form.addEventListener("submit", async (e) => {
 
   const fullName = document.getElementById("fullName").value.trim();
   const email = normalizeEmail(document.getElementById("email").value);
-  const password = document.getElementById("password").value;
   const genderInput = document.querySelector('input[name="gender"]:checked');
   const gender = genderInput ? genderInput.value : "";
   const studentIdNumber = normalizeStudentId(document.getElementById("studentIdNumber").value);
@@ -127,10 +125,6 @@ form.addEventListener("submit", async (e) => {
   }
   if (!email) {
     showError("Please enter a valid email address.");
-    return;
-  }
-  if (password.length < 8) {
-    showError("Password must be at least 8 characters.");
     return;
   }
   if (!gender) {
@@ -156,7 +150,7 @@ form.addEventListener("submit", async (e) => {
     const { code } = startOtp(email);
     await sendOtpEmail({ toEmail: email, toName: fullName, otpCode: code });
 
-    pending = { fullName, email, password, gender, studentIdNumber, idFile };
+    pending = { fullName, email, gender, studentIdNumber, idFile };
     showOtpStep(email);
   } catch (err) {
     console.error(err);
@@ -209,7 +203,7 @@ otpVerifyBtn.addEventListener("click", async () => {
   showOtpStatus("Verified! Creating your account…");
 
   try {
-    const { fullName, email, password, gender, studentIdNumber, idFile } = pending;
+    const { fullName, email, gender, studentIdNumber, idFile } = pending;
 
     let studentIdUrl = null;
     if (idFile) {
@@ -218,11 +212,7 @@ otpVerifyBtn.addEventListener("click", async () => {
     }
     showOtpStatus("Saving your registration…");
 
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    const uid = credential.user.uid;
-
     const docData = {
-      uid,
       fullName,
       email,
       gender,
@@ -234,15 +224,13 @@ otpVerifyBtn.addEventListener("click", async () => {
     };
     if (studentIdUrl) docData.studentIdUrl = studentIdUrl;
 
-    const docRef = doc(db, "registrations", uid);
-    await setDoc(docRef, docData);
+    const docRef = await addDoc(collection(db, "registrations"), docData);
     clearOtp();
 
     // Auto-login: the email is confirmed, so start the session right away
     // instead of sending the student to log in manually.
     saveSession({
-      regId: uid,
-      uid,
+      regId: docRef.id,
       fullName,
       email,
       studentIdNumber,

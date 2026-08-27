@@ -5,8 +5,8 @@
 // grouped results dropdown. Also handles the navbar search
 // icon jumping here from any page.
 // ============================================
-import { db, auth } from "./firebase-config.js";
-import { collection, getDocs, query, where, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const form = document.querySelector(".search-bar");
 if (form) {
@@ -33,19 +33,11 @@ if (form) {
     if (cache) return cache;
     if (loading) return loading;
     loading = (async () => {
-      const termsPromise = getDocs(query(collection(db, "terms"), where("status", "==", "approved")));
-      const timelinePromise = getDocs(collection(db, "timeline"));
-      let resourcesPromise = Promise.resolve({ docs: [] });
-      if (auth.currentUser) {
-        const reg = await getDoc(doc(db, "registrations", auth.currentUser.uid));
-        const d = reg.data();
-        const until = d?.resourceAccessUntil?.toDate?.()?.getTime?.() || Number(d?.resourceAccessUntil) || 0;
-        const restricted = d?.restrictedUntil?.toDate?.()?.getTime?.() || Number(d?.restrictedUntil) || 0;
-        if (d?.status === "verified" && until > Date.now() && restricted <= Date.now()) {
-          resourcesPromise = getDocs(query(collection(db, "resources"), where("status", "==", "approved")));
-        }
-      }
-      const [termsSnap, resourcesSnap, timelineSnap] = await Promise.all([termsPromise, resourcesPromise, timelinePromise]);
+      const [termsSnap, resourcesSnap, timelineSnap] = await Promise.all([
+        getDocs(query(collection(db, "terms"), where("status", "==", "approved"))),
+        getDocs(query(collection(db, "resources"), where("status", "==", "approved"))),
+        getDocs(collection(db, "timeline"))
+      ]);
       const terms = termsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const resources = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const timeline = timelineSnap.docs.map(d => ({ id: d.id, ...d.data() }));

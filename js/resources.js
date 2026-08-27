@@ -1,4 +1,4 @@
-import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -20,7 +20,7 @@ window.__checkResourceRestriction = async function(userEmail) {
   try {
     const q = query(
       collection(db, "resources"),
-      where("uploaderUid", "==", auth.currentUser?.uid || ""),
+      where("uploaderEmail", "==", email),
       where("resourceType", "==", "slides_notes")
     );
     const snap = await getDocs(q);
@@ -184,8 +184,18 @@ function prefillFromSession(emailInputId, nameInputId) {
 // to re-enter their ID on every upload form.
 // ============================================
 async function lookupStudentIdByEmail(email) {
-  const session = getSession();
-  return session?.studentIdNumber ? normalizeStudentId(session.studentIdNumber) : null;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  try {
+    const q = query(collection(db, "registrations"), where("email", "==", normalizedEmail));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const raw = snap.docs[0].data().studentIdNumber || null;
+    return raw ? normalizeStudentId(raw) : null;
+  } catch (err) {
+    console.error("[Student ID Lookup] failed:", err);
+    return null;
+  }
 }
 
 // ============================================
@@ -399,7 +409,6 @@ if (uploadForm) {
 
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!auth.currentUser) { showError("Please log in before uploading a resource."); return; }
     const rawCourseCode = courseCodeInput.value.trim().toUpperCase();
     const rawCourseName = courseNameInput.value.trim();
     const facultyName = facultyNameInput.value.trim();
@@ -463,8 +472,8 @@ if (uploadForm) {
       }
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
-        resourceType, uploaderEmail, uploaderUid: auth.currentUser?.uid || "", fileUrls, fileType: currentFileType, noteType: currentNoteType,
-        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now(), pendingAccessUntil: new Date(Date.now() + 12 * 60 * 60 * 1000)
+        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, noteType: currentNoteType,
+        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
       const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
@@ -710,7 +719,7 @@ if (handNotesGate && handNotesContent) {
 
     const q = query(
       collection(db, "resources"),
-      where("uploaderUid", "==", auth.currentUser?.uid || ""),
+      where("uploaderEmail", "==", normalizedEmail),
       where("resourceType", "==", "slides_notes")
     );
     const snap = await getDocs(q);
@@ -844,7 +853,6 @@ if (handNotesGate && handNotesContent) {
   if (hnForm) {
     hnForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (!auth.currentUser) { hnShowStatus("Please log in before uploading a resource.", true); return; }
       const courseCode = document.getElementById("hn-courseCode").value.trim().toUpperCase();
       const courseName = document.getElementById("hn-courseName").value.trim();
       const facultyName = document.getElementById("hn-facultyName").value.trim();
@@ -934,8 +942,8 @@ if (handNotesGate && handNotesContent) {
 
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
-          resourceType: "slides_notes", uploaderEmail, uploaderUid: auth.currentUser?.uid || "", fileUrls, fileType: currentFileType, noteType: hnNoteType,
-          status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now(), pendingAccessUntil: new Date(Date.now() + 12 * 60 * 60 * 1000)
+          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
+          status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
         };
         const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
         if (hnUploaderStudentId) hnDocData.uploaderStudentId = hnUploaderStudentId;
@@ -1602,8 +1610,8 @@ if (anotherUploadBtn && anotherUploadModal) {
 
       const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
-        resourceType: "slides_notes", uploaderEmail, uploaderUid: auth.currentUser?.uid || "", fileUrls, fileType: auFileType, noteType: auNoteType,
-        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now(), pendingAccessUntil: new Date(Date.now() + 12 * 60 * 60 * 1000)
+        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType, noteType: auNoteType,
+        status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
       const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
       if (auUploaderStudentId) auDocData.uploaderStudentId = auUploaderStudentId;

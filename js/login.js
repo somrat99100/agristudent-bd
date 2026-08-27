@@ -1,37 +1,81 @@
-import { db, auth } from "./firebase-config.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { db } from "./firebase-config.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession, saveSession } from "./session.js";
 
-if (getSession()) window.location.replace("profile.html");
+// Already logged in? Skip the form and go straight to the profile.
+if (getSession()) {
+  window.location.replace("profile.html");
+}
+
 const form = document.getElementById("login-form");
 const submitBtn = document.getElementById("login-submit");
 const statusBox = document.getElementById("login-status");
-function showStatus(msg, isError=false){ statusBox.textContent=msg; statusBox.style.color=isError?"var(--terracotta-500)":"var(--moss-600)"; statusBox.classList.remove("hidden"); }
 
-form.addEventListener("submit", async (e)=>{
+function showStatus(msg, isError = false) {
+  statusBox.textContent = msg;
+  statusBox.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  statusBox.classList.remove("hidden");
+}
+
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const email=normalizeEmail(document.getElementById("login-email").value);
-  const studentId=normalizeStudentId(document.getElementById("login-studentId").value);
-  const password=document.getElementById("login-password").value;
-  if(!email||!studentId||!password){ showStatus("Please complete all fields.",true); return; }
-  submitBtn.disabled=true; submitBtn.textContent="Signing in…"; showStatus("Signing you in securely…");
-  try{
-    const credential=await signInWithEmailAndPassword(auth,email,password);
-    const uid=credential.user.uid;
-    const snap=await getDoc(doc(db,"registrations",uid));
-    if(!snap.exists() || snap.data().status!=="verified" || normalizeStudentId(snap.data().studentIdNumber)!==studentId){
-      await signOut(auth);
-      showStatus("Login details could not be verified. Please check your email, password, and Student ID.",true);
+
+  const email = normalizeEmail(document.getElementById("login-email").value);
+  const studentId = normalizeStudentId(document.getElementById("login-studentId").value);
+
+  if (!email || !studentId) {
+    showStatus("Please fill in both fields.", true);
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Checking…";
+  showStatus("Looking up your registration…");
+
+  try {
+    // Look up by email first (normalized, so this matches regardless of
+    // how the student originally typed the casing during registration —
+    // registration.js normalizes on save, but this also tolerates any
+    // older records saved before that fix).
+    const q = query(collection(db, "registrations"), where("email", "==", email));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      showStatus("❌ No account found for that email. Please register first.", true);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Log In";
       return;
     }
-    const reg=snap.data();
-    saveSession({uid,regId:uid,fullName:reg.fullName,email:reg.email,studentIdNumber:reg.studentIdNumber,gender:reg.gender,avatarUrl:reg.avatarUrl,status:reg.status});
+
+    // An email could in theory have multiple registration attempts; match
+    // the one whose Student ID (normalized) matches what was typed.
+    const match = snap.docs.find(d => normalizeStudentId(d.data().studentIdNumber) === studentId);
+
+    if (!match) {
+      showStatus("❌ That Student ID doesn't match this email. Please check both fields.", true);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Log In";
+      return;
+    }
+
+    const reg = match.data();
+    saveSession({
+      regId: match.id,
+      fullName: reg.fullName,
+      email: reg.email,
+      studentIdNumber: reg.studentIdNumber,
+      gender: reg.gender,
+      avatarUrl: reg.avatarUrl,
+      status: reg.status || "unverified"
+    });
+
     showStatus("✅ Logged in! Redirecting…");
-    setTimeout(()=>window.location.href="profile.html",500);
-  }catch(err){
-    console.error("[Login] failed:",err);
-    showStatus("Login failed. Please check your details and try again.",true);
-  }finally{ submitBtn.disabled=false; submitBtn.textContent="Log In"; }
+    setTimeout(() => { window.location.href = "profile.html"; }, 500);
+  } catch (err) {
+    console.error("[Login] failed:", err);
+    showStatus("Something went wrong. Please try again.", true);
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Log In";
+  }
 });

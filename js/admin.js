@@ -1,6 +1,6 @@
 import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  collection, getDocs, getDoc, doc, updateDoc, deleteDoc, addDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
+  collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail
@@ -9,28 +9,6 @@ import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 
 initEmailNotifications();
-
-
-async function refreshPublicStats() {
-  try {
-    const [regCount, termSnap, resourceSnap] = await Promise.all([
-      (async()=>{ const { getCountFromServer } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"); return (await getCountFromServer(collection(db,"registrations"))).data().count; })(),
-      getDocs(query(collection(db,"terms"), where("status","==","approved"))),
-      getDocs(query(collection(db,"resources"), where("status","==","approved")))
-    ]);
-    const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i;
-    const docExts = /\.(pdf|ppt|pptx)$/i;
-    let resourceFiles = 0;
-    resourceSnap.forEach(d => {
-      const item=d.data(); const files=Array.isArray(item.fileUrls)?item.fileUrls:[]; const type=String(item.fileType||"").toLowerCase();
-      resourceFiles += files.filter(f => type==="pdf" || type==="ppt" || type==="image" || docExts.test(String(f?.name||"")) || imageExts.test(String(f?.name||""))).length;
-    });
-    const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-    await setDoc(doc(db,"settings","publicStats"), { registeredUsers: regCount, approvedTerms: termSnap.size, resourceFiles, updatedAt: new Date() }, { merge: true });
-  } catch (err) {
-    console.error("[AgriAdmin] public stats refresh failed:", err);
-  }
-}
 
 // ============================================
 // ESCAPE HELPER — prevents stored XSS from user-submitted
@@ -90,7 +68,6 @@ onAuthStateChanged(auth, (user) => {
     logoutBtn.classList.remove("hidden");
     if (adminUserChip) adminUserChip.textContent = currentAdminEmail;
     loadResources();
-    refreshPublicStats();
   } else {
     loginBox.classList.remove("hidden");
     adminPanel.classList.add("hidden");
@@ -200,25 +177,6 @@ Object.entries(tabs).forEach(([key, tab]) => {
 // Activate the first tab by default so the sidebar/topbar reflect the initial panel shown.
 tabs.resources.btn.classList.add("is-active");
 if (adminPageTitle) adminPageTitle.textContent = tabs.resources.btn.dataset.label || "Resources";
-
-async function syncStudentResourceAccess(item, newStatus, reviewedAt) {
-  const uid = item?.uploaderUid;
-  if (!uid) return;
-  const regRef = doc(db, "registrations", uid);
-  // The registration document is UID-keyed; read it directly for a trusted admin-side update.
-  const regDoc = await getDoc(regRef);
-  if (!regDoc.exists()) return;
-  const reg = regDoc.data();
-  const now = reviewedAt?.getTime?.() || Date.now();
-  if (newStatus === "approved") {
-    const current = reg.resourceAccessUntil?.toDate?.()?.getTime?.() || Number(reg.resourceAccessUntil) || 0;
-    const base = Math.max(current, now);
-    const count = Array.isArray(item.fileUrls) && item.fileUrls.length ? item.fileUrls.length : 1;
-    await updateDoc(regRef, { resourceAccessUntil: new Date(base + count * 24 * 60 * 60 * 1000), pendingAccessUntil: null });
-  } else if (newStatus === "rejected") {
-    await updateDoc(regRef, { resourceAccessUntil: null, pendingAccessUntil: null, restrictedUntil: new Date(now + 30 * 24 * 60 * 60 * 1000), restrictionReason: "rejected_resource", restrictionUpdatedAt: new Date(now) });
-  }
-}
 
 // ============================================
 // RESOURCES
@@ -388,10 +346,6 @@ async function loadResources() {
               : { rejectedAt: null, restrictedUntil: null })
           };
           await updateDoc(doc(db, "resources", id), moderationData);
-          const moderatedItem = resourcesCache[id];
-          if (moderatedItem?.uploaderUid && (newStatus === "approved" || newStatus === "rejected")) {
-            await syncStudentResourceAccess(moderatedItem, newStatus, moderationData.reviewedAt);
-          }
           e.target.style.borderColor = "var(--leaf-500)";
           const item = resourcesCache[id];
           if (item) {

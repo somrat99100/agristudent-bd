@@ -1,5 +1,4 @@
-import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -81,7 +80,7 @@ avatarInput?.addEventListener("change", async (e) => {
     const data = await response.json();
     if (!data.secure_url) throw new Error("Upload failed");
 
-    await updateDoc(doc(db, "registrations", session.uid || session.regId), { avatarUrl: data.secure_url });
+    await updateDoc(doc(db, "registrations", session.regId), { avatarUrl: data.secure_url });
 
     avatarImg.src = data.secure_url;
     saveSession({ ...session, avatarUrl: data.secure_url });
@@ -108,13 +107,13 @@ avatarInput?.addEventListener("change", async (e) => {
 
 async function init() {
   const session = getSession();
-  if (!session || !auth.currentUser || auth.currentUser.uid !== (session.uid || session.regId)) { showLoggedOut(); return; }
+  if (!session) { showLoggedOut(); return; }
 
   try {
     // Re-fetch the live registration record rather than trusting the
     // cached session — status can change (admin verifies/rejects) after
     // login, and this keeps the profile accurate.
-    const regSnap = await getDoc(doc(db, "registrations", session.uid || session.regId));
+    const regSnap = await getDoc(doc(db, "registrations", session.regId));
     if (!regSnap.exists()) {
       clearSession();
       showLoggedOut();
@@ -123,7 +122,6 @@ async function init() {
     const reg = regSnap.data();
     // Keep the local session in sync with any status change.
     saveSession({
-      uid: session.uid || session.regId,
       regId: session.regId,
       fullName: reg.fullName,
       email: reg.email,
@@ -134,8 +132,8 @@ async function init() {
     });
 
     renderIdentity(reg);
-    await renderCredits(normalizeEmail(reg.email), reg.fullName, session.uid || session.regId);
-    await renderMyBlogPosts(normalizeEmail(reg.email), session.uid || session.regId);
+    await renderCredits(normalizeEmail(reg.email), reg.fullName);
+    await renderMyBlogPosts(normalizeEmail(reg.email));
 
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
@@ -168,10 +166,10 @@ function renderIdentity(reg) {
   }
 }
 
-async function renderCredits(email, fullName, sessionUid) {
+async function renderCredits(email, fullName) {
   const [resourcesSnap, termsSnap] = await Promise.all([
-    getDocs(query(collection(db, "resources"), where("uploaderUid", "==", sessionUid))),
-    getDocs(query(collection(db, "terms"), where("uploaderUid", "==", sessionUid)))
+    getDocs(query(collection(db, "resources"), where("uploaderEmail", "==", email))),
+    getDocs(query(collection(db, "terms"), where("uploaderEmail", "==", email)))
   ]);
 
   const items = [
@@ -256,14 +254,14 @@ function blogStatusTag(status) {
   return { cls: "pending", text: "🕓 Not verified" };
 }
 
-async function renderMyBlogPosts(email, sessionUid) {
+async function renderMyBlogPosts(email) {
   const listEl = document.getElementById("my-posts-list");
   const emptyEl = document.getElementById("my-posts-empty");
   if (!listEl) return;
 
   let posts;
   try {
-    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorUid", "==", sessionUid)));
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorEmail", "==", email)));
     posts = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
@@ -329,7 +327,4 @@ if (logoutBtn) {
   });
 }
 
-onAuthStateChanged(auth, (user) => {
-  if (user) init();
-  else showLoggedOut();
-});
+init();
