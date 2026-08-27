@@ -1,105 +1,62 @@
-// ============================================
-// STUDENT SESSION (login/logout)
-//
-// ⚠️ Same trust model as the rest of the site (see js/auth-guard.js and
-// firestore.rules): students never had a password-based account here,
-// only a registration record. This session is a convenience layer on
-// top of that record — it remembers WHICH registration you are, so you
-// don't have to retype your Student ID / email on every page. It is
-// NOT a security boundary; real access control is Firestore Security
-// Rules, unchanged by this file.
-//
-// Session is stored in localStorage (persists across tabs/visits) as a
-// single JSON blob under SESSION_KEY.
-// ============================================
-import { normalizeEmail, normalizeStudentId } from "./identity.js";
+// Secure student session facade. Firebase Auth is the security boundary;
+// localStorage/sessionStorage are never treated as authentication.
+import { auth } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
-const SESSION_KEY = "agri_session_v1";
+const SESSION_KEY = 'agri_session_v2';
+let cachedUser = null;
 
+onAuthStateChanged(auth, user => { cachedUser = user || null; });
+
+export function getAuthUser() { return cachedUser || auth.currentUser || null; }
 export function getSession() {
+  const user = getAuthUser();
+  if (!user) return null;
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.email || !parsed.regId) return null;
-    return parsed;
-  } catch (err) {
-    console.warn("[Session] corrupt session data, clearing.", err);
-    localStorage.removeItem(SESSION_KEY);
-    return null;
-  }
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || parsed.uid !== user.uid) return null;
+    return { ...parsed, uid: user.uid, email: user.email || parsed.email || '', emailVerified: !!user.emailVerified };
+  } catch { localStorage.removeItem(SESSION_KEY); return null; }
 }
 
-export function saveSession({ regId, fullName, email, studentIdNumber, gender, avatarUrl, status }) {
+export function saveSession(data) {
+  const user = getAuthUser();
+  if (!user) throw new Error('Authentication required.');
   const session = {
-    regId,
-    fullName: fullName || "",
-    email: normalizeEmail(email),
-    studentIdNumber: normalizeStudentId(studentIdNumber),
-    gender: gender || "",
-    avatarUrl: avatarUrl || (gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg"),
-    status: status || "unverified"
+    uid: user.uid,
+    regId: user.uid,
+    fullName: data.fullName || '',
+    email: user.email || data.email || '',
+    gender: data.gender || '',
+    avatarUrl: data.avatarUrl || (data.gender === 'female' ? 'assets/avatar-female.svg' : 'assets/avatar-male.svg'),
+    status: data.status || 'verified'
   };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-
-  // Keep the pre-existing resource-gate caches in sync so resources.html /
-  // slides-notes.html / previous-questions.html immediately recognize this
-  // student without asking them to re-enter anything (also fixes stale
-  // mismatched values left over from before login existed).
-  try {
-    sessionStorage.setItem("agri_student_id", session.studentIdNumber);
-    localStorage.setItem("agri_handnotes_user_email", session.email);
-  } catch (err) { /* storage unavailable — non-fatal */ }
-
   return session;
 }
 
-export function clearSession() {
+export async function clearSession() {
   localStorage.removeItem(SESSION_KEY);
-  try {
-    sessionStorage.removeItem("agri_student_id");
-    localStorage.removeItem("agri_handnotes_user_email");
-  } catch (err) { /* storage unavailable — non-fatal */ }
+  try { sessionStorage.removeItem('agri_student_id'); sessionStorage.removeItem('agri_handnotes_user_email'); localStorage.removeItem('agri_handnotes_user_email'); } catch {}
+  try { await signOut(auth); } catch {}
 }
 
-// ============================================
-// NAVBAR AUTH SLOT
-// Renders "👤 Name" + Logout when logged in, or a Login link when not.
-// Runs once the shared navbar has actually been injected into the page
-// (navbar-loader.js calls whenNavbarReady's queued callbacks) so this
-// never races the fetch("navbar.html") injection.
-// ============================================
 function renderAuthSlot() {
-  const slot = document.getElementById("navbar-auth-slot");
+  const slot = document.getElementById('navbar-auth-slot');
   if (!slot) return;
   const session = getSession();
-
-  if (!session) {
-    slot.innerHTML = `<a href="login.html" class="navbar-auth-login">Login</a>`;
-    return;
-  }
-
-  const displayName = (session.fullName || session.email).split(" ")[0];
-  slot.innerHTML = `
-    <a href="profile.html" class="navbar-auth-profile" title="${session.fullName || session.email}">
-      <img src="${session.avatarUrl}" alt="" class="navbar-auth-avatar">
-      <span>${displayName}</span>
-    </a>
-    <button type="button" class="navbar-auth-logout" id="navbar-logout-btn">Logout</button>
-  `;
-
-  const logoutBtn = document.getElementById("navbar-logout-btn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-      clearSession();
-      window.location.href = "index.html";
-    });
-  }
+  if (!session) { slot.textContent = ''; slot.innerHTML = '<a href="login.html" class="navbar-auth-login">Login</a>'; return; }
+  const name = (session.fullName || session.email).split(' ')[0];
+  slot.textContent = '';
+  const link = document.createElement('a'); link.href = 'profile.html'; link.className = 'navbar-auth-profile'; link.title = session.fullName || session.email;
+  const img = document.createElement('img'); img.src = session.avatarUrl || 'assets/avatar-male.svg'; img.alt = ''; img.className = 'navbar-auth-avatar';
+  const span = document.createElement('span'); span.textContent = name;
+  link.append(img, span);
+  const btn = document.createElement('button'); btn.type='button'; btn.className='navbar-auth-logout'; btn.textContent='Logout';
+  btn.addEventListener('click', clearSession);
+  slot.append(link, btn);
 }
-
-function whenNavbarReady(fn) {
-  if (window.__navbarLoaded) fn();
-  else (window.__onNavbarReady = window.__onNavbarReady || []).push(fn);
-}
-
+function whenNavbarReady(fn){ if(window.__navbarLoaded) fn(); else (window.__onNavbarReady=window.__onNavbarReady||[]).push(fn); }
 whenNavbarReady(renderAuthSlot);
+onAuthStateChanged(auth, renderAuthSlot);

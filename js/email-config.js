@@ -48,10 +48,10 @@
 // sending fails, the student sees a clear error instead of silently getting
 // stuck.
 // ============================================
-export const EMAILJS_PUBLIC_KEY  = "led7de4ijLLGq675b";
+export const EMAILJS_PUBLIC_KEY  = "";
 export const EMAILJS_SERVICE_ID  = "service_6ys3bsi";
-export const EMAILJS_TEMPLATE_ID = "template_5eytdmh";
-export const EMAILJS_OTP_TEMPLATE_ID = "template_1lbd1pu";
+export const EMAILJS_TEMPLATE_ID = "";
+export const EMAILJS_OTP_TEMPLATE_ID = "";
 // NOTE: "Send Us Classroom Code" (resources.html) no longer emails anything —
 // it saves straight to Firestore's "classroomCodes" collection and shows up
 // in the admin panel's "Classroom Codes" tab (see js/resources.js + js/admin.js).

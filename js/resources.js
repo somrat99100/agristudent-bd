@@ -1,9 +1,10 @@
-import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db, storage } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { normalizeEmail, normalizeStudentId } from "./identity.js";
+
 import { getSession } from "./session.js";
+import { ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initEmailNotifications } from "./email-config.js";
 import { computeResourceAccessStatus, formatDate, formatRemaining } from "./access.js";
 
@@ -14,58 +15,30 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 // Global moderation guard used by every resource-upload form.
 // A rejected submission blocks new uploads for 30 days.
-window.__checkResourceRestriction = async function(userEmail) {
-  const email = normalizeEmail(userEmail);
-  if (!email) return 0;
+window.__checkResourceRestriction = async function() {
+  const uid = getSession()?.uid;
+  if (!uid) return -1;
   try {
-    const q = query(
-      collection(db, "resources"),
-      where("uploaderEmail", "==", email),
-      where("resourceType", "==", "slides_notes")
-    );
-    const snap = await getDocs(q);
-    let until = 0;
-    snap.forEach(d => {
-      const item = d.data();
-      if (item.status !== "rejected") return;
-      const explicit = item.restrictedUntil?.toDate?.()?.getTime?.() || Number(item.restrictedUntil) || 0;
-      const rejectedAt = item.rejectedAt?.toDate?.()?.getTime?.() || Number(item.rejectedAt) || 0;
-      const submittedAt = item.submittedAt?.toDate?.()?.getTime?.() || 0;
-      until = Math.max(until, explicit || ((rejectedAt || submittedAt || Date.now()) + 30 * 24 * 60 * 60 * 1000));
-    });
+    const snap = await getDoc(doc(db, "resourceAccess", uid));
+    if (!snap.exists()) return 0;
+    const until = snap.data().restrictedUntil?.toDate?.()?.getTime?.() || 0;
     return until > Date.now() ? until : 0;
   } catch (err) {
     console.error("[Resource restriction check] failed:", err);
-    // Fail closed: do not allow a new upload when moderation state cannot be checked.
     return -1;
   }
 };
 
-
-function uploadFileToCloudinary(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
-    xhr.timeout = 120000;
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
+async function uploadFileSecurely(file, uid, onProgress) {
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-160);
+  const storageRef = ref(storage, `resources/${uid}/${crypto.randomUUID()}-${safeName}`);
+  const task = uploadBytesResumable(storageRef, file, { contentType: file.type || "application/octet-stream" });
+  return await new Promise((resolve, reject) => {
+    task.on("state_changed", snap => {
+      if (onProgress && snap.totalBytes) onProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100));
+    }, reject, async () => {
+      try { resolve({ url: await getDownloadURL(task.snapshot.ref), name: file.name }); } catch (e) { reject(e); }
     });
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const json = JSON.parse(xhr.responseText);
-        resolve({ url: json.secure_url, name: file.name });
-      } else {
-        reject(new Error(`Upload failed for ${file.name} (${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Network error uploading " + file.name + "."));
-    xhr.ontimeout = () => reject(new Error(file.name + " timed out. Try again."));
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-    xhr.send(data);
   });
 }
 
@@ -78,7 +51,7 @@ async function autoRenameIfDuplicate(fileName, courseCode, facultyName) {
     collection(db, "resources"),
     where("courseCode", "==", courseCode),
     where("fac", "==", facultyName),
-    where("status", "==", "approved")
+    where("status", "==", "approved"), where("public", "==", true)
   );
   
   const docs = await getDocs(q);
@@ -174,27 +147,6 @@ function prefillFromSession(emailInputId, nameInputId) {
   if (nameInputId) {
     const nameInput = document.getElementById(nameInputId);
     if (nameInput && !nameInput.value && session.fullName) nameInput.value = session.fullName;
-  }
-}
-
-// ============================================
-// STUDENT ID LOOKUP (by registered email)
-// Used to stamp every upload with the uploader's registered Student ID,
-// so the viewer can show "who uploaded this" without asking the student
-// to re-enter their ID on every upload form.
-// ============================================
-async function lookupStudentIdByEmail(email) {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) return null;
-  try {
-    const q = query(collection(db, "registrations"), where("email", "==", normalizedEmail));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const raw = snap.docs[0].data().studentIdNumber || null;
-    return raw ? normalizeStudentId(raw) : null;
-  } catch (err) {
-    console.error("[Student ID Lookup] failed:", err);
-    return null;
   }
 }
 
@@ -413,7 +365,9 @@ if (uploadForm) {
     const rawCourseName = courseNameInput.value.trim();
     const facultyName = facultyNameInput.value.trim();
     const resourceType = "slides_notes";
-    const uploaderEmail = normalizeEmail(document.getElementById("uploaderEmail").value);
+    const session = getSession();
+    if (!session?.uid) { showError("Please log in again."); return; }
+    const uploaderUid = session.uid;
     const files = Array.from(fileInput.files);
 
     if (files.length === 0) { showError(`Please choose at least one ${currentFileType.toUpperCase()} file.`); return; }
@@ -448,7 +402,7 @@ if (uploadForm) {
         showStatus(avg >= 100 ? "Processing on server…" : `Uploading ${files.length} file(s)…`);
       };
       const fileUrls = await Promise.all(
-        files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
+        files.map((file, i) => uploadFileSecurely(file, uploaderUid, (pct) => { progressByFile[i] = pct; updateOverall(); }))
       );
 
       // Auto-rename duplicates
@@ -472,11 +426,9 @@ if (uploadForm) {
       }
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
-        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, noteType: currentNoteType,
+        resourceType, uploaderUid, uploaderName: session.fullName || "Student", public: false, fileUrls, fileType: currentFileType, noteType: currentNoteType,
         status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
-      const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
-      if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
       await addDoc(collection(db, "resources"), docData);
       uploadForm.reset();
       uploadForm.classList.add("hidden");
@@ -522,7 +474,7 @@ if (courseButtonsWrap) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "slides_notes"),
-        where("status", "==", "approved")
+        where("status", "==", "approved"), where("public", "==", true)
       );
       const snap = await getDocs(q);
       allSlides = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -713,18 +665,15 @@ if (handNotesGate && handNotesContent) {
 
   // Access is calculated from Firestore moderation records. Do not use a
   // browser-only countdown because it can be cleared or become stale.
-  async function getResourceAccessState(userEmail) {
-    const normalizedEmail = normalizeEmail(userEmail);
-    if (!normalizedEmail) return computeResourceAccessStatus([]);
-
-    const q = query(
-      collection(db, "resources"),
-      where("uploaderEmail", "==", normalizedEmail),
-      where("resourceType", "==", "slides_notes")
-    );
-    const snap = await getDocs(q);
-    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return computeResourceAccessStatus(docs);
+  async function getResourceAccessState() {
+    const uid = getSession()?.uid;
+    if (!uid) return computeResourceAccessStatus([]);
+    const snap = await getDoc(doc(db, "resourceAccess", uid));
+    if (!snap.exists()) return computeResourceAccessStatus([]);
+    const d = snap.data(); const now = Date.now();
+    const restrictedUntil = d.restrictedUntil?.toDate?.()?.getTime?.() || 0;
+    const accessUntil = d.accessUntil?.toDate?.()?.getTime?.() || 0;
+    return { active: restrictedUntil <= now && accessUntil > now, restricted: restrictedUntil > now, restrictedUntil: restrictedUntil ? new Date(restrictedUntil) : null, accessUntil: accessUntil ? new Date(accessUntil) : null, approvedFileCount: d.approvedFileCount || 0, pendingActiveCount: 0, approvedAccessUntil: accessUntil ? new Date(accessUntil) : null, pendingAccessUntil: null, daysRemaining: Math.max(0, Math.ceil((accessUntil-now)/86400000)), hoursRemaining: Math.max(0, Math.ceil((accessUntil-now)/3600000)), msRemaining: Math.max(0, accessUntil-now) };
   }
 
   function renderAccessState(state, userEmail) {
@@ -795,10 +744,9 @@ if (handNotesGate && handNotesContent) {
 
   // Refresh on load and periodically so a 12-hour pending timeout or an
   // admin approval/rejection takes effect without a page refresh.
-  const cachedEmail = normalizeEmail(getSession()?.email || localStorage.getItem("agri_handnotes_user_email") || "");
-  if (cachedEmail) {
-    hnRefreshAccess(cachedEmail);
-    setInterval(() => hnRefreshAccess(cachedEmail), 15000);
+  if (getSession()?.uid) {
+    hnRefreshAccess();
+    setInterval(() => hnRefreshAccess(), 15000);
   }
 
   // File type selector
@@ -856,10 +804,12 @@ if (handNotesGate && handNotesContent) {
       const courseCode = document.getElementById("hn-courseCode").value.trim().toUpperCase();
       const courseName = document.getElementById("hn-courseName").value.trim();
       const facultyName = document.getElementById("hn-facultyName").value.trim();
-      const uploaderEmail = normalizeEmail(document.getElementById("hn-uploaderEmail").value);
+      const session = getSession();
+      if (!session?.uid) { hnShowStatus("Please log in again.", true); return; }
+      const uploaderUid = session.uid;
       const files = Array.from(hnFiles.files);
 
-      const restriction = await window.__checkResourceRestriction(uploaderEmail);
+      const restriction = await window.__checkResourceRestriction();
       if (restriction !== 0) {
         const msg = restriction === -1
           ? "⚠️ We could not verify your upload status. Please try again."
@@ -912,7 +862,7 @@ if (handNotesGate && handNotesContent) {
         };
         
         const fileUrls = await Promise.all(
-          files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
+          files.map((file, i) => uploadFileSecurely(file, uploaderUid, (pct) => { progressByFile[i] = pct; updateOverall(); }))
         );
 
         // Auto-rename duplicates
@@ -942,15 +892,13 @@ if (handNotesGate && handNotesContent) {
 
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
-          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
+          resourceType: "slides_notes", uploaderUid, uploaderName: session.fullName || "Student", public: false, fileUrls, fileType: currentFileType, noteType: hnNoteType,
           status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
         };
-        const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
-        if (hnUploaderStudentId) hnDocData.uploaderStudentId = hnUploaderStudentId;
         await addDoc(collection(db, "resources"), hnDocData);
 
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
-        setTimeout(() => hnRefreshAccess(uploaderEmail), 700);
+        setTimeout(() => hnRefreshAccess(), 700);
       } catch (err) {
         console.error("[Hand Notes Unlock] failed:", err);
         let userMessage = "Something went wrong. Please try again.";
@@ -986,7 +934,7 @@ if (pdfList || imageGrid) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "slides_notes"),
-        where("status", "==", "approved")
+        where("status", "==", "approved"), where("public", "==", true)
       );
       const snap = await getDocs(q);
       const resources = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1546,10 +1494,12 @@ if (anotherUploadBtn && anotherUploadModal) {
     const courseCode = auCourseCode.value.trim().toUpperCase();
     const rawCourseName = auCourseName.value.trim();
     const facultyName = auFacultyName.value.trim();
-    const uploaderEmail = normalizeEmail(document.getElementById("au-uploaderEmail").value);
+    const session = getSession();
+      if (!session?.uid) { auShowStatus("Please log in again.", true); return; }
+      const uploaderUid = session.uid;
     const files = Array.from(auFiles.files);
 
-    const restriction = await window.__checkResourceRestriction(uploaderEmail);
+    const restriction = await window.__checkResourceRestriction();
     if (restriction !== 0) {
       const msg = restriction === -1
         ? "⚠️ We could not verify your upload status. Please try again."
@@ -1582,7 +1532,7 @@ if (anotherUploadBtn && anotherUploadModal) {
         auShowStatus(avg >= 100 ? "Processing on server…" : `Uploading ${files.length} file(s)…`);
       };
       const fileUrls = await Promise.all(
-        files.map((file, i) => uploadFileToCloudinary(file, (pct) => { progressByFile[i] = pct; updateOverall(); }))
+        files.map((file, i) => uploadFileSecurely(file, uploaderUid, (pct) => { progressByFile[i] = pct; updateOverall(); }))
       );
 
       // Auto-rename duplicates
@@ -1610,11 +1560,9 @@ if (anotherUploadBtn && anotherUploadModal) {
 
       const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
-        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType, noteType: auNoteType,
+        resourceType: "slides_notes", uploaderUid, uploaderName: session.fullName || "Student", public: false, fileUrls, fileType: auFileType, noteType: auNoteType,
         status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
-      const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
-      if (auUploaderStudentId) auDocData.uploaderStudentId = auUploaderStudentId;
       await addDoc(collection(db, "resources"), auDocData);
 
       auForm.classList.add("hidden");
@@ -1656,7 +1604,7 @@ if (pqList) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "previous_questions"),
-        where("status", "==", "approved")
+        where("status", "==", "approved"), where("public", "==", true)
       );
       const snap = await getDocs(q);
       let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));

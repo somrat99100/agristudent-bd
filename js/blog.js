@@ -2,7 +2,7 @@
 // AGRI CORE — blog.js (ENHANCED)
 // Facebook-style student timeline with gallery image support
 // ============================================
-import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db, storage } from "./firebase-config.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
   query, orderBy, limit, startAfter, getDocs, where, serverTimestamp, increment
@@ -10,6 +10,7 @@ import {
 import { normalizeEmail } from "./identity.js";
 import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
+import { ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 initEmailNotifications();
 
@@ -34,8 +35,8 @@ function esc(val) {
 // ============================================
 const ALLOWED_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "BR", "P", "DIV", "UL", "OL", "LI", "SPAN", "IMG"]);
 const ALLOWED_WRAPPER_CLASSES = ["inline-image", "align-left", "align-right", "align-center", "align-none"];
-// Only ever trust image URLs we uploaded ourselves (Cloudinary) — never a user-supplied src.
-const TRUSTED_IMAGE_SRC = /^https:\/\/res\.cloudinary\.com\//;
+// Only ever trust image URLs we uploaded ourselves (Firebase Storage) — never a user-supplied src.
+const TRUSTED_IMAGE_SRC = /^https:\/\/(?:firebasestorage\.googleapis\.com|storage\.googleapis\.com)\//;
 
 function sanitizeNode(node, out) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -176,7 +177,7 @@ function markViewed(id) {
 // ============================================
 // PENDING IMAGES ARRAY (for composer preview)
 // ============================================
-let pendingImages = []; // Array of { name, url (blob or cloudinary), file }
+let pendingImages = []; // Array of { name, url (blob or Firebase Storage), file }
 
 // ============================================
 // DOM REFS
@@ -778,39 +779,19 @@ fontSizeSelect?.addEventListener("change", (e) => {
 });
 
 // ============================================
-// UPLOAD IMAGES TO CLOUDINARY & GET URLS
+// UPLOAD IMAGES TO FIREBASE STORAGE & GET URLS
 // ============================================
 const UPLOAD_TIMEOUT_MS = 25000;
 
 async function uploadOneImage(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-  // Without a timeout a stalled connection (flaky mobile data, a dropped
-  // request) leaves the "Uploading…" spinner spinning forever with no way
-  // out. Abort and fail cleanly instead so the UI can recover.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
-
-  let response;
-  try {
-    response = await fetch(CLOUDINARY_UPLOAD_URL, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal
-    });
-  } catch (err) {
-    if (err.name === "AbortError") throw new Error("Upload timed out — check your connection and try again");
-    throw new Error("Upload failed — check your connection and try again");
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-  const data = await response.json();
-  if (!data.secure_url) throw new Error("Upload failed");
-  return data.secure_url;
+  const s = getSession();
+  if (!s?.uid) throw new Error('Authentication required');
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-120);
+  const storageRef = ref(storage, `blog/${s.uid}/${crypto.randomUUID()}-${safeName}`);
+  const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
+  return await new Promise((resolve, reject) => task.on('state_changed', null, reject, async () => {
+    try { resolve(await getDownloadURL(task.snapshot.ref)); } catch(e) { reject(e); }
+  }));
 }
 
 async function uploadPendingImages() {
@@ -818,7 +799,7 @@ async function uploadPendingImages() {
 
   const urls = [];
   // Only entries that came from a fresh file picker have `.file` — entries
-  // carried over from an edited post are already-hosted Cloudinary URLs and
+  // carried over from an edited post are already-hosted Firebase Storage URLs and
   // just pass through unchanged, so they never get re-uploaded or dropped.
   // Every entry is saved as { url, title } so each image keeps its own title.
   const toUploadCount = pendingImages.filter(img => img.file).length;
@@ -909,7 +890,7 @@ postSubmitBtn?.addEventListener("click", async () => {
         imageUrls,
         status: "pending_edit", // New status for edited posts waiting approval
         editedAt: serverTimestamp(),
-        editedBy: normalizeEmail(s.email)
+        
       });
       delete composerModal.dataset.editingPostId;
       alert("Your changes have been submitted for admin review.");
@@ -919,11 +900,10 @@ postSubmitBtn?.addEventListener("click", async () => {
         title,
         content: sanitized,
         imageUrls,
-        authorEmail: normalizeEmail(s.email),
-        authorRegId: s.regId,
-        authorName: s.fullName || s.email,
+        authorUid: s.uid,
+                authorName: s.fullName || s.email,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
-        status: "pending",
+        status: "pending", public: false,
         likesCount: 0,
         commentsCount: 0,
         sharesCount: 0,
@@ -1083,7 +1063,7 @@ function openFullPostModal(item) {
       <div class="blog-post-time">${esc(timeAgo(created))}</div>
     </div>
   `;
-  fullPostBody.innerHTML = item.content;
+  fullPostBody.innerHTML = sanitizeHTML(item.content || "");
   fullPostGallery.innerHTML = buildGalleryHTML(item.imageUrls);
 
   const galleryTiles = fullPostGallery.querySelectorAll(".blog-gallery-tile");
@@ -1191,7 +1171,7 @@ function renderPostCard(id, item) {
   const galleryHTML = buildGalleryHTML(item.imageUrls);
 
   const s = getSession();
-  const isAuthor = s && normalizeEmail(s.email) === item.authorEmail;
+  const isAuthor = s && s.uid === item.authorUid;
   // Firestore Timestamp objects don't have .getTime(), so the old check
   // here always silently evaluated to false — the badge never actually
   // reflected an edit. Reading the status field directly is what's true.
@@ -1211,7 +1191,7 @@ function renderPostCard(id, item) {
     </header>
     <h2 class="blog-post-title">${esc(item.title)}</h2>
     ${statusBadgeHTML(item.status, isEdited)}
-    <div class="blog-post-body">${item.content}</div>
+    <div class="blog-post-body">${sanitizeHTML(item.content || "")}</div>
     ${galleryHTML}
     <div class="blog-post-stats">
       <span>👁️ ${item.views || 0} views</span>
@@ -1313,7 +1293,7 @@ function wirePostCard(article, id, item) {
   // Edit button
   editBtn?.addEventListener("click", () => {
     const s = getSession();
-    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+    if (!s || s.uid !== item.authorUid) {
       alert("You can only edit your own posts");
       return;
     }
@@ -1323,7 +1303,7 @@ function wirePostCard(article, id, item) {
   // Delete button
   deleteBtn?.addEventListener("click", () => {
     const s = getSession();
-    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+    if (!s || s.uid !== item.authorUid) {
       alert("You can only delete your own posts");
       return;
     }
@@ -1354,7 +1334,7 @@ function wirePostCard(article, id, item) {
   likeBtn.addEventListener("click", async () => {
     const s = requireSession();
     if (!s) return;
-    const likeId = `${id}_${normalizeEmail(s.email)}`;
+    const likeId = `${id}_${s.uid}`;
     const isLiked = likeBtn.classList.contains("is-active");
     likeBtn.disabled = true;
     try {
@@ -1366,7 +1346,7 @@ function wirePostCard(article, id, item) {
         likeBtn.innerHTML = "🤍 Like";
         localStorage.removeItem(`agri_blog_liked_${id}`);
       } else {
-        await setDoc(doc(db, "blogLikes", likeId), { postId: id, email: normalizeEmail(s.email), createdAt: serverTimestamp() });
+        await setDoc(doc(db, "blogLikes", likeId), { postId: id, uid: s.uid, createdAt: serverTimestamp() });
         await updateDoc(doc(db, "blogPosts", id), { likesCount: increment(1) });
         item.likesCount = (item.likesCount || 0) + 1;
         likeBtn.classList.add("is-active");
@@ -1467,9 +1447,8 @@ function renderCommentComposer(container, postId, listEl, commentCountEl, item) 
       await addDoc(collection(db, "blogComments"), {
         postId,
         text,
-        authorEmail: normalizeEmail(s.email),
-        authorRegId: s.regId,
-        authorName: s.fullName || s.email,
+        authorUid: s.uid,
+                authorName: s.fullName || s.email,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
         createdAt: serverTimestamp()
       });
@@ -1509,8 +1488,8 @@ async function loadMorePosts() {
   loadMoreBtn.disabled = true;
   loadMoreBtn.textContent = "Loading…";
   try {
-    let q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
-    if (lastDoc) q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
+    let q = query(collection(db, "blogPosts"), where("status", "==", "approved"), where("public", "==", true), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
+    if (lastDoc) q = query(collection(db, "blogPosts"), where("status", "==", "approved"), where("public", "==", true), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
 
     const snap = await getDocs(q);
     if (snap.empty && !lastDoc) {
@@ -1525,13 +1504,10 @@ async function loadMorePosts() {
     lastDoc = snap.docs[snap.docs.length - 1] || lastDoc;
 
     const session = getSession();
-    const viewerEmail = session ? normalizeEmail(session.email) : "";
+    const viewerUid = session ? session.uid : "";
     snap.docs.forEach(d => {
       const item = d.data();
-      const isAuthor = viewerEmail && normalizeEmail(item.authorEmail) === viewerEmail;
-      // Pending/rejected posts belong only to their author's timeline.
-      // Everyone else can see a post only after admin approval.
-      if (item.status !== "approved" && !isAuthor) return;
+      const isAuthor = viewerUid && item.authorUid === viewerUid;
       blogFeed.appendChild(renderPostCard(d.id, item));
     });
   } catch (err) {
@@ -1627,7 +1603,7 @@ async function loadDeepLinkedPost() {
     if (!snap.exists()) return;
     const item = snap.data();
     const s = getSession();
-    const isAuthor = s && normalizeEmail(s.email) === normalizeEmail(item.authorEmail);
+    const isAuthor = s && s.uid === item.authorUid;
     if (item.status !== "approved" && !isAuthor) return;
     const wrapper = document.createElement("div");
     wrapper.className = "blog-pinned-post";
@@ -1653,7 +1629,7 @@ async function loadDeepLinkedEdit() {
     const snap = await getDoc(doc(db, "blogPosts", postId));
     if (!snap.exists()) return;
     const item = snap.data();
-    if (normalizeEmail(s.email) !== item.authorEmail) {
+    if (s.uid !== item.authorUid) {
       alert("You can only edit your own posts");
       return;
     }

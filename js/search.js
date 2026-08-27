@@ -34,8 +34,8 @@ if (form) {
     if (loading) return loading;
     loading = (async () => {
       const [termsSnap, resourcesSnap, timelineSnap] = await Promise.all([
-        getDocs(query(collection(db, "terms"), where("status", "==", "approved"))),
-        getDocs(query(collection(db, "resources"), where("status", "==", "approved"))),
+        getDocs(query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true))),
+        getDocs(query(collection(db, "resources"), where("status", "==", "approved"), where("public", "==", true))),
         getDocs(collection(db, "timeline"))
       ]);
       const terms = termsSnap.docs.map(d => ({ id: d.id, ...d.data() }));

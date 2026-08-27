@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ------------------------------------------------------------------
 // Global image fallback — if any avatar/logo/photo fails to load (a
-// dead URL, a slow/offline Cloudinary asset, a moved file, etc.) swap
+// dead URL, a slow/offline Firebase Storage asset, a moved file, etc.) swap
 // it for a lightweight inline placeholder instead of leaving the
 // browser's broken-image icon on screen. Delegated + capture:true so
 // it also catches images that are added to the page later (feed

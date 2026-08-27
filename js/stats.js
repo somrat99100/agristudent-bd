@@ -10,14 +10,16 @@ import {
 
 // Map of element id -> function that returns a Firestore count query
 const STAT_SOURCES = {
-  "stat-users": () =>
-    getCountFromServer(collection(db, "registrations")),
+  // Registration records are private. Never expose a count derived from the
+  // private collection to an unauthenticated page. The UI will show an em dash
+  // until a deliberately public aggregate is configured by an administrator.
+  "stat-users": async () => ({ data: () => ({ count: 0 }) }),
 
   "stat-resources": async () => {
     // Count actual approved files (not submission/folder documents).
     // PDFs, PPT/PPTX and uploaded images all contribute one count per file.
     const docsSnap = await getDocs(
-      query(collection(db, "resources"), where("status", "==", "approved"))
+      query(collection(db, "resources"), where("status", "==", "approved"), where("public", "==", true))
     );
     const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i;
     const docExts = /\.(pdf|ppt|pptx)$/i;
@@ -34,11 +36,10 @@ const STAT_SOURCES = {
     return { data: () => ({ count: total }) };
   },
 
-  "stat-pending": () =>
-    getCountFromServer(query(collection(db, "resources"), where("status", "==", "pending"))),
+  "stat-pending": async () => ({ data: () => ({ count: 0 }) }),
 
   "stat-terms": () =>
-    getCountFromServer(query(collection(db, "terms"), where("status", "==", "approved")))
+    getCountFromServer(query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true)))
 };
 
 function animateCount(el, target) {
