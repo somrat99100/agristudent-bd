@@ -2,13 +2,14 @@
 // AGRI CORE — blog.js (ENHANCED)
 // Facebook-style student timeline with gallery image support
 // ============================================
-import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db } from "./firebase-config.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
   query, orderBy, limit, startAfter, getDocs, where, serverTimestamp, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
-import { getSession } from "./session.js";
+import { getSession, ensureStudentAuth } from "./session.js";
+import { uploadSignedToCloudinary } from "./cloudinary.js";
 import { initEmailNotifications } from "./email-config.js";
 
 initEmailNotifications();
@@ -783,34 +784,7 @@ fontSizeSelect?.addEventListener("change", (e) => {
 const UPLOAD_TIMEOUT_MS = 25000;
 
 async function uploadOneImage(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-  // Without a timeout a stalled connection (flaky mobile data, a dropped
-  // request) leaves the "Uploading…" spinner spinning forever with no way
-  // out. Abort and fail cleanly instead so the UI can recover.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
-
-  let response;
-  try {
-    response = await fetch(CLOUDINARY_UPLOAD_URL, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal
-    });
-  } catch (err) {
-    if (err.name === "AbortError") throw new Error("Upload timed out — check your connection and try again");
-    throw new Error("Upload failed — check your connection and try again");
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-  const data = await response.json();
-  if (!data.secure_url) throw new Error("Upload failed");
-  return data.secure_url;
+  return uploadSignedToCloudinary(file, "blog");
 }
 
 async function uploadPendingImages() {
@@ -898,6 +872,7 @@ postSubmitBtn?.addEventListener("click", async () => {
 
     // Sanitize text
     const sanitized = sanitizeHTML(body);
+    if (!await ensureStudentAuth()) throw new Error("Please log in to publish a post.");
 
     const editingPostId = composerModal.dataset.editingPostId;
 
@@ -908,8 +883,9 @@ postSubmitBtn?.addEventListener("click", async () => {
         content: sanitized,
         imageUrls,
         status: "pending_edit", // New status for edited posts waiting approval
+        public: false,
         editedAt: serverTimestamp(),
-        editedBy: normalizeEmail(s.email)
+        editedBy: s.regId
       });
       delete composerModal.dataset.editingPostId;
       alert("Your changes have been submitted for admin review.");
@@ -919,9 +895,10 @@ postSubmitBtn?.addEventListener("click", async () => {
         title,
         content: sanitized,
         imageUrls,
-        authorEmail: normalizeEmail(s.email),
         authorRegId: s.regId,
-        authorName: s.fullName || s.email,
+        privacyVersion: 2,
+        authorName: s.fullName || "Student",
+        public: false,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
         status: "pending",
         likesCount: 0,
@@ -1191,7 +1168,7 @@ function renderPostCard(id, item) {
   const galleryHTML = buildGalleryHTML(item.imageUrls);
 
   const s = getSession();
-  const isAuthor = s && normalizeEmail(s.email) === item.authorEmail;
+  const isAuthor = s && s.regId === item.authorRegId;
   // Firestore Timestamp objects don't have .getTime(), so the old check
   // here always silently evaluated to false — the badge never actually
   // reflected an edit. Reading the status field directly is what's true.
@@ -1313,7 +1290,7 @@ function wirePostCard(article, id, item) {
   // Edit button
   editBtn?.addEventListener("click", () => {
     const s = getSession();
-    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+    if (!s || s.regId !== item.authorRegId) {
       alert("You can only edit your own posts");
       return;
     }
@@ -1323,7 +1300,7 @@ function wirePostCard(article, id, item) {
   // Delete button
   deleteBtn?.addEventListener("click", () => {
     const s = getSession();
-    if (!s || normalizeEmail(s.email) !== item.authorEmail) {
+    if (!s || s.regId !== item.authorRegId) {
       alert("You can only delete your own posts");
       return;
     }
@@ -1354,7 +1331,7 @@ function wirePostCard(article, id, item) {
   likeBtn.addEventListener("click", async () => {
     const s = requireSession();
     if (!s) return;
-    const likeId = `${id}_${normalizeEmail(s.email)}`;
+    const likeId = `${id}_${window.__agriAuthUid || s.regId}`;
     const isLiked = likeBtn.classList.contains("is-active");
     likeBtn.disabled = true;
     try {
@@ -1366,7 +1343,7 @@ function wirePostCard(article, id, item) {
         likeBtn.innerHTML = "🤍 Like";
         localStorage.removeItem(`agri_blog_liked_${id}`);
       } else {
-        await setDoc(doc(db, "blogLikes", likeId), { postId: id, email: normalizeEmail(s.email), createdAt: serverTimestamp() });
+        await setDoc(doc(db, "blogLikes", likeId), { postId: id, uid: window.__agriAuthUid || s.regId, createdAt: serverTimestamp() });
         await updateDoc(doc(db, "blogPosts", id), { likesCount: increment(1) });
         item.likesCount = (item.likesCount || 0) + 1;
         likeBtn.classList.add("is-active");
@@ -1416,9 +1393,10 @@ function wirePostCard(article, id, item) {
 // COMMENTS — LOAD & RENDER
 // ============================================
 async function loadComments(postId, listEl) {
+  if (!await ensureStudentAuth()) return;
   listEl.innerHTML = `<p class="blog-comments-loading">Loading comments…</p>`;
   try {
-    const q = query(collection(db, "blogComments"), where("postId", "==", postId));
+    const q = query(collection(db, "blogComments"), where("postId", "==", postId), where("privacyVersion", "==", 2));
     const snap = await getDocs(q);
     if (snap.empty) {
       listEl.innerHTML = `<p class="blog-comments-empty">No comments yet — be the first!</p>`;
@@ -1467,9 +1445,10 @@ function renderCommentComposer(container, postId, listEl, commentCountEl, item) 
       await addDoc(collection(db, "blogComments"), {
         postId,
         text,
-        authorEmail: normalizeEmail(s.email),
         authorRegId: s.regId,
-        authorName: s.fullName || s.email,
+        privacyVersion: 2,
+        authorName: s.fullName || "Student",
+        public: false,
         authorAvatar: s.avatarUrl || "assets/avatar-male.svg",
         createdAt: serverTimestamp()
       });
@@ -1505,12 +1484,13 @@ function resetFeed() {
 }
 
 async function loadMorePosts() {
+  if (!await ensureStudentAuth()) return;
   if (feedDone) return;
   loadMoreBtn.disabled = true;
   loadMoreBtn.textContent = "Loading…";
   try {
-    let q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
-    if (lastDoc) q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
+    let q = query(collection(db, "blogPosts"), where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
+    if (lastDoc) q = query(collection(db, "blogPosts"), where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(PAGE_SIZE));
 
     const snap = await getDocs(q);
     if (snap.empty && !lastDoc) {
@@ -1524,14 +1504,8 @@ async function loadMorePosts() {
     }
     lastDoc = snap.docs[snap.docs.length - 1] || lastDoc;
 
-    const session = getSession();
-    const viewerEmail = session ? normalizeEmail(session.email) : "";
     snap.docs.forEach(d => {
       const item = d.data();
-      const isAuthor = viewerEmail && normalizeEmail(item.authorEmail) === viewerEmail;
-      // Pending/rejected posts belong only to their author's timeline.
-      // Everyone else can see a post only after admin approval.
-      if (item.status !== "approved" && !isAuthor) return;
       blogFeed.appendChild(renderPostCard(d.id, item));
     });
   } catch (err) {
@@ -1627,7 +1601,7 @@ async function loadDeepLinkedPost() {
     if (!snap.exists()) return;
     const item = snap.data();
     const s = getSession();
-    const isAuthor = s && normalizeEmail(s.email) === normalizeEmail(item.authorEmail);
+    const isAuthor = s && s.regId === item.authorRegId;
     if (item.status !== "approved" && !isAuthor) return;
     const wrapper = document.createElement("div");
     wrapper.className = "blog-pinned-post";
@@ -1653,7 +1627,7 @@ async function loadDeepLinkedEdit() {
     const snap = await getDoc(doc(db, "blogPosts", postId));
     if (!snap.exists()) return;
     const item = snap.data();
-    if (normalizeEmail(s.email) !== item.authorEmail) {
+    if (s.regId !== item.authorRegId) {
       alert("You can only edit your own posts");
       return;
     }
