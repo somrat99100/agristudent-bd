@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+  <defs>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B5D3B"/>
+      <stop offset="1" stop-color="#39A935"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#FFFFFF"/>
+
+  <!-- Integrated AgriCore emblem -->
+  <g transform="translate(600 320)">
+    <!-- Abstract A / growth form -->
+    <path d="M-250 205 L-105 -170 Q-88 -215 -45 -215 Q-3 -215 15 -170 L190 205 L82 205 L-4 -30 L-92 205 Z"
+          fill="#0B5D3B"/>
+    <!-- Leaf -->
+    <path d="M-72 38 C-150 -8 -178 -105 -126 -166 C-72 -227 27 -201 70 -128 C29 -126 -22 -103 -55 -62 C-82 -29 -86 8 -72 38 Z"
+          fill="#39A935"/>
+    <!-- Core circle -->
+    <circle cx="38" cy="38" r="82" fill="#FFFFFF" stroke="#0B5D3B" stroke-width="18"/>
+    <circle cx="38" cy="38" r="24" fill="#39A935"/>
+    <!-- Knowledge/connectivity nodes -->
+    <path d="M38 38 L118 -35 L174 5 L145 83" fill="none" stroke="#0B5D3B" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="118" cy="-35" r="14" fill="#39A935"/>
+    <circle cx="174" cy="5" r="14" fill="#0B5D3B"/>
+    <circle cx="145" cy="83" r="14" fill="#39A935"/>
+    <!-- Subtle crop-row lines -->
+    <path d="M-155 160 Q-55 105 45 160 M-130 185 Q-35 135 60 185"
+          fill="none" stroke="#39A935" stroke-width="10" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="600" y="650" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="700"
+        letter-spacing="-3">
+    <tspan fill="#202A27">Agri</tspan><tspan fill="#269447">Core</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <g fill="#4E5B56" font-family="Arial, Helvetica, sans-serif" font-size="27" letter-spacing="5">
+    <text x="600" y="715" text-anchor="middle">KNOWLEDGE  •  RESEARCH  •  GROWTH</text>
+  </g>
+
+  <!-- Divider accents -->
+  <line x1="300" y1="705" x2="430" y2="705" stroke="#39A935" stroke-width="5" stroke-linecap="round"/>
+  <line x1="770" y1="705" x2="900" y2="705" stroke="#39A935" stroke-width="5" stroke-linecap="round"/>
+</svg>
