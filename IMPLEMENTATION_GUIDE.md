@@ -1,4 +1,4 @@
-# Agri Core — Implementation Guide V4
+# AgriStudent BD — Implementation Guide V4
 ## Complete Setup Instructions for All New Features
 
 ---
@@ -271,7 +271,7 @@ You must create an EmailJS template for help messages to be emailed to the admin
 Use this HTML structure:
 
 ```html
-<h2>New Help Message from Agri Core</h2>
+<h2>New Help Message from AgriStudent BD</h2>
 
 <p><strong>From:</strong> {{from_name}}</p>
 <p><strong>Email:</strong> <a href="mailto:{{from_email}}">{{from_email}}</a></p>
@@ -323,7 +323,7 @@ async function sendHelpMessage(name, email, message) {
           from_name: name,
           from_email: email,
           message: message,
-          site_name: "Agri Core"
+          site_name: "AgriStudent BD"
         }
       );
     } catch (err) {

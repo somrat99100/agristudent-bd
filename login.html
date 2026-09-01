@@ -5,11 +5,11 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://us-central1-agristudent-bd.cloudfunctions.net https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
-<title>Login — Agri Core</title>
+<title>Login — AgriStudent BD</title>
 <script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -25,7 +25,8 @@
     <div class="crumb"><a href="index.html">Home</a> / Login</div>
     <h1>🔐 Log In</h1>
     <p style="color:var(--moss-600);margin-bottom:2rem;">
-      Sign in with your verified email address and password. Your password is handled by Firebase Authentication and is never stored in this website database.
+      Enter the email and Student ID you registered with. No password needed —
+      we look you up by your registration record.
     </p>
 
     <form id="login-form" style="display:flex;flex-direction:column;gap:1.1rem;">
@@ -36,8 +37,8 @@
       </div>
 
       <div>
-        <label for="login-password" style="display:block;font-weight:600;margin-bottom:.3rem;">Password *</label>
-        <input type="password" id="login-password" required autocomplete="current-password" minlength="8"
+        <label for="login-studentId" style="display:block;font-weight:600;margin-bottom:.3rem;">Student ID Number *</label>
+        <input type="text" id="login-studentId" required placeholder="e.g. 24209150 "
                style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;">
       </div>
 
@@ -45,10 +46,8 @@
 
       <div id="login-status" class="hidden" style="text-align:center;font-size:.9rem;font-weight:600;"></div>
     </form>
-    <p style="margin-top:1rem;text-align:center;font-size:.88rem;"><button type="button" id="forgot-password" style="background:none;border:0;color:var(--leaf-500);cursor:pointer;text-decoration:underline;">Forgot password?</button></p>
 
     <p style="margin-top:1.6rem;color:var(--moss-600);font-size:.9rem;text-align:center;">
-      <a href="activate.html" style="color:var(--leaf-500);font-weight:600;">Existing account? Set up your password →</a><br><br>
       Not registered yet? <a href="register.html" style="color:var(--leaf-500);font-weight:600;">Register here →</a>
     </p>
   </div>
@@ -56,7 +55,7 @@
 
 <footer>
   <div class="container">
-    <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>
+    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
   </div>
 </footer>
 

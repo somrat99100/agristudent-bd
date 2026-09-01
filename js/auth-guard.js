@@ -1,19 +1,19 @@
-// Remove legacy client-side identity cache keys.
-try { localStorage.removeItem("agri_session_v1"); sessionStorage.removeItem("agri_student_id"); localStorage.removeItem("agri_handnotes_user_email"); } catch {}
-
-// UX-only route guard. Firebase Authentication + Firestore/Storage rules are the real security boundary.
+// ============================================
+// AGRISTUDENT BD — auth-guard.js
+//
+// ⚠️ UX-ONLY: This is NOT a security mechanism.
+// It ensures visitors land on index.html first (UX flow),
+// not to restrict access to data. All real access control
+// is enforced by Firestore Security Rules on the server.
+// ============================================
 (function () {
   const ENTRY_KEY = "agristudentbd_entered";
-  const SESSION_KEY = "agri_session_v2";
   try {
     if (sessionStorage.getItem(ENTRY_KEY) !== "true") {
       window.location.replace("index.html");
-      return;
     }
-    const raw = localStorage.getItem(SESSION_KEY);
-    const session = raw ? JSON.parse(raw) : null;
-    if (!session?.regId) window.location.replace("login.html");
-  } catch {
-    window.location.replace("login.html");
+  } catch (err) {
+    // sessionStorage unavailable (privacy mode) — fail open
+    console.warn("AgriStudent BD: session storage unavailable, skipping entry check.", err);
   }
 })();

@@ -1,10 +1,9 @@
-import { db } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
-import { uploadSignedToCloudinary } from "./cloudinary.js";
-import { getSession, ensureStudentAuth } from "./session.js";
+import { getSession } from "./session.js";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const CIRCUMFERENCE = 226.19;
@@ -123,9 +122,8 @@ modal.addEventListener("click", (e) => {
 });
 
 async function loadTerms() {
-  if (!await ensureStudentAuth()) return;
   try {
-    const q = query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2));
+    const q = query(collection(db, "terms"), where("status", "==", "approved"));
     const snap = await getDocs(q);
     allTerms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     countLabel.textContent = `📖 Total Terms Uploaded: ${allTerms.length}`;
@@ -246,8 +244,28 @@ function showStatus(msg, isError = false) {
   if (isError) progressBar.style.stroke = "var(--terracotta-500)";
 }
 
-async function uploadImageToCloudinary(file, onProgress) {
-  return uploadSignedToCloudinary(file, "terms", onProgress);
+function uploadImageToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText).secure_url);
+      } else {
+        reject(new Error(`Image upload failed (server said: ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again."));
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 // Live duplicate check
@@ -288,7 +306,7 @@ form.addEventListener("submit", async (e) => {
 
     showStatus("Saving details…");
 
-    const dupQuery = query(collection(db, "terms"), where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2));
+    const dupQuery = query(collection(db, "terms"), where("status", "==", "approved"));
     const dupSnap = await getDocs(dupQuery);
     const isDuplicate = dupSnap.docs.some(d => (d.data().name || "").toLowerCase() === name.toLowerCase());
 
@@ -296,9 +314,7 @@ form.addEventListener("submit", async (e) => {
       name,
       imageUrl,
       description,
-      uploaderRegId: getSession()?.regId || "",
-      public: false,
-      privacyVersion: 2,
+      uploaderEmail,
       status: "pending",
       possibleDuplicate: isDuplicate,
       submittedAt: serverTimestamp()
