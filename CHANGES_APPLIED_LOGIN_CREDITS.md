@@ -1,4 +1,4 @@
-# AgriStudent BD — Login/Profile + Tracking & Credit Bug Fixes
+# Agri Core — Login/Profile + Tracking & Credit Bug Fixes
 
 ## Root causes found
 

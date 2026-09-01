@@ -1,11 +1,11 @@
-import { db } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  doc, getDoc, collection, query, where, getDocs
+  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeAccessStatus, maybeSendAccessReminder, renderAccessBadge } from "./access.js";
+import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
 
@@ -27,6 +27,83 @@ function showLoggedOut() {
   contentEl.classList.add("hidden");
   loggedOutEl.classList.remove("hidden");
 }
+
+// ============================================
+// PROFILE AVATAR UPLOAD — tap the camera badge on the circular avatar
+// to replace it. Uploads to Cloudinary (same pipeline as blog images),
+// then saves the URL onto the student's own registration doc.
+// ============================================
+const MAX_AVATAR_SIZE = 8 * 1024 * 1024; // 8MB
+const avatarWrap = document.getElementById("profile-avatar-wrap");
+const avatarImg = document.getElementById("profile-avatar");
+const avatarEditBtn = document.getElementById("profile-avatar-edit-btn");
+const avatarInput = document.getElementById("profile-avatar-input");
+const avatarStatus = document.getElementById("profile-avatar-status");
+
+avatarEditBtn?.addEventListener("click", () => avatarInput?.click());
+
+avatarInput?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  avatarInput.value = "";
+  if (!file) return;
+
+  const session = getSession();
+  if (!session) return;
+
+  avatarStatus.classList.remove("is-error");
+
+  if (!file.type.startsWith("image/")) {
+    avatarStatus.textContent = "Please choose an image file.";
+    avatarStatus.classList.add("is-error");
+    return;
+  }
+  if (file.size > MAX_AVATAR_SIZE) {
+    avatarStatus.textContent = "Image too large (max 8MB).";
+    avatarStatus.classList.add("is-error");
+    return;
+  }
+
+  avatarStatus.textContent = "Uploading…";
+  avatarWrap.classList.add("is-uploading");
+  avatarEditBtn.disabled = true;
+
+  // Instant local preview while the real upload runs in the background.
+  const previewUrl = URL.createObjectURL(file);
+  avatarImg.src = previewUrl;
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: formData });
+    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+    const data = await response.json();
+    if (!data.secure_url) throw new Error("Upload failed");
+
+    await updateDoc(doc(db, "registrations", session.regId), { avatarUrl: data.secure_url });
+
+    avatarImg.src = data.secure_url;
+    saveSession({ ...session, avatarUrl: data.secure_url });
+
+    // Reflect the change in the navbar avatar immediately too, without
+    // needing a page reload.
+    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = data.secure_url; });
+
+    avatarStatus.textContent = "Profile photo updated ✅";
+    setTimeout(() => {
+      if (avatarStatus.textContent === "Profile photo updated ✅") avatarStatus.textContent = "";
+    }, 3000);
+  } catch (err) {
+    console.error("[Profile] avatar upload failed:", err);
+    avatarImg.src = session.avatarUrl || (session.gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg");
+    avatarStatus.textContent = "Upload failed — check your connection and try again.";
+    avatarStatus.classList.add("is-error");
+  } finally {
+    avatarWrap.classList.remove("is-uploading");
+    avatarEditBtn.disabled = false;
+    URL.revokeObjectURL(previewUrl);
+  }
+});
 
 async function init() {
   const session = getSession();
@@ -56,6 +133,7 @@ async function init() {
 
     renderIdentity(reg);
     await renderCredits(normalizeEmail(reg.email), reg.fullName);
+    await renderMyBlogPosts(normalizeEmail(reg.email));
 
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
@@ -108,13 +186,32 @@ async function renderCredits(email, fullName) {
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-rejected").textContent = rejected;
 
-  // Access window (3 days per approval, 30 days once >10 files are approved)
-  const access = computeAccessStatus(items);
+  // Resource access is based only on actual resource files. Each approved
+  // file grants 24h; pending uploads provide up to 12h temporary access.
+  const resourceItems = items.filter(i => i.kind === "resource" && i.resourceType === "slides_notes");
+  const access = computeResourceAccessStatus(resourceItems);
   renderAccessBadge({
     badgeEl: document.getElementById("access-badge"),
     detailEl: document.getElementById("access-detail")
   }, access);
   maybeSendAccessReminder(access, { email, name: fullName });
+
+  const accessDetail = document.getElementById("access-detail");
+  const accessAlert = document.getElementById("resource-access-alert");
+  if (accessAlert) {
+    if (access.restricted) {
+      accessAlert.classList.remove("hidden");
+      accessAlert.innerHTML = `⚠️ Upload relevant files only. Resource access and uploads are restricted until ${formatDate(access.restrictedUntil)}.`;
+    } else {
+      accessAlert.classList.add("hidden");
+      accessAlert.innerHTML = "";
+    }
+  }
+  if (accessDetail && access.restricted) {
+    accessDetail.innerHTML = `⚠️ <strong>Upload relevant files only.</strong> You are restricted until <strong>${formatDate(access.restrictedUntil)}</strong>.`;
+  } else if (accessDetail && access.active) {
+    accessDetail.textContent = `${access.daysRemaining} day${access.daysRemaining === 1 ? "" : "s"} remaining · expires ${formatDate(access.accessUntil)}`;
+  }
 
   const listEl = document.getElementById("uploads-list");
   const emptyEl = document.getElementById("uploads-empty");
@@ -131,7 +228,7 @@ async function renderCredits(email, fullName) {
     const title = item.kind === "term"
       ? `📖 ${esc(item.name || "Untitled term")}`
       : `📄 ${esc(item.courseCode || "Unknown course")} — ${esc(item.resourceType === "previous_questions" ? "Previous Questions" : "Slides/Notes")}`;
-    const date = item.submittedAt?.toDate?.()?.toLocaleDateString?.() || "";
+    const date = item.submittedAt?.toDate?.() ? formatDate(item.submittedAt.toDate()) : "";
     return `
       <div class="upload-row">
         <div>
@@ -141,6 +238,85 @@ async function renderCredits(email, fullName) {
         <span class="status-tag ${esc(status)}">${status === "approved" ? "✅ Approved" : status === "rejected" ? "❌ Rejected" : "⏳ Pending"}</span>
       </div>`;
   }).join("");
+}
+
+// ============================================
+// MY BLOG POSTS — lets the student edit or delete their own posts
+// without hunting for them in the main feed. Edit hands off to
+// blog.html?editPost=ID, which loads the same composer used on the
+// blog page itself (title, body, and gallery images all carried over,
+// updating the original post in place rather than creating a new one).
+// ============================================
+function blogStatusTag(status) {
+  if (status === "pending_edit") return { cls: "pending", text: "📝 Pending Approval" };
+  if (status === "approved") return { cls: "approved", text: "✅ Verified" };
+  if (status === "rejected") return { cls: "rejected", text: "❌ Rejected" };
+  return { cls: "pending", text: "🕓 Not verified" };
+}
+
+async function renderMyBlogPosts(email) {
+  const listEl = document.getElementById("my-posts-list");
+  const emptyEl = document.getElementById("my-posts-empty");
+  if (!listEl) return;
+
+  let posts;
+  try {
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorEmail", "==", email)));
+    posts = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
+  } catch (err) {
+    console.error("[Profile] failed to load blog posts:", err);
+    return;
+  }
+
+  if (posts.length === 0) {
+    listEl.innerHTML = "";
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+
+  listEl.innerHTML = posts.map(item => {
+    const tag = blogStatusTag(item.status);
+    const date = item.createdAt?.toDate?.() ? formatDate(item.createdAt.toDate()) : "";
+    return `
+      <div class="upload-row" data-post-id="${esc(item.id)}">
+        <div>
+          <div style="font-weight:600;font-size:.92rem;">${esc(item.title || "Untitled post")}</div>
+          <div style="font-size:.75rem;color:var(--moss-600);">${date} · 👁️ ${item.views || 0} views</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span class="status-tag ${tag.cls}">${tag.text}</span>
+          <button type="button" class="my-post-edit-btn" data-id="${esc(item.id)}"
+            style="background:none;border:1px solid var(--line);border-radius:6px;padding:.3rem .6rem;font-size:.78rem;cursor:pointer;">✏️ Edit</button>
+          <button type="button" class="my-post-delete-btn" data-id="${esc(item.id)}"
+            style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);border-radius:6px;padding:.3rem .6rem;font-size:.78rem;cursor:pointer;">🗑️ Delete</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  listEl.querySelectorAll(".my-post-edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      window.location.href = `blog.html?editPost=${encodeURIComponent(btn.dataset.id)}`;
+    });
+  });
+
+  listEl.querySelectorAll(".my-post-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this blog post? This cannot be undone.")) return;
+      btn.disabled = true;
+      try {
+        await deleteDoc(doc(db, "blogPosts", btn.dataset.id));
+        listEl.querySelector(`[data-post-id="${btn.dataset.id}"]`)?.remove();
+        if (!listEl.children.length) emptyEl.classList.remove("hidden");
+      } catch (err) {
+        console.error("[Profile] failed to delete post:", err);
+        alert("Failed to delete post. Please try again.");
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 const logoutBtn = document.getElementById("profile-logout-btn");

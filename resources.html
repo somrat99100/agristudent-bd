@@ -5,12 +5,13 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://api.emailjs.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
-<title>Resources — AgriStudent BD</title>
+<title>Resources — Agri Core</title>
 <script src="js/auth-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -39,7 +40,10 @@
     </div>
 
     <div id="resource-content" class="hidden">
-      <button id="open-upload-form" class="btn-primary" style="margin-bottom:2rem;">⬆️ Upload Your Resource</button>
+      <div style="display:flex;flex-wrap:wrap;gap:.8rem;margin-bottom:2rem;">
+        <button id="open-upload-form" class="btn-primary">⬆️ Upload Your Resource</button>
+        <button id="open-classroom-code-form" class="btn-primary" style="background:var(--moss-600);">🏫 Send Us Classroom Code</button>
+      </div>
 
       <div class="card-grid" style="margin-bottom:2.5rem;">
         <a href="slides-notes.html" class="seed-card reveal">
@@ -66,7 +70,7 @@
         <button class="modal-close" id="upload-form-close">✕</button>
         <div class="modal-body">
           <h2 style="font-size:1.3rem;">⬆️ Upload Your Resource</h2>
-          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">If possible, combine all lecture content into a single PDF before uploading. Max 20 files, 50MB each, PDF only.</p>
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Upload relevant PDFs, images, or presentations. Max 20 files, 50MB each. Each approved file gives 24 hours of resource access.</p>
 
           <form id="upload-form">
             <div class="form-field">
@@ -155,12 +159,36 @@
       </div>
     </div>
 
+    <div id="classroom-code-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:440px;">
+        <button class="modal-close" id="classroom-code-close">✕</button>
+        <div class="modal-body">
+          <h2 style="font-size:1.3rem;">🏫 Send Us Your Classroom Code</h2>
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;">Share your Google Classroom code and we'll use it to pull in materials for your course.</p>
+
+          <form id="classroom-code-form">
+            <div class="form-field">
+              <label for="classroom-code-input">Google Classroom Code *</label>
+              <input type="text" id="classroom-code-input" required placeholder="e.g., a1b2c3d">
+            </div>
+            <button type="submit" id="classroom-code-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send</button>
+          </form>
+
+          <div id="classroom-code-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+            <span class="badge" style="background:var(--leaf-500);">✅ Submitted</span>
+            <h3>Thank You!</h3>
+            <p>Your classroom code was successfully submitted.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
 <footer>
   <div class="container">
-    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
+    <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>
   </div>
 </footer>
 

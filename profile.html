@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
-<title>My Profile — AgriStudent BD</title>
+<title>My Profile — Agri Core</title>
 <script src="js/auth-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,22 @@
     display:flex; gap:1.2rem; align-items:center; padding:1.4rem;
     border:1px solid var(--line); border-radius:14px; background:#fff; margin-bottom:1.6rem;
   }
-  .profile-avatar{ width:72px; height:72px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+  .profile-avatar-wrap{ position:relative; flex-shrink:0; width:72px; height:72px; }
+  .profile-avatar{ width:72px; height:72px; border-radius:50%; object-fit:cover; flex-shrink:0; display:block; border:2px solid var(--line); }
+  .profile-avatar-edit-btn{
+    position:absolute; bottom:-2px; right:-2px;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--leaf-500); color:#fff; border:2px solid #fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.8rem; cursor:pointer;
+    box-shadow:0 2px 6px rgba(31,46,34,.25);
+    transition:background .16s ease, transform .16s ease;
+  }
+  .profile-avatar-edit-btn:hover{ background:var(--moss-700); transform:scale(1.06); }
+  .profile-avatar-edit-btn:disabled{ opacity:.6; cursor:wait; transform:none; }
+  .profile-avatar-wrap.is-uploading .profile-avatar{ opacity:.5; }
+  .profile-avatar-status{ font-size:.72rem; color:var(--moss-600); margin-top:.3rem; min-height:1em; }
+  .profile-avatar-status.is-error{ color:var(--terracotta-500); }
   .profile-status-pill{
     display:inline-block; font-size:.75rem; font-weight:700; padding:.25rem .6rem;
     border-radius:999px; margin-top:.35rem;
@@ -60,16 +75,22 @@
 
     <div id="profile-content" class="hidden">
       <div class="profile-card">
-        <img id="profile-avatar" class="profile-avatar" src="" alt="">
+        <div class="profile-avatar-wrap" id="profile-avatar-wrap">
+          <img id="profile-avatar" class="profile-avatar" src="" alt="">
+          <button type="button" class="profile-avatar-edit-btn" id="profile-avatar-edit-btn" title="Change profile photo" aria-label="Change profile photo">📷</button>
+          <input type="file" id="profile-avatar-input" accept="image/*" style="display:none;">
+        </div>
         <div>
           <div style="font-weight:700;font-size:1.2rem;" id="profile-name"></div>
           <div style="font-size:.85rem;color:var(--moss-600);" id="profile-email"></div>
           <div style="font-size:.85rem;color:var(--moss-600);">Student ID: <strong id="profile-studentid"></strong></div>
           <span id="profile-status-pill" class="profile-status-pill"></span>
+          <div id="profile-avatar-status" class="profile-avatar-status"></div>
         </div>
       </div>
 
       <div id="profile-status-note" class="uc-panel hidden" style="margin-bottom:1.8rem;"></div>
+      <div id="resource-access-alert" class="uc-panel hidden" style="margin-bottom:1.8rem;border-color:var(--terracotta-500);background:rgba(196,90,63,.07);color:var(--terracotta-500);font-weight:600;"></div>
 
       <div class="uc-panel" style="margin-bottom:1.8rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
         <div>
@@ -92,6 +113,12 @@
         <p>You haven't uploaded anything yet. Contributions to Resources or the Knowledge Hub will show up here.</p>
       </div>
 
+      <h2 style="font-size:1.1rem;margin-bottom:.8rem;margin-top:1.8rem;">📰 My Blog Posts</h2>
+      <div id="my-posts-list"></div>
+      <div id="my-posts-empty" class="uc-panel hidden">
+        <p>You haven't published any blog posts yet. Head to the <a href="blog.html" style="color:var(--leaf-500);font-weight:600;">Blog</a> to share something.</p>
+      </div>
+
       <button type="button" id="profile-logout-btn" style="margin-top:2rem;background:none;border:1px solid var(--line);color:var(--terracotta-500);padding:.7rem 1.4rem;border-radius:8px;font-weight:600;cursor:pointer;">Log Out</button>
     </div>
 
@@ -105,7 +132,7 @@
 
 <footer>
   <div class="container">
-    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
+    <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>
   </div>
 </footer>
 

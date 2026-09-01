@@ -3,20 +3,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================
-    // REGISTRATIONS: Student signup + verification
+    // REGISTRATIONS: Student signup + OTP verification
     // ============================================
-    // NOTE: Students never sign in (only the admin panel authenticates,
-    // via signInWithEmailAndPassword in js/admin.js). Requiring
-    // request.auth != null on create would break register.html entirely.
-    // "list: if true" is intentionally kept public -- it's what powers
-    // the live registration counter (js/stats.js, getCountFromServer)
-    // and the resource-gate student-ID lookup (js/resources.js
-    // checkAccess()), both of which run unauthenticated. Restricting it
-    // to auth-only silently breaks those two features.
+    // Students are auto-approved once the email OTP is verified. Admin authentication
+    // is not part of registration anymore. "list: if true" remains public because
+    // the site uses it for live counters and email/ID lookups.
+    //
+    // The live registration counter and resource lookups run unauthenticated,
+    // so list access remains public.
     match /registrations/{id} {
       allow create: if
         request.resource.data.keys().hasAll(['studentIdNumber', 'email', 'status']) &&
-        request.resource.data.status == "unverified" &&
+        request.resource.data.status == "verified" &&
         request.resource.data.studentIdNumber is string &&
         request.resource.data.studentIdNumber.size() > 0 &&
         request.resource.data.studentIdNumber.size() < 50 &&
@@ -29,8 +27,20 @@ service cloud.firestore {
         resource.data.status == "verified" ||
         request.auth != null;
 
-      // Admin panel only (js/admin.js approve/reject + generic edit modal)
-      allow update, delete: if request.auth != null;
+      // Admin panel only (js/admin.js approve/reject + generic edit modal),
+      // OR a student updating just their own profile photo. Students never
+      // hold a Firebase Auth session (same trust model as the rest of this
+      // file), so this can't verify "your own" doc beyond knowing its ID —
+      // consistent with the public-write-with-field-validation model used
+      // for blogPosts/resources elsewhere in this file. Scoped tightly so
+      // it can ONLY ever touch the avatarUrl field, and only to a real
+      // Cloudinary URL, never anything else on the record.
+      allow update: if request.auth != null || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl']) &&
+        request.resource.data.avatarUrl is string &&
+        request.resource.data.avatarUrl.matches('^https://res[.]cloudinary[.]com/.*')
+      );
+      allow delete: if request.auth != null;
     }
 
     // ============================================
@@ -147,11 +157,160 @@ service cloud.firestore {
     }
 
     // ============================================
+    // CLASSROOM CODES: "Send Us Classroom Code" (resources.html)
+    // ============================================
+    // Same pattern as messages above: students never sign in, so create
+    // stays public + validated; only the admin panel can read/manage them.
+    match /classroomCodes/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['classroomCode', 'status']) &&
+        request.resource.data.classroomCode is string &&
+        request.resource.data.classroomCode.size() > 0 &&
+        request.resource.data.classroomCode.size() <= 200 &&
+        request.resource.data.status == "new";
+
+      // Admin-only list (js/admin.js loadClassroomCodes)
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // ============================================
     // SETTINGS: Configuration (admin-only, unchanged)
     // ============================================
     match /settings/{id} {
       allow read: if true;
       allow write: if request.auth != null;
+    }
+
+    // ============================================
+    // BLOG POSTS: Facebook-style student timeline (js/blog.js)
+    // ============================================
+    // Same trust model as /resources and /terms above: students never
+    // hold a Firebase Auth session (only the admin panel does), so
+    // create/engagement writes have to stay public and be locked down
+    // with field validation instead of an auth check.
+    //
+    // Unlike /resources, a blog post is visible to everyone the moment
+    // it's submitted (status "pending") — the product requirement is
+    // that it shows up in the public timeline immediately with a
+    // "Not verified" watermark, then flips to an "Approved" badge once
+    // an admin reviews it. So read access does not gate on status here;
+    // js/blog.js chooses to hide "rejected" posts client-side instead.
+    match /blogPosts/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['title', 'content', 'authorEmail', 'authorRegId', 'status', 'likesCount', 'commentsCount', 'sharesCount', 'views']) &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000 &&
+        request.resource.data.authorEmail is string && request.resource.data.authorEmail.size() > 0 &&
+        request.resource.data.authorRegId is string && request.resource.data.authorRegId.size() > 0 &&
+        request.resource.data.likesCount == 0 &&
+        request.resource.data.commentsCount == 0 &&
+        request.resource.data.sharesCount == 0 &&
+        request.resource.data.views == 0;
+
+      // Public read is retained because student accounts are not Firebase-authenticated.
+      // js/blog.js enforces the visibility rule: approved posts are public; pending/rejected
+      // posts are rendered only when their author email matches the current session.
+      allow read: if true;
+
+      // Engagement counters (like/unlike, view, share) are bumped by
+      // anonymous-but-registered visitors with no auth token, so they're
+      // allowed as long as the write touches ONLY one counter field and
+      // moves it by exactly +/-1 — never a moderation field (status),
+      // never the content, and never an arbitrary jump in count.
+      allow update: if request.auth != null || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
+        (request.resource.data.likesCount == resource.data.likesCount + 1 ||
+         request.resource.data.likesCount == resource.data.likesCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) &&
+        request.resource.data.views == resource.data.views + 1
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sharesCount']) &&
+        request.resource.data.sharesCount == resource.data.sharesCount + 1
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount']) &&
+        (request.resource.data.commentsCount == resource.data.commentsCount + 1 ||
+         request.resource.data.commentsCount == resource.data.commentsCount - 1)
+      );
+
+      // Allow a student to edit their OWN post (title, content, images).
+      // Students never hold a Firebase Auth session (same trust model as
+      // the rest of this file — see registrations.avatarUrl above), so
+      // this can never require request.auth != null; the previous version
+      // of this rule did, which meant every edit was silently denied by
+      // Firestore and never actually saved. Ownership can't be verified
+      // server-side without auth, so trust is instead placed in tight
+      // field validation: only title/content/imageUrls/status/editedAt/
+      // editedBy may change (authorEmail, authorRegId, and every counter
+      // are locked), and the write must move status to "pending_edit" —
+      // it can never re-approve itself or resurrect a rejected post as
+      // approved. The edit updates the SAME document in place; it never
+      // creates a new one, and it goes back through admin review exactly
+      // like a brand-new post did.
+      allow update: if
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'imageUrls', 'status', 'editedAt', 'editedBy']) &&
+        request.resource.data.status == "pending_edit" &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000;
+
+      // Deleting a post: students never hold a Firebase Auth session, and
+      // even the admin panel's own session email doesn't match
+      // authorEmail (admin is deleting someone else's post, not their
+      // own) — so the previous `resource.data.authorEmail ==
+      // request.auth.token.email` check failed for BOTH the student's
+      // own delete button (js/blog.js, js/profile.js) and admin
+      // moderation deletes. Ownership can't be verified server-side
+      // without an auth session tied to the student, so this trusts the
+      // client the same way the rest of this file already does for
+      // blogLikes deletes, avatarUrl updates, etc. — every UI entry
+      // point already gates the delete button behind a client-side
+      // "is this your own post" (or admin) check before calling this.
+      allow delete: if true;
+    }
+
+    // ============================================
+    // BLOG COMMENTS: attached to a blogPosts/{postId}
+    // ============================================
+    match /blogComments/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['postId', 'text', 'authorEmail', 'authorRegId']) &&
+        request.resource.data.postId is string && request.resource.data.postId.size() > 0 &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000 &&
+        request.resource.data.authorEmail is string && request.resource.data.authorEmail.size() > 0 &&
+        request.resource.data.authorRegId is string && request.resource.data.authorRegId.size() > 0;
+
+      allow read: if true;
+
+      // Admin moderation only — deleting a comment does not (and cannot,
+      // without auth) also decrement the post's commentsCount here; that
+      // decrement happens client-side via the blogPosts/{id} counter
+      // update rule above, in the same admin action.
+      allow update, delete: if request.auth != null;
+    }
+
+    // ============================================
+    // BLOG LIKES: one doc per (post, student) pair, doc id = `${postId}_${normalizedEmail}`
+    // ============================================
+    // Existence of the doc IS the "liked" state, so create = like and
+    // delete = unlike. There's no auth to prove the caller owns the
+    // email baked into the doc id, but that's the same trade-off the
+    // rest of this file already makes for every unauthenticated write.
+    match /blogLikes/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['postId', 'email']) &&
+        request.resource.data.postId is string && request.resource.data.postId.size() > 0 &&
+        request.resource.data.email is string && request.resource.data.email.size() > 0 &&
+        id == (request.resource.data.postId + '_' + request.resource.data.email);
+
+      allow read: if true;
+      allow delete: if true;
+      allow update: if false;
     }
   }
 }

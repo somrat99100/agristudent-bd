@@ -5,11 +5,11 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
-<title>Ask For Help — AgriStudent BD</title>
+<title>Ask For Help — Agri Core</title>
 <script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -24,54 +24,52 @@
   <div class="container">
     <div class="crumb"><a href="index.html">Home</a> / Ask For Help</div>
     <h1>💬 Ask For Help</h1>
-    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Reach the AgriStudent BD team directly.</p>
+    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Reach the Agri Core team directly.</p>
 
-    <div class="card-grid" style="margin-bottom:2.5rem;">
-      <div class="seed-card">
-        <div class="tag-strip"><span class="tag-dot"></span><span class="tag">FASTEST</span></div>
-        <div class="card-body" style="text-align:center;">
-          <div class="icon" style="margin-left:auto;margin-right:auto;">📱</div>
+    <div class="help-contact-stack">
+      <div class="help-tile">
+        <div class="help-tile-icon help-tile-icon--whatsapp">📱</div>
+        <div class="help-tile-body">
+          <span class="help-tile-eyebrow">Fastest</span>
           <h3>Chat on WhatsApp</h3>
-          <p style="font-size:.88rem;color:var(--moss-600);margin-bottom:1rem;">Get instant support</p>
-          <a id="whatsapp-link" href="https://wa.me/8801753486065" target="_blank" rel="noopener" class="btn-primary" style="display:inline-block;text-decoration:none;">Chat Now</a>
+          <p>Get instant support from the team</p>
         </div>
+        <a id="whatsapp-link" href="https://wa.me/8801753486065" target="_blank" rel="noopener" class="help-tile-cta">Chat Now</a>
       </div>
 
-      <div class="seed-card">
-        <div class="tag-strip"><span class="tag-dot"></span><span class="tag">EMAIL</span></div>
-        <div class="card-body" style="text-align:center;">
-          <div class="icon" style="margin-left:auto;margin-right:auto;">📧</div>
-          <h3>Send Message</h3>
-          <p style="font-size:.88rem;color:var(--moss-600);">Fill out the form below</p>
-        </div>
-      </div>
-    </div>
-
-    <div style="max-width:500px;">
-      <h2 style="font-size:1.2rem;margin-bottom:1rem;">Send a Message</h2>
-
-      <form id="help-form">
-        <div class="form-field">
-          <label for="help-name">Name *</label>
-          <input type="text" id="help-name" required>
-        </div>
-        <div class="form-field">
-          <label for="help-email">Email *</label>
-          <input type="email" id="help-email" required>
-        </div>
-        <div class="form-field">
-          <label for="help-message">Message *</label>
-          <textarea id="help-message" required rows="4" style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;"></textarea>
+      <div class="help-tile help-tile--form">
+        <div class="help-tile-header">
+          <div class="help-tile-icon help-tile-icon--email">📧</div>
+          <div class="help-tile-body">
+            <span class="help-tile-eyebrow">Email</span>
+            <h3>Send a Message</h3>
+            <p>We'll reply as soon as we can</p>
+          </div>
         </div>
 
-        <button type="submit" id="help-submit" class="btn-primary" style="width:100%;padding:.85rem;">Submit</button>
-        <p id="help-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
-      </form>
+        <form id="help-form" class="help-form">
+          <div class="form-field">
+            <label for="help-name">Name *</label>
+            <input type="text" id="help-name" required>
+          </div>
+          <div class="form-field">
+            <label for="help-email">Email *</label>
+            <input type="email" id="help-email" required>
+          </div>
+          <div class="form-field">
+            <label for="help-message">Message *</label>
+            <textarea id="help-message" required rows="4"></textarea>
+          </div>
 
-      <div id="help-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
-        <span class="badge" style="background:var(--leaf-500);">✅ Sent</span>
-        <h3>Thanks for reaching out!</h3>
-        <p>We'll get back to you as soon as possible.</p>
+          <button type="submit" id="help-submit" class="btn-primary help-submit-btn">Submit</button>
+          <p id="help-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
+        </form>
+
+        <div id="help-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+          <span class="badge" style="background:var(--leaf-500);">✅ Sent</span>
+          <h3>Thanks for reaching out!</h3>
+          <p>We'll get back to you as soon as possible.</p>
+        </div>
       </div>
     </div>
 
@@ -80,7 +78,7 @@
 
 <footer>
   <div class="container">
-    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
+    <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>
   </div>
 </footer>
 

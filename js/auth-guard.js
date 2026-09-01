@@ -1,5 +1,5 @@
 // ============================================
-// AGRISTUDENT BD — auth-guard.js
+// AGRI CORE — auth-guard.js
 //
 // ⚠️ UX-ONLY: This is NOT a security mechanism.
 // It ensures visitors land on index.html first (UX flow),
@@ -14,6 +14,6 @@
     }
   } catch (err) {
     // sessionStorage unavailable (privacy mode) — fail open
-    console.warn("AgriStudent BD: session storage unavailable, skipping entry check.", err);
+    console.warn("Agri Core: session storage unavailable, skipping entry check.", err);
   }
 })();
