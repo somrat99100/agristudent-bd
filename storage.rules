@@ -4,37 +4,43 @@ service firebase.storage {
     function signedIn() { return request.auth != null; }
     function verified() { return signedIn() && request.auth.token.email_verified == true; }
     function admin() { return verified() && request.auth.token.admin == true; }
+    function own(uid) { return verified() && request.auth.uid == uid; }
 
     match /resources/{uid}/{fileName} {
-      allow read: if verified() || admin();
-      allow write: if verified() && request.auth.uid == uid
+      allow read: if verified();
+      allow write: if own(uid)
         && request.resource.size < 55 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf|image/(jpeg|png|gif|webp)|application/(vnd.ms-powerpoint|vnd.openxmlformats-officedocument.presentationml.presentation)');
-      allow delete: if verified() && request.auth.uid == uid || admin();
+      allow delete: if own(uid) || admin();
     }
 
     match /blog/{uid}/{fileName} {
-      allow read: if verified() || admin();
-      allow write: if verified() && request.auth.uid == uid
+      allow read: if verified();
+      allow write: if own(uid)
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|gif|webp)');
-      allow delete: if verified() && request.auth.uid == uid || admin();
+      allow delete: if own(uid) || admin();
     }
 
     match /student-ids/{uid}/{fileName} {
-      allow read: if (verified() && request.auth.uid == uid) || admin();
-      allow write: if (verified() && request.auth.uid == uid
+      allow read: if own(uid) || admin();
+      allow write: if own(uid)
         && request.resource.size < 6 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp)')) || admin();
-      allow delete: if (verified() && request.auth.uid == uid) || admin();
+        && request.resource.contentType.matches('image/(jpeg|png|gif|webp)');
+      allow delete: if own(uid) || admin();
     }
 
     match /avatars/{uid}/{fileName} {
+<<<<<<< HEAD
       allow read: if verified() || admin();
       allow write: if (verified() && request.auth.uid == uid
+=======
+      allow read: if verified();
+      allow write: if own(uid)
+>>>>>>> d3a4775901e8e16582ef71c14e2ad9e20951215c
         && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp)')) || admin();
-      allow delete: if (verified() && request.auth.uid == uid) || admin();
+        && request.resource.contentType.matches('image/(jpeg|png|gif|webp)');
+      allow delete: if own(uid) || admin();
     }
 
     match /{allPaths=**} { allow read, write: if false; }
