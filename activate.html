@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://us-central1-agristudent-bd.cloudfunctions.net https://firebasestorage.googleapis.com; img-src 'self' data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self';">
+<link rel="icon" href="assets/favicon.svg"><link rel="stylesheet" href="css/style.css">
+<title>Activate Account — Agri Core</title></head>
+<body>
+<div id="navbar-placeholder"></div><script src="js/navbar-loader.js"></script>
+<section class="section-page"><div class="container" style="max-width:500px;">
+<div class="crumb"><a href="index.html">Home</a> / Activate Account</div>
+<h1>🔐 Activate Existing Account</h1>
+<p style="color:var(--moss-600);margin-bottom:1.5rem;">If you registered before password login was introduced, verify your registered email once and create a new password. Your existing student record is preserved.</p>
+<form id="activation-form" style="display:flex;flex-direction:column;gap:1rem;">
+<label>Email Address *<input id="activation-email" type="email" required autocomplete="email" style="width:100%;padding:.7rem;border:1px solid var(--line);border-radius:8px;"></label>
+<label>Student ID Number *<input id="activation-student-id" type="text" required autocomplete="off" style="width:100%;padding:.7rem;border:1px solid var(--line);border-radius:8px;"></label>
+<label>Password *<input id="activation-password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" style="width:100%;padding:.7rem;border:1px solid var(--line);border-radius:8px;"></label>
+<label>Confirm Password *<input id="activation-password-confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password" style="width:100%;padding:.7rem;border:1px solid var(--line);border-radius:8px;"></label>
+<button id="activation-send" type="submit" style="background:var(--moss-700);color:#fff;border:0;padding:.85rem;border-radius:8px;font-weight:600;">Send Verification Code</button>
+</form>
+<div id="activation-otp-panel" class="uc-panel hidden" style="margin-top:1rem;">
+<label>6-digit verification code<input id="activation-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="width:100%;padding:.8rem;margin-top:.4rem;border:1px solid var(--line);border-radius:8px;font-size:1.3rem;text-align:center;letter-spacing:.4rem;"></label>
+<button id="activation-verify" type="button" style="width:100%;margin-top:1rem;background:var(--moss-700);color:#fff;border:0;padding:.85rem;border-radius:8px;font-weight:600;">Verify & Activate</button>
+</div>
+<div id="activation-status" style="margin-top:1rem;text-align:center;font-size:.9rem;"></div>
+</div></section>
+<script type="module" src="js/activation.js"></script><script src="js/main.js"></script>
+</body></html>

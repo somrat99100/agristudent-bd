@@ -1,12 +1,7 @@
-import { db } from "./firebase-config.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { getSession, saveSession } from "./session.js";
-
-// Already logged in? Skip the form and go straight to the profile.
-if (getSession()) {
-  window.location.replace("profile.html");
-}
+import { auth, db } from "./firebase-config.js";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { saveSession, clearSession } from "./session.js";
 
 const form = document.getElementById("login-form");
 const submitBtn = document.getElementById("login-submit");
@@ -18,64 +13,73 @@ function showStatus(msg, isError = false) {
   statusBox.classList.remove("hidden");
 }
 
-form.addEventListener("submit", async (e) => {
+form.addEventListener("submit", async e => {
   e.preventDefault();
-
-  const email = normalizeEmail(document.getElementById("login-email").value);
-  const studentId = normalizeStudentId(document.getElementById("login-studentId").value);
-
-  if (!email || !studentId) {
-    showStatus("Please fill in both fields.", true);
-    return;
-  }
+  const email = document.getElementById("login-email").value.trim().toLowerCase();
+  const password = document.getElementById("login-password").value;
+  if (!email || !password) return showStatus("Please enter your email and password.", true);
 
   submitBtn.disabled = true;
-  submitBtn.textContent = "Checking…";
-  showStatus("Looking up your registration…");
+  submitBtn.textContent = "Signing in…";
+  showStatus("Signing in…");
 
   try {
-    // Look up by email first (normalized, so this matches regardless of
-    // how the student originally typed the casing during registration —
-    // registration.js normalizes on save, but this also tolerates any
-    // older records saved before that fix).
-    const q = query(collection(db, "registrations"), where("email", "==", email));
-    const snap = await getDocs(q);
-
-    if (snap.empty) {
-      showStatus("❌ No account found for that email. Please register first.", true);
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Log In";
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    if (!cred.user.emailVerified) {
+      await signOut(auth);
+      showStatus("Please verify your email before using the student portal.", true);
       return;
     }
 
-    // An email could in theory have multiple registration attempts; match
-    // the one whose Student ID (normalized) matches what was typed.
-    const match = snap.docs.find(d => normalizeStudentId(d.data().studentIdNumber) === studentId);
-
-    if (!match) {
-      showStatus("❌ That Student ID doesn't match this email. Please check both fields.", true);
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Log In";
+    const token = await cred.user.getIdTokenResult(true);
+    if (token.claims?.student !== true || typeof token.claims?.regId !== "string") {
+      await signOut(auth);
+      clearSession();
+      showStatus("This account is not configured as a student account.", true);
       return;
     }
 
-    const reg = match.data();
+    const snap = await getDoc(doc(db, "registrations", token.claims.regId));
+    if (!snap.exists()) {
+      await signOut(auth);
+      clearSession();
+      showStatus("Your student profile could not be found. Please contact the administrator.", true);
+      return;
+    }
+
+    const reg = snap.data();
     saveSession({
-      regId: match.id,
+      regId: token.claims.regId,
       fullName: reg.fullName,
-      email: reg.email,
-      studentIdNumber: reg.studentIdNumber,
       gender: reg.gender,
       avatarUrl: reg.avatarUrl,
-      status: reg.status || "unverified"
+      status: reg.status || "verified"
     });
-
-    showStatus("✅ Logged in! Redirecting…");
-    setTimeout(() => { window.location.href = "profile.html"; }, 500);
+    window.location.replace("profile.html");
   } catch (err) {
     console.error("[Login] failed:", err);
-    showStatus("Something went wrong. Please try again.", true);
+    const code = err?.code || "";
+    showStatus(
+      code === "auth/too-many-requests"
+        ? "Too many attempts. Please wait and try again later."
+        : "Invalid email or password.",
+      true
+    );
+  } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Log In";
+  }
+});
+
+document.getElementById("forgot-password")?.addEventListener("click", async () => {
+  const email = document.getElementById("login-email").value.trim().toLowerCase();
+  if (!email) return showStatus("Enter your email address first.", true);
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showStatus("If an account exists for that email, a password-reset email has been sent.");
+  } catch (err) {
+    console.error("[Password reset]", err);
+    // Do not reveal whether an email is registered.
+    showStatus("If an account exists for that email, a password-reset email has been sent.");
   }
 });

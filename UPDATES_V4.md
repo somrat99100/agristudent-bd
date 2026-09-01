@@ -1,4 +1,4 @@
-# AgriStudent BD — Updates V4 (August 26, 2026)
+# Agri Core — Updates V4 (August 26, 2026)
 
 ## Overview
 Major feature additions for blog post editing, text formatting, improved resource counting, and enhanced help system.
@@ -100,7 +100,7 @@ Major feature additions for blog post editing, text formatting, improved resourc
   - `from_name`: User's name
   - `from_email`: User's email
   - `message`: Help message body
-  - `site_name`: "AgriStudent BD"
+  - `site_name`: "Agri Core"
   
 - **Fallback:** If EmailJS not configured, messages still save to Firestore database
 - **Files:** `js/help.js` (lines 27-55)
