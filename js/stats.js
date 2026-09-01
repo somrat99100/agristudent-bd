@@ -1,5 +1,5 @@
 // ============================================
-// AGRI CORE — stats.js
+// AGRISTUDENT BD — stats.js
 // Pulls REAL, live counts from Firestore for the
 // homepage stats strip (no more hardcoded numbers).
 // ============================================
@@ -14,21 +14,24 @@ const STAT_SOURCES = {
     getCountFromServer(collection(db, "registrations")),
 
   "stat-resources": async () => {
-    // Count actual approved files (not submission/folder documents).
-    // PDFs, PPT/PPTX and uploaded images all contribute one count per file.
+    // Count actual approved PDF + Presentation files, not Firestore
+    // resource/folder documents. A single submission containing 4 files
+    // therefore contributes 4 to the homepage count.
+    const snap = await getCountFromServer(query(collection(db, "resources"), where("status", "==", "approved")));
+    // getCountFromServer cannot count nested array items, so fetch the
+    // approved entries separately and sum only PDF/PPT(PPTX) files.
     const docsSnap = await getDocs(
       query(collection(db, "resources"), where("status", "==", "approved"))
     );
-    const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i;
-    const docExts = /\.(pdf|ppt|pptx)$/i;
     let total = 0;
     docsSnap.forEach(d => {
       const item = d.data();
       const files = Array.isArray(item.fileUrls) ? item.fileUrls : [];
-      const type = String(item.fileType || "").toLowerCase();
       total += files.filter(f => {
-        const name = String(f?.name || "");
-        return type === "pdf" || type === "ppt" || type === "image" || docExts.test(name) || imageExts.test(name);
+        const name = String(f?.name || "").toLowerCase();
+        const type = String(item.fileType || "").toLowerCase();
+        return type === "pdf" || type === "ppt" ||
+          /\.(pdf|ppt|pptx)$/i.test(name);
       }).length;
     });
     return { data: () => ({ count: total }) };

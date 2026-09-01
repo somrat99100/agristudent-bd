@@ -51,7 +51,7 @@ async function sendHelpMessage(name, email, message) {
           from_name: name,
           from_email: email,
           message: message,
-          site_name: "Agri Core"
+          site_name: "AgriStudent BD"
         }
       );
     } catch (err) {
