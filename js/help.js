@@ -31,33 +31,15 @@ function showStatus(msg, isError = false) {
   statusBox.classList.remove("hidden");
 }
 
-// Send help message via EmailJS to admin and save to Firestore
+// Help messages are stored in Firestore. A trusted Cloud Function sends the
+// optional admin notification server-side, so no EmailJS credentials or SDK
+// are exposed to the browser.
 async function sendHelpMessage(name, email, message) {
-  // Save to Firestore
   await addDoc(collection(db, "messages"), {
     name, email, message,
     submittedAt: serverTimestamp(),
     read: false
   });
-
-  // Send email to admin via EmailJS if available
-  if (typeof window !== "undefined" && window.emailjs) {
-    try {
-      await window.emailjs.send(
-        "service_6ys3bsi", // EmailJS Service ID
-        "template_help_msg", // Create this template in EmailJS with: to_email, from_name, from_email, message
-        {
-          to_email: "iubatagriculture@gmail.com",
-          from_name: name,
-          from_email: email,
-          message: message,
-          site_name: "AgriStudent BD"
-        }
-      );
-    } catch (err) {
-      console.warn("[Help] EmailJS not configured for help messages, but form saved to database:", err);
-    }
-  }
 }
 
 form.addEventListener("submit", async (e) => {

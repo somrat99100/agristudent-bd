@@ -1,4 +1,4 @@
-# AgriStudent BD — V5 Updates
+# Agri Core — V5 Updates
 
 ## Registration
 - Registration is now simpler: Name, Email, Gender and Student ID.
