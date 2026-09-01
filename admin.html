@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — Agri Core</title>
+<title>Admin — AgriStudent BD</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -16,7 +17,7 @@
      ============================================ -->
 <div id="login-box" class="admin-login-screen">
   <div class="admin-login-card">
-    <div class="admin-login-brand">🌱 <span>Agri Core</span></div>
+    <div class="admin-login-brand">🌱 <span>AgriStudent BD</span></div>
 
     <!-- Sign-in form -->
     <div id="login-fields">
@@ -72,12 +73,10 @@
 
     <nav class="admin-nav">
       <button id="tab-resources" class="admin-nav-item" data-label="Resources"><span class="admin-nav-icon">📚</span><span>Resources</span></button>
-      <button id="tab-blog" class="admin-nav-item" data-label="Blog"><span class="admin-nav-icon">✍️</span><span>Blog</span></button>
       <button id="tab-terms" class="admin-nav-item" data-label="Terms"><span class="admin-nav-icon">📖</span><span>Terms</span></button>
       <button id="tab-timeline" class="admin-nav-item" data-label="Timeline"><span class="admin-nav-icon">📅</span><span>Timeline</span></button>
       <button id="tab-registrations" class="admin-nav-item" data-label="Registrations"><span class="admin-nav-icon">📝</span><span>Registrations</span></button>
       <button id="tab-messages" class="admin-nav-item" data-label="Messages"><span class="admin-nav-icon">💬</span><span>Messages</span></button>
-      <button id="tab-classroom-codes" class="admin-nav-item" data-label="Classroom Codes"><span class="admin-nav-icon">🔑</span><span>Classroom Codes</span></button>
       <button id="tab-danger" class="admin-nav-item admin-nav-item--danger" data-label="Danger Zone"><span class="admin-nav-icon">⚠️</span><span>Danger Zone</span></button>
     </nav>
 
@@ -97,14 +96,6 @@
       <div id="resources-panel" class="admin-panel-card">
         <h2 class="admin-panel-heading">Resources — Pending / Approved / Rejected</h2>
         <div id="admin-resource-list"></div>
-      </div>
-
-      <div id="blog-panel" class="admin-panel-card hidden">
-        <h2 class="admin-panel-heading">Blog Posts — Not verified / Approved / Rejected</h2>
-        <p style="font-size:.82rem;color:var(--moss-600);margin-top:-.8rem;margin-bottom:1.2rem;">
-          Every post is live on the public timeline the moment it's submitted (watermarked "Not verified"). Approving it just swaps the watermark for an "Approved" badge; rejecting it hides it from the public timeline. Deleting removes it everywhere, including its likes and comments.
-        </p>
-        <div id="admin-blog-list"></div>
       </div>
 
       <div id="terms-panel" class="admin-panel-card hidden">
@@ -168,11 +159,6 @@
         <div id="admin-messages-list"></div>
       </div>
 
-      <div id="classroom-codes-panel" class="admin-panel-card hidden">
-        <h2 class="admin-panel-heading">Classroom Codes — Submitted by Students</h2>
-        <div id="admin-classroom-codes-list"></div>
-      </div>
-
       <div id="danger-panel" class="admin-panel-card hidden">
         <h2 class="admin-panel-heading" style="color:var(--terracotta-500);">⚠️ Danger Zone — Clear Test Data</h2>
         <div class="danger-zone" style="display:flex;flex-direction:column;gap:1rem;">
@@ -183,14 +169,10 @@
           </p>
           <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
             <button class="btn-danger danger-delete-btn" data-collection="resources" data-label="Resources">🗑 Delete ALL Resources</button>
-            <button class="btn-danger danger-delete-btn" data-collection="blogPosts" data-label="Blog Posts">🗑 Delete ALL Blog Posts</button>
-            <button class="btn-danger danger-delete-btn" data-collection="blogComments" data-label="Blog Comments">🗑 Delete ALL Blog Comments</button>
-            <button class="btn-danger danger-delete-btn" data-collection="blogLikes" data-label="Blog Likes">🗑 Delete ALL Blog Likes</button>
             <button class="btn-danger danger-delete-btn" data-collection="terms" data-label="Terms">🗑 Delete ALL Terms</button>
             <button class="btn-danger danger-delete-btn" data-collection="registrations" data-label="Registrations">🗑 Delete ALL Registrations</button>
             <button class="btn-danger danger-delete-btn" data-collection="timeline" data-label="Timeline Events">🗑 Delete ALL Timeline Events</button>
             <button class="btn-danger danger-delete-btn" data-collection="messages" data-label="Messages">🗑 Delete ALL Messages</button>
-            <button class="btn-danger danger-delete-btn" data-collection="classroomCodes" data-label="Classroom Codes">🗑 Delete ALL Classroom Codes</button>
           </div>
           <p id="danger-result" class="hidden" style="font-weight:700;font-size:.9rem;"></p>
         </div>

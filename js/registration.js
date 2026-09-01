@@ -1,11 +1,11 @@
-import { db, functions } from "./firebase-config.js";
-import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { uploadSignedToCloudinary } from "./cloudinary.js";
-import { signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initEmailNotifications, sendOtpEmail } from "./email-config.js";
+import { startOtp, verifyOtp, resendCooldownRemaining, clearOtp } from "./otp.js";
 import { saveSession } from "./session.js";
 
+initEmailNotifications();
 
 const form = document.getElementById("register-form");
 const submitBtn = document.getElementById("submit-btn");
@@ -28,10 +28,6 @@ const otpResendBtn = document.getElementById("otp-resend-btn");
 // "verify code" — nothing is written to Firestore/Cloudinary until the
 // email is confirmed.
 let pending = null;
-
-const requestRegistrationOtp = httpsCallable(functions, "requestRegistrationOtp");
-const resendRegistrationOtp = httpsCallable(functions, "resendRegistrationOtp");
-const verifyRegistrationOtp = httpsCallable(functions, "verifyRegistrationOtp");
 
 function setProgress(pct) {
   const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
@@ -61,11 +57,35 @@ function showOtpStatus(message, isError = false) {
   otpStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
 }
 
-async function uploadToCloudinary(file, onProgress) {
-  return uploadSignedToCloudinary(file, "student-ids", onProgress);
-}
+function uploadToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000; // 2 min
 
-function clearPendingRegistration() { pending = null; }
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const json = JSON.parse(xhr.responseText);
+        resolve(json.secure_url);
+      } else {
+        reject(new Error(`Cloudinary upload failed (server said: ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload. Check your connection and try again."));
+    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again, or check your connection."));
+
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
+}
 
 function showFormStep() {
   otpPanel.classList.add("hidden");
@@ -96,7 +116,6 @@ form.addEventListener("submit", async (e) => {
   const genderInput = document.querySelector('input[name="gender"]:checked');
   const gender = genderInput ? genderInput.value : "";
   const studentIdNumber = normalizeStudentId(document.getElementById("studentIdNumber").value);
-  const password = document.getElementById("register-password").value;
   const idFile = document.getElementById("studentIdPhoto").files[0];
 
   // Validation
@@ -116,14 +135,6 @@ form.addEventListener("submit", async (e) => {
     showError("Student ID number is required.");
     return;
   }
-  if (password.length < 8 || password.length > 128) {
-    showError("Password must be 8-128 characters.");
-    return;
-  }
-  if (password !== document.getElementById("register-password-confirm").value) {
-    showError("Passwords do not match.");
-    return;
-  }
 
   // File size check (5MB max for ID photo)
   if (idFile && idFile.size > 5 * 1024 * 1024) {
@@ -136,8 +147,10 @@ form.addEventListener("submit", async (e) => {
   showStatus("Sending a verification code to your email…");
 
   try {
-    const result = await requestRegistrationOtp({ fullName, email, gender, studentIdNumber });
-    pending = { fullName, email, gender, studentIdNumber, password, idFile, challengeId: result.data.challengeId };
+    const { code } = startOtp(email);
+    await sendOtpEmail({ toEmail: email, toName: fullName, otpCode: code });
+
+    pending = { fullName, email, gender, studentIdNumber, idFile };
     showOtpStep(email);
   } catch (err) {
     console.error(err);
@@ -171,21 +184,19 @@ otpVerifyBtn.addEventListener("click", async () => {
     return;
   }
 
-  let verification;
-  try {
-    verification = await verifyRegistrationOtp({ challengeId: pending.challengeId, code, password: pending.password });
-  } catch (err) {
-    const msg = err?.code === "deadline-exceeded" ? "That code expired. Please request a new one."
-      : err?.code === "resource-exhausted" ? "Too many incorrect attempts. Please request a new code."
-      : "Incorrect or invalid verification code. Please try again.";
-    showOtpStatus(msg, true);
+  const result = verifyOtp(pending.email, code);
+  if (!result.ok) {
+    if (result.reason === "expired") {
+      showOtpStatus("That code expired. Please request a new one.", true);
+    } else if (result.reason === "locked") {
+      showOtpStatus("Too many incorrect attempts. Please request a new code.", true);
+    } else if (result.reason === "mismatch") {
+      showOtpStatus(`Incorrect code. ${result.attemptsLeft} attempt(s) left.`, true);
+    } else {
+      showOtpStatus("Please request a new code.", true);
+    }
     return;
   }
-  if (!verification?.data?.ok) {
-    showOtpStatus(`Incorrect code. ${verification?.data?.attemptsLeft ?? 0} attempt(s) left.`, true);
-    return;
-  }
-  const result = verification.data;
 
   otpVerifyBtn.disabled = true;
   otpVerifyBtn.textContent = "Creating account…";
@@ -194,22 +205,38 @@ otpVerifyBtn.addEventListener("click", async () => {
   try {
     const { fullName, email, gender, studentIdNumber, idFile } = pending;
 
-    showOtpStatus("Creating your account…");
-
-    await signInWithCustomToken(result.customToken);
+    let studentIdUrl = null;
     if (idFile) {
       showOtpStatus("Uploading Student ID photo…");
-      const studentIdUrl = await uploadToCloudinary(idFile, () => {});
-      await updateDoc(doc(db, "registrations", result.regId), { studentIdStoragePath: studentIdUrl });
+      studentIdUrl = await uploadToCloudinary(idFile, () => {});
     }
-    clearPendingRegistration();
+    showOtpStatus("Saving your registration…");
 
+    const docData = {
+      fullName,
+      email,
+      gender,
+      avatarUrl: gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg",
+      studentIdNumber,
+      status: "unverified", // Student-ID review status — separate from the email OTP just completed
+      emailVerified: true,
+      submittedAt: serverTimestamp()
+    };
+    if (studentIdUrl) docData.studentIdUrl = studentIdUrl;
+
+    const docRef = await addDoc(collection(db, "registrations"), docData);
+    clearOtp();
+
+    // Auto-login: the email is confirmed, so start the session right away
+    // instead of sending the student to log in manually.
     saveSession({
-      regId: result.regId,
-      fullName: result.fullName,
-      gender: result.gender,
-      avatarUrl: result.avatarUrl,
-      status: "verified"
+      regId: docRef.id,
+      fullName,
+      email,
+      studentIdNumber,
+      gender,
+      avatarUrl: docData.avatarUrl,
+      status: docData.status
     });
 
     otpPanel.classList.add("hidden");
@@ -233,14 +260,21 @@ otpBackBtn.addEventListener("click", () => {
 otpResendBtn.addEventListener("click", async () => {
   if (!pending) return;
 
+  const remaining = resendCooldownRemaining(pending.email);
+  if (remaining > 0) {
+    showOtpStatus(`Please wait ${Math.ceil(remaining / 1000)}s before resending.`, true);
+    return;
+  }
+
   otpResendBtn.disabled = true;
   showOtpStatus("Resending code…");
   try {
-    await resendRegistrationOtp({ challengeId: pending.challengeId });
+    const { code } = startOtp(pending.email);
+    await sendOtpEmail({ toEmail: pending.email, toName: pending.fullName, otpCode: code });
     showOtpStatus("A new code has been sent.");
   } catch (err) {
     console.error(err);
-    showOtpStatus(err?.message || "Couldn't resend the code. Please try again.", true);
+    showOtpStatus("Couldn't resend the code. (" + err.message + ")", true);
   } finally {
     otpResendBtn.disabled = false;
   }

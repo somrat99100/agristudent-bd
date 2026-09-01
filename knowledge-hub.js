@@ -2,8 +2,6 @@ import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { normalizeEmail } from "./identity.js";
-import { getSession } from "./session.js";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const CIRCUMFERENCE = 226.19;
@@ -208,12 +206,7 @@ const formModal = document.getElementById("term-form-modal");
 const openFormBtn = document.getElementById("open-term-form");
 const closeFormBtn = document.getElementById("term-form-close");
 
-openFormBtn.addEventListener("click", () => {
-  formModal.classList.remove("hidden");
-  const session = getSession();
-  const emailInput = document.getElementById("termUploaderEmail");
-  if (session && emailInput && !emailInput.value) emailInput.value = session.email;
-});
+openFormBtn.addEventListener("click", () => formModal.classList.remove("hidden"));
 closeFormBtn.addEventListener("click", () => formModal.classList.add("hidden"));
 formModal.addEventListener("click", (e) => { if (e.target === formModal) formModal.classList.add("hidden"); });
 
@@ -287,7 +280,7 @@ form.addEventListener("submit", async (e) => {
 
   const name = termNameInput.value.trim();
   const description = document.getElementById("termDescription").value.trim();
-  const uploaderEmail = normalizeEmail(document.getElementById("termUploaderEmail").value);
+  const uploaderEmail = document.getElementById("termUploaderEmail").value.trim();
   const imageFile = document.getElementById("termImage").files[0];
 
   if (!imageFile) { showError("Please choose an image."); return; }

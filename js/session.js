@@ -1,76 +1,57 @@
-// Remove legacy client-side identity cache keys.
-try { localStorage.removeItem("agri_session_v1"); sessionStorage.removeItem("agri_student_id"); localStorage.removeItem("agri_handnotes_user_email"); } catch {}
+// ============================================
+// STUDENT SESSION (login/logout)
+//
+// ⚠️ Same trust model as the rest of the site (see js/auth-guard.js and
+// firestore.rules): students never had a password-based account here,
+// only a registration record. This session is a convenience layer on
+// top of that record — it remembers WHICH registration you are, so you
+// don't have to retype your Student ID / email on every page. It is
+// NOT a security boundary; real access control is Firestore Security
+// Rules, unchanged by this file.
+//
+// Session is stored in localStorage (persists across tabs/visits) as a
+// single JSON blob under SESSION_KEY.
+// ============================================
+import { normalizeEmail, normalizeStudentId } from "./identity.js";
 
-// Firebase Authentication is the security boundary.
-// Only non-sensitive UI state is cached locally; email and Student ID are never persisted.
-import { auth } from "./firebase-config.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-const SESSION_KEY = "agri_session_v2";
-let authUser = null;
-let authStateKnown = false;
-let resolveReady;
-export const authReady = new Promise(resolve => { resolveReady = resolve; });
-
-onAuthStateChanged(auth, user => {
-  authUser = user;
-  if (typeof window !== "undefined") window.__agriAuthUid = user?.uid || "";
-  authStateKnown = true;
-  resolveReady(user);
-});
+const SESSION_KEY = "agri_session_v1";
 
 export function getSession() {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (!parsed || !parsed.regId) return null;
-    return {
-      regId: parsed.regId,
-      fullName: authUser?.displayName || "",
-      gender: "",
-      avatarUrl: parsed.avatarUrl || "",
-      status: "verified",
-      email: authUser?.email || ""
-    };
-  } catch {
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.email || !parsed.regId) return null;
+    return parsed;
+  } catch (err) {
+    console.warn("[Session] corrupt session data, clearing.", err);
     localStorage.removeItem(SESSION_KEY);
     return null;
   }
 }
 
-export async function ensureStudentAuth() {
-  await authReady;
-  const user = authUser || auth.currentUser;
-  if (!user || !user.emailVerified) return null;
-  const session = getSession();
-  if (!session) return null;
-  try {
-    const tokenResult = await user.getIdTokenResult();
-    if (tokenResult.claims?.student !== true || tokenResult.claims?.regId !== session.regId) {
-      clearSession();
-      await signOut(auth).catch(() => {});
-      return null;
-    }
-    return user;
-  } catch {
-    clearSession();
-    return null;
-  }
-}
-
-export function saveSession({ regId, fullName, avatarUrl }) {
-  const session = { regId, avatarUrl: avatarUrl || "" };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  // Firebase Auth owns the account identity. Persisting only the opaque registration ID
-  // avoids putting email, Student ID, gender, or other sensitive identity data in Web Storage; the avatar URL is non-sensitive UI state.
-  return {
+export function saveSession({ regId, fullName, email, studentIdNumber, gender, avatarUrl, status }) {
+  const session = {
     regId,
-    fullName: fullName || auth.currentUser?.displayName || "",
-    gender: "",
-    avatarUrl: session.avatarUrl || "",
-    status: "verified",
-    email: auth.currentUser?.email || ""
+    fullName: fullName || "",
+    email: normalizeEmail(email),
+    studentIdNumber: normalizeStudentId(studentIdNumber),
+    gender: gender || "",
+    avatarUrl: avatarUrl || (gender === "female" ? "assets/avatar-female.svg" : "assets/avatar-male.svg"),
+    status: status || "unverified"
   };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+
+  // Keep the pre-existing resource-gate caches in sync so resources.html /
+  // slides-notes.html / previous-questions.html immediately recognize this
+  // student without asking them to re-enter anything (also fixes stale
+  // mismatched values left over from before login existed).
+  try {
+    sessionStorage.setItem("agri_student_id", session.studentIdNumber);
+    localStorage.setItem("agri_handnotes_user_email", session.email);
+  } catch (err) { /* storage unavailable — non-fatal */ }
+
+  return session;
 }
 
 export function clearSession() {
@@ -78,35 +59,47 @@ export function clearSession() {
   try {
     sessionStorage.removeItem("agri_student_id");
     localStorage.removeItem("agri_handnotes_user_email");
-  } catch {}
+  } catch (err) { /* storage unavailable — non-fatal */ }
 }
 
-async function renderAuthSlot() {
+// ============================================
+// NAVBAR AUTH SLOT
+// Renders "👤 Name" + Logout when logged in, or a Login link when not.
+// Runs once the shared navbar has actually been injected into the page
+// (navbar-loader.js calls whenNavbarReady's queued callbacks) so this
+// never races the fetch("navbar.html") injection.
+// ============================================
+function renderAuthSlot() {
   const slot = document.getElementById("navbar-auth-slot");
   if (!slot) return;
-  const user = await ensureStudentAuth();
   const session = getSession();
-  if (!user || !session) {
+
+  if (!session) {
     slot.innerHTML = `<a href="login.html" class="navbar-auth-login">Login</a>`;
     return;
   }
-  const displayName = (session.fullName || user.email || "Student").split(" ")[0];
+
+  const displayName = (session.fullName || session.email).split(" ")[0];
   slot.innerHTML = `
-    <a href="profile.html" class="navbar-auth-profile" title="${String(session.fullName || user.email || "").replace(/"/g, '&quot;')}">
-      <img src="${String(session.avatarUrl || 'assets/avatar-male.svg').replace(/"/g, '&quot;')}" alt="" class="navbar-auth-avatar">
-      <span>${String(displayName).replace(/[&<>]/g, '')}</span>
+    <a href="profile.html" class="navbar-auth-profile" title="${session.fullName || session.email}">
+      <img src="${session.avatarUrl}" alt="" class="navbar-auth-avatar">
+      <span>${displayName}</span>
     </a>
     <button type="button" class="navbar-auth-logout" id="navbar-logout-btn">Logout</button>
   `;
-  document.getElementById("navbar-logout-btn")?.addEventListener("click", async () => {
-    await signOut(auth);
-    clearSession();
-    window.location.href = "index.html";
-  });
+
+  const logoutBtn = document.getElementById("navbar-logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      clearSession();
+      window.location.href = "index.html";
+    });
+  }
 }
 
 function whenNavbarReady(fn) {
   if (window.__navbarLoaded) fn();
   else (window.__onNavbarReady = window.__onNavbarReady || []).push(fn);
 }
+
 whenNavbarReady(renderAuthSlot);

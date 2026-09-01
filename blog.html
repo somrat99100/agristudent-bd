@@ -5,16 +5,15 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://us-central1-agristudent-bd.cloudfunctions.net https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
-<title>Blog — Agri Core</title>
+<title>Blog — AgriStudent BD</title>
 <script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/blog.css">
 </head>
 <body>
 
@@ -22,121 +21,26 @@
 <div id="navbar-placeholder"></div>
 <script src="js/navbar-loader.js"></script>
 
-<section class="section-page blog-page">
-  <div class="container blog-container">
-    <!-- Minimal top bar: just a breadcrumb, the composer trigger, then the
-         feed — the whole page scrolls together in one natural motion,
-         Facebook-timeline style. Nothing here is sticky or independently
-         scrollable, which is what was causing the "page moves twice"
-         feeling before. -->
-    <div class="crumb blog-crumb"><a href="index.html">Home</a> / Blog</div>
-    <h1 class="blog-page-title">🌱 Community Blog</h1>
+<section class="section-page">
+  <div class="container">
+    <div class="crumb"><a href="index.html">Home</a> / Blog</div>
+    <h1>✍️ Blog</h1>
+    <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Articles, guides, and stories from the agriculture student community.</p>
 
-    <!-- COMPOSER TRIGGER — kept as the very first interactive element on
-         the page (right under the title) so it's always the first thing
-         a visitor sees and can act on. -->
-    <div id="composer-logged-in" class="blog-composer-trigger hidden">
-      <img id="composer-avatar" class="blog-composer-avatar" src="assets/avatar-male.svg" alt="">
-      <button type="button" id="composer-open-btn">What's on your mind?</button>
+    <div class="uc-panel">
+      <span class="badge">🚧 Under construction</span>
+      <h3>Blog is being built next</h3>
+      <p>This section will feature student-written articles, farming tips, career guidance, and campus stories.</p>
     </div>
-    <div id="composer-logged-out" class="blog-composer-trigger blog-composer-logged-out hidden">
-      <span><a href="login.html">Log in</a> to write a post, like, comment or share.</span>
-    </div>
-
-    <!-- FEED -->
-    <div class="blog-search-bar">
-      <span class="blog-search-icon">🔍</span>
-      <input type="text" id="blog-search-input" placeholder="Search by title or author…" autocomplete="off">
-      <button type="button" id="blog-search-clear" class="hidden" aria-label="Clear search">✕</button>
-    </div>
-    <p id="blog-search-empty" class="hidden">No posts match "<span id="blog-search-empty-term"></span>".</p>
-    <div id="blog-feed" class="blog-feed"></div>
-    <p id="blog-feed-empty" class="hidden">No posts yet — be the first to share something with the community!</p>
-    <button type="button" id="blog-load-more">Load more</button>
   </div>
 </section>
-
-<!-- COMPOSER MODAL -->
-<div id="composer-modal" class="modal-overlay blog-composer-modal hidden">
-  <div class="modal-box">
-    <button type="button" class="modal-close" id="composer-close">✕</button>
-    <div class="modal-body">
-      <h3>Create a post</h3>
-      <input type="text" id="post-title-input" placeholder="Title your post…" maxlength="200">
-      <div class="composer-toolbar">
-        <button type="button" class="composer-format-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-        <button type="button" class="composer-format-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-        <button type="button" class="composer-format-btn" data-cmd="underline" title="Underline"><u>U</u></button>
-        <select id="font-size-select" class="composer-format-select" title="Text Size">
-          <option value="">Font Size</option>
-          <option value="14px">Small (14px)</option>
-          <option value="16px">Normal (16px)</option>
-          <option value="18px">Large (18px)</option>
-          <option value="20px">Extra Large (20px)</option>
-          <option value="24px">Heading (24px)</option>
-        </select>
-        <button type="button" class="composer-format-btn" data-cmd="insertUnorderedList" title="Bullet list">•≡</button>
-        <label id="post-inline-image-label" class="composer-image-btn" title="Insert an image inside the text — drag & resize it">
-          📄
-          <input type="file" id="post-inline-image-input" accept="image/*" multiple style="display:none;">
-        </label>
-        <label id="post-gallery-image-label" class="composer-image-btn" title="Add photos to a grid below the post">
-          🖼️
-          <input type="file" id="post-image-input" accept="image/*" multiple style="display:none;">
-        </label>
-      </div>
-
-      <p id="composer-image-hint" class="composer-image-hint">📄 Inline — drops an image right in your text; click it to resize, drag the corner, or drag the whole image to move it, just like laying out a page. 🖼️ Gallery — adds a premium photo grid under the post. A post can use one style of images at a time (inline OR grid) — or none at all for a text-only post.</p>
-
-      <div id="post-body-input" contenteditable="true" data-placeholder="Write your post… insert images inline with 📄 or add a photo grid with 🖼️ — or just write. Images are optional."></div>
-      
-      <!-- IMAGE PREVIEW GALLERY (in composer) -->
-      <div id="composer-image-preview" class="composer-image-preview hidden">
-        <div class="composer-preview-label">📸 Images to upload:</div>
-        <div id="composer-preview-grid" class="composer-preview-grid"></div>
-      </div>
-
-      <div id="post-upload-status"></div>
-      <p id="post-error" class="hidden"></p>
-      <div class="composer-submit-row">
-        <button type="button" id="post-submit-btn" class="btn-primary">📝 Post</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- FULL POST MODAL (Facebook-style "See more" expansion) -->
-<div id="full-post-modal" class="modal-overlay blog-fullpost-modal hidden">
-  <div class="modal-box">
-    <button type="button" class="modal-close" id="full-post-close">✕</button>
-    <div class="modal-body">
-      <header class="blog-post-header" id="full-post-header"></header>
-      <h2 class="blog-post-title" id="full-post-title"></h2>
-      <div id="full-post-badge"></div>
-      <div class="blog-post-body blog-post-body--full" id="full-post-body"></div>
-      <div id="full-post-gallery"></div>
-    </div>
-  </div>
-</div>
-
-<!-- IMAGE LIGHTBOX MODAL -->
-<div id="image-lightbox" class="image-lightbox hidden">
-  <button type="button" class="lightbox-close" id="lightbox-close">✕</button>
-  <div class="lightbox-container">
-    <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev">‹</button>
-    <img id="lightbox-image" src="" alt="">
-    <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next">›</button>
-  </div>
-  <div class="lightbox-caption hidden" id="lightbox-caption"></div>
-  <div class="lightbox-counter" id="lightbox-counter"></div>
-</div>
 
 <!-- FOOTER -->
 <footer>
   <div class="container">
     <div class="footer-grid">
       <div>
-        <h4>🌱 Agri Core</h4>
+        <h4>🌱 AgriStudent BD</h4>
         <p style="opacity:.8;font-size:.88rem;max-width:320px;">Academic resource, knowledge &amp; timeline platform built for agriculture students in Bangladesh.</p>
       </div>
       <div>
@@ -156,12 +60,11 @@
         </ul>
       </div>
     </div>
-    <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>
+    <div class="footer-bottom">© AgriStudent BD — All Rights Reserved.</div>
   </div>
 </footer>
 
 <script type="module" src="js/session.js"></script>
-<script type="module" src="js/blog.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
