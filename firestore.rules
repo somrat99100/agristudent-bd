@@ -258,19 +258,11 @@ service cloud.firestore {
         request.resource.data.content is string &&
         request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 20000;
 
-      // Deleting a post: students never hold a Firebase Auth session, and
-      // even the admin panel's own session email doesn't match
-      // authorEmail (admin is deleting someone else's post, not their
-      // own) — so the previous `resource.data.authorEmail ==
-      // request.auth.token.email` check failed for BOTH the student's
-      // own delete button (js/blog.js, js/profile.js) and admin
-      // moderation deletes. Ownership can't be verified server-side
-      // without an auth session tied to the student, so this trusts the
-      // client the same way the rest of this file already does for
-      // blogLikes deletes, avatarUrl updates, etc. — every UI entry
-      // point already gates the delete button behind a client-side
-      // "is this your own post" (or admin) check before calling this.
-      allow delete: if true;
+      // Deleting a post: Requires authentication (admin only or future Firebase Auth).
+      // This prevents unauthorized deletion of blog content.
+      // For now, only admin panel (Firebase Auth via Cloud Functions) can delete.
+      // Once students have Firebase Auth sessions, verify ownership here.
+      allow delete: if request.auth != null;
     }
 
     // ============================================

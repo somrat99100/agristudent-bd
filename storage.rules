@@ -30,7 +30,7 @@ service firebase.storage {
     }
 
     match /avatars/{uid}/{fileName} {
-      allow read: if true;
+      allow read: if verified() || admin();
       allow write: if (verified() && request.auth.uid == uid
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)')) || admin();
