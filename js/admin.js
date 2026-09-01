@@ -338,13 +338,11 @@ async function loadResources() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          const moderationData = {
-            status: newStatus,
-            reviewedAt: new Date(),
-            ...(newStatus === "rejected"
-              ? { rejectedAt: new Date(), restrictedUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
-              : { rejectedAt: null, restrictedUntil: null })
-          };
+          const moderationData = { status: newStatus, reviewedAt: new Date() };
+          if (newStatus === "rejected") {
+            moderationData.rejectedAt = new Date();
+            moderationData.restrictedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          }
           await updateDoc(doc(db, "resources", id), moderationData);
           e.target.style.borderColor = "var(--leaf-500)";
           const item = resourcesCache[id];
