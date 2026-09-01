@@ -1,13 +1,11 @@
-import { db } from "./firebase-config.js";
+import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { getSession, ensureStudentAuth } from "./session.js";
-import { hydrateStorageImages, isStorageRef } from "./storage-media.js";
+import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
 import { computeResourceAccessStatus, formatDate, formatRemaining } from "./access.js";
-import { uploadSignedToCloudinary } from "./cloudinary.js";
 
 initEmailNotifications();
 
@@ -17,15 +15,13 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 // Global moderation guard used by every resource-upload form.
 // A rejected submission blocks new uploads for 30 days.
 window.__checkResourceRestriction = async function(userEmail) {
-  if (!await ensureStudentAuth()) return -1;
   const email = normalizeEmail(userEmail);
   if (!email) return 0;
   try {
     const q = query(
       collection(db, "resources"),
-      where("uploaderRegId", "==", getSession()?.regId || ""),
-      where("resourceType", "==", "slides_notes"),
-      where("privacyVersion", "==", 2)
+      where("uploaderEmail", "==", email),
+      where("resourceType", "==", "slides_notes")
     );
     const snap = await getDocs(q);
     let until = 0;
@@ -46,9 +42,31 @@ window.__checkResourceRestriction = async function(userEmail) {
 };
 
 
-async function uploadFileToCloudinary(file, onProgress) {
-  const url = await uploadSignedToCloudinary(file, "resources", onProgress);
-  return { url, name: file.name };
+function uploadFileToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
+    xhr.timeout = 120000;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const json = JSON.parse(xhr.responseText);
+        resolve({ url: json.secure_url, name: file.name });
+      } else {
+        reject(new Error(`Upload failed for ${file.name} (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error uploading " + file.name + "."));
+    xhr.ontimeout = () => reject(new Error(file.name + " timed out. Try again."));
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    xhr.send(data);
+  });
 }
 
 // ============================================
@@ -60,13 +78,13 @@ async function autoRenameIfDuplicate(fileName, courseCode, facultyName) {
     collection(db, "resources"),
     where("courseCode", "==", courseCode),
     where("fac", "==", facultyName),
-    where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2)
+    where("status", "==", "approved")
   );
   
   const docs = await getDocs(q);
   const existingNames = [];
   docs.forEach(d => {
-    (d.fileUrls || []).forEach(f => {
+    (d.data().fileUrls || []).forEach(f => {
       existingNames.push(f.name);
     });
   });
@@ -159,6 +177,26 @@ function prefillFromSession(emailInputId, nameInputId) {
   }
 }
 
+// ============================================
+// STUDENT ID LOOKUP (by registered email)
+// Used to stamp every upload with the uploader's registered Student ID,
+// so the viewer can show "who uploaded this" without asking the student
+// to re-enter their ID on every upload form.
+// ============================================
+async function lookupStudentIdByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  try {
+    const q = query(collection(db, "registrations"), where("email", "==", normalizedEmail));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const raw = snap.docs[0].data().studentIdNumber || null;
+    return raw ? normalizeStudentId(raw) : null;
+  } catch (err) {
+    console.error("[Student ID Lookup] failed:", err);
+    return null;
+  }
+}
 
 // ============================================
 // VIEW LINK BUILDER
@@ -344,7 +382,7 @@ if (uploadForm) {
         courseNameInput.readOnly = false;
       }
       if (facultySuggestions) {
-        const q = query(collection(db, "resources"), where("courseCode", "==", code), where("public", "==", true), where("privacyVersion", "==", 2));
+        const q = query(collection(db, "resources"), where("courseCode", "==", code));
         const snap = await getDocs(q);
         const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
         facultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
@@ -434,9 +472,11 @@ if (uploadForm) {
       }
       const docData = {
         courseCode: finalCourseCode, courseName: finalCourseName, facultyName,
-        resourceType, uploaderRegId: getSession()?.regId || "", public: false, privacyVersion: 2, fileUrls, fileType: currentFileType, noteType: currentNoteType,
+        resourceType, uploaderEmail, fileUrls, fileType: currentFileType, noteType: currentNoteType,
         status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
+      const uploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+      if (uploaderStudentId) docData.uploaderStudentId = uploaderStudentId;
       await addDoc(collection(db, "resources"), docData);
       uploadForm.reset();
       uploadForm.classList.add("hidden");
@@ -482,7 +522,7 @@ if (courseButtonsWrap) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "slides_notes"),
-        where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2)
+        where("status", "==", "approved")
       );
       const snap = await getDocs(q);
       allSlides = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -638,7 +678,7 @@ if (handNotesGate && handNotesContent) {
         // Existing faculty names for this course code, offered as suggestions
         // (a datalist) — the student can still type any other faculty/section.
         if (hnFacultySuggestions) {
-          const q = query(collection(db, "resources"), where("courseCode", "==", code), where("public", "==", true), where("privacyVersion", "==", 2));
+          const q = query(collection(db, "resources"), where("courseCode", "==", code));
           const snap = await getDocs(q);
           const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
           hnFacultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
@@ -674,15 +714,13 @@ if (handNotesGate && handNotesContent) {
   // Access is calculated from Firestore moderation records. Do not use a
   // browser-only countdown because it can be cleared or become stale.
   async function getResourceAccessState(userEmail) {
-    if (!await ensureStudentAuth()) return;
-    const regId = getSession()?.regId || "";
-    if (!regId) return computeResourceAccessStatus([]);
+    const normalizedEmail = normalizeEmail(userEmail);
+    if (!normalizedEmail) return computeResourceAccessStatus([]);
 
     const q = query(
       collection(db, "resources"),
-      where("uploaderRegId", "==", regId),
-      where("resourceType", "==", "slides_notes"),
-      where("privacyVersion", "==", 2)
+      where("uploaderEmail", "==", normalizedEmail),
+      where("resourceType", "==", "slides_notes")
     );
     const snap = await getDocs(q);
     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -904,9 +942,11 @@ if (handNotesGate && handNotesContent) {
 
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
-          resourceType: "slides_notes", uploaderRegId: getSession()?.regId || "", public: false, privacyVersion: 2, fileUrls, fileType: currentFileType, noteType: hnNoteType,
+          resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
           status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
         };
+        const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+        if (hnUploaderStudentId) hnDocData.uploaderStudentId = hnUploaderStudentId;
         await addDoc(collection(db, "resources"), hnDocData);
 
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
@@ -946,7 +986,7 @@ if (pdfList || imageGrid) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "slides_notes"),
-        where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2)
+        where("status", "==", "approved")
       );
       const snap = await getDocs(q);
       const resources = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1202,7 +1242,7 @@ if (pdfList || imageGrid) {
       return `
       <a class="image-item" href="${viewHref}" style="text-decoration:none;">
         <div class="image-item-thumb">
-          <img src="${isStorageRef(file.url) ? "" : encodeURI(file.url)}" ${isStorageRef(file.url) ? `data-storage-ref="${esc(file.url)}"` : ""} alt="${esc(file.title || img.courseName)}" loading="lazy">
+          <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
           <div class="status-badge">✓</div>
           <div class="view-overlay">
             <button type="button">View</button>
@@ -1214,7 +1254,6 @@ if (pdfList || imageGrid) {
         </div>
       </a>`;
     }).join("");
-    hydrateStorageImages(imageGrid).catch(() => {});
   }
 
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
@@ -1331,7 +1370,7 @@ if (pdfList || imageGrid) {
         return `
         <a class="image-item" href="${viewHref}" style="text-decoration:none;">
           <div class="image-item-thumb">
-            <img src="${isStorageRef(file.url) ? "" : encodeURI(file.url)}" ${isStorageRef(file.url) ? `data-storage-ref="${esc(file.url)}"` : ""} alt="${esc(file.title || img.courseName)}" loading="lazy">
+            <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
             <div class="status-badge">✓</div>
             <div class="view-overlay"><button type="button">View</button></div>
           </div>
@@ -1341,7 +1380,6 @@ if (pdfList || imageGrid) {
           </div>
         </a>`;
       }).join("");
-      hydrateStorageImages(grid).catch(() => {});
     }
   });
 }
@@ -1449,7 +1487,7 @@ if (anotherUploadBtn && anotherUploadModal) {
       }
       // Existing faculty names for this course code, offered as suggestions
       // (a datalist) — the student can still type any other faculty/section.
-      const q = query(collection(db, "resources"), where("courseCode", "==", code), where("public", "==", true), where("privacyVersion", "==", 2));
+      const q = query(collection(db, "resources"), where("courseCode", "==", code));
       const snap = await getDocs(q);
       const faculties = [...new Set(snap.docs.map(d => d.data().facultyName).filter(Boolean))];
       auFacultySuggestions.innerHTML = faculties.map(f => `<option value="${esc(f)}"></option>`).join("");
@@ -1572,9 +1610,11 @@ if (anotherUploadBtn && anotherUploadModal) {
 
       const auDocData = {
         courseCode, courseName: finalCourseName, facultyName,
-        resourceType: "slides_notes", uploaderRegId: getSession()?.regId || "", public: false, privacyVersion: 2, fileUrls, fileType: auFileType, noteType: auNoteType,
+        resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: auFileType, noteType: auNoteType,
         status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
       };
+      const auUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
+      if (auUploaderStudentId) auDocData.uploaderStudentId = auUploaderStudentId;
       await addDoc(collection(db, "resources"), auDocData);
 
       auForm.classList.add("hidden");
@@ -1616,7 +1656,7 @@ if (pqList) {
       const q = query(
         collection(db, "resources"),
         where("resourceType", "==", "previous_questions"),
-        where("status", "==", "approved"), where("public", "==", true), where("privacyVersion", "==", 2)
+        where("status", "==", "approved")
       );
       const snap = await getDocs(q);
       let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));

@@ -120,7 +120,7 @@ export async function maybeSendAccessReminder(access, { email, name }) {
   if (!email || !access || !access.accessUntil) return;
   if (access.daysRemaining > REMINDER_WINDOW_DAYS || access.restricted) return;
 
-  const storageKey = `agri_access_reminder_${access.accessUntil}`;
+  const storageKey = `agri_access_reminder_${email}_${access.accessUntil}`;
   try {
     if (localStorage.getItem(storageKey)) return;
   } catch { /* ignore */ }

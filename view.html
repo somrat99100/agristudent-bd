@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob: https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; worker-src blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com https://firebasestorage.googleapis.com https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://res.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob: https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; worker-src blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://res.cloudinary.com; frame-src https://view.officeapps.live.com; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
@@ -59,9 +59,8 @@
 
 <div class="viewer-watermark" id="viewer-watermark"></div>
 
-<script type="module">
-import { resolveStorageRef, isStorageRef } from "./js/storage-media.js";
-(async function () {
+<script>
+(function () {
   const pdfjs = window.pdfjsLib;
   const wrap = document.getElementById("viewer-frame-wrap");
   const controls = document.getElementById("book-controls");
@@ -74,7 +73,6 @@ import { resolveStorageRef, isStorageRef } from "./js/storage-media.js";
 
   const params = new URLSearchParams(window.location.search);
   let fileUrl = params.get("url");
-  if (isStorageRef(fileUrl)) { try { fileUrl = await resolveStorageRef(fileUrl); } catch { fileUrl = null; } }
   const fileName = params.get("name") || "Document";
   const courseCode = params.get("code") || "";
   const imageTitle = params.get("title") || "";
