@@ -1,4 +1,4 @@
-import { db, auth, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db, auth, functions } from "./firebase-config.js";
 import {
   collection, getDocs, doc, updateDoc, deleteDoc, addDoc, orderBy, query, where, Timestamp, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -7,8 +7,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { uploadSignedToCloudinary } from "./cloudinary.js";
 
 initEmailNotifications();
+const getPrivateStudentIdUrl = httpsCallable(functions, "getPrivateStudentIdUrl");
 
 // ============================================
 // ESCAPE HELPER — prevents stored XSS from user-submitted
@@ -60,8 +63,20 @@ logoutBtn.addEventListener("click", () => signOut(auth));
 
 let currentAdminEmail = "";
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
+    try {
+      const token = await user.getIdTokenResult(true);
+      if (!user.emailVerified || token.claims?.admin !== true) {
+        await signOut(auth);
+        loginError.textContent = "Administrator access is required.";
+        loginError.classList.remove("hidden");
+        return;
+      }
+    } catch {
+      await signOut(auth);
+      return;
+    }
     currentAdminEmail = user.email || "";
     loginBox.classList.add("hidden");
     adminPanel.classList.remove("hidden");
@@ -351,7 +366,8 @@ async function loadResources() {
           if (item) {
             const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
             sendReviewEmail({
-              toEmail: item.uploaderEmail,
+              toEmail: "",
+              toRegId: item.uploaderRegId,
               toName: item.uploaderName || item.courseCode,
               status: statusLabel,
               itemType: item.resourceType === "previous_questions" ? "Suggestion upload" : "Hand Notes upload",
@@ -457,12 +473,13 @@ async function loadBlogPosts() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "blogPosts", id), { status: newStatus, reviewedAt: new Date() });
+          await updateDoc(doc(db, "blogPosts", id), { status: newStatus, public: newStatus === "approved", reviewedAt: new Date() });
           const item = blogCache[id];
           if (item) {
             const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
             sendReviewEmail({
-              toEmail: item.authorEmail,
+              toEmail: "",
+              toRegId: item.authorRegId,
               toName: item.authorName || item.authorEmail,
               status: statusLabel,
               itemType: "Blog post",
@@ -582,13 +599,14 @@ async function loadTerms() {
         const id = e.target.dataset.id;
         const newStatus = e.target.value;
         try {
-          await updateDoc(doc(db, "terms", id), { status: newStatus, reviewedAt: new Date() });
+          await updateDoc(doc(db, "terms", id), { status: newStatus, public: newStatus === "approved", reviewedAt: new Date() });
           e.target.style.borderColor = "var(--leaf-500)";
           const item = termsCache[id];
           if (item) {
             const statusLabel = newStatus === "approved" ? "Approved" : newStatus === "rejected" ? "Rejected" : "Pending";
             sendReviewEmail({
-              toEmail: item.uploaderEmail,
+              toEmail: "",
+              toRegId: item.uploaderRegId,
               toName: item.name,
               status: statusLabel,
               itemType: "Knowledge Hub term submission",
@@ -713,7 +731,7 @@ async function loadRegistrations() {
       row.innerHTML = `
         <div style="display:flex;gap:.8rem;align-items:flex-start;">
           <img src="${esc(item.avatarUrl) || (item.gender === 'female' ? 'assets/avatar-female.svg' : 'assets/avatar-male.svg')}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:50%;flex-shrink:0;">
-          ${item.studentIdUrl ? `<a href="${esc(item.studentIdUrl)}" target="_blank" rel="noopener"><img src="${esc(item.studentIdUrl)}" alt="ID" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;"></a>` : `<div style="width:60px;height:60px;background:var(--paper-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--moss-600);flex-shrink:0;">No ID photo</div>`}
+          ${(item.studentIdStoragePath || item.studentIdUrl) ? `<button type="button" class="view-private-id" data-id="${esc(d.id)}" style="border:0;background:none;padding:0;cursor:pointer;"><span style="display:flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:6px;background:var(--paper-100);color:var(--moss-700);font-size:.72rem;font-weight:600;">🔒 View ID</span></button>` : `<div style="width:60px;height:60px;background:var(--paper-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--moss-600);flex-shrink:0;">No ID photo</div>`}
           <div>
             <strong>${esc(item.fullName)}</strong>
             <div style="font-size:.8rem;color:var(--moss-600);">${esc(item.gender) || "—"}</div>
@@ -732,6 +750,19 @@ async function loadRegistrations() {
       btn.addEventListener("click", () => {
         const item = registrationsCache[btn.dataset.id];
         if (item) openEditModal("registrations", btn.dataset.id, item);
+      });
+    });
+    regList.querySelectorAll(".view-private-id").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          const { data } = await getPrivateStudentIdUrl({ regId: btn.dataset.id });
+          if (data?.url) window.open(data.url, "_blank", "noopener,noreferrer");
+          else alert("No student ID image is available.");
+        } catch (err) {
+          console.error("[AgriAdmin] private ID access failed:", err);
+          alert("Unable to open the private student ID.");
+        } finally { btn.disabled = false; }
       });
     });
 
@@ -1066,28 +1097,8 @@ function filenameToTitle(name) {
   return name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function uploadFileToCloudinary(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", CLOUDINARY_UPLOAD_URL, true);
-    xhr.timeout = 120000;
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
-    });
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText).secure_url);
-      } else {
-        reject(new Error(`Image upload failed (server said: ${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Network error during upload."));
-    xhr.ontimeout = () => reject(new Error("Upload took too long. Try again."));
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-    xhr.send(data);
-  });
+async function uploadFileToCloudinary(file, onProgress) {
+  return uploadSignedToCloudinary(file, "terms", onProgress);
 }
 
 bulkTermImagesInput.addEventListener("change", () => {
