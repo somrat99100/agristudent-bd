@@ -1,3 +1,40 @@
+// ============================================
+// TABLE OF CONTENTS — js/resources.js
+// One module, loaded (type="module") by 3 pages: resources.html,
+// slides-notes.html, previous-questions.html. Each page-specific block
+// below is self-guarded (checks for its own DOM elements before doing
+// anything), so it's safe that all 3 pages load the whole file.
+//
+// SHARED HELPERS — used by more than one page, keep these together:
+//   L82   uploadFileToCloudinary()        Cloudinary upload + progress
+//   L112  autoRenameIfDuplicate()         de-dupe filenames on submit
+//   L157  noteTypeLabel() / wireNoteTypeVisual()   Hand Notes/Slide/Other tag
+//   L170  esc()                           XSS-safe HTML escape — used everywhere
+//   L185  wireSelectedFilesPreview()      file-input chip preview
+//   L206  prefillFromSession()            autofill name/email from session
+//   L223  lookupStudentIdByEmail()
+//   L244  buildViewHref()                 builds the /view.html link for a file
+//
+// RESOURCES.HTML — upload flow:
+//   L253  Upload form modal (open/close wiring)
+//   L267  "Send us classroom code" modal + form
+//   L322  Upload form submit handler (validation, Cloudinary, Firestore write)
+//   L630  Login-only gate for the Resources page
+//
+// SLIDES-NOTES.HTML — hand-notes unlock flow:
+//   L544  Slides & Notes browsing (course/faculty folder list)
+//   L649  Hand Notes unlock gate (access states, restriction check)
+//   L1010 Three-card premium layout (PDF/Image folder browser, view-all modal)
+//   L1425 "Upload another file" flow (re-upload to extend access)
+//
+// PREVIOUS-QUESTIONS.HTML — browsing:
+//   L1678 Suggestions browsing / filtering
+//
+// To edit ONLY one page's behavior, jump to its line range above — you
+// generally won't need to touch the SHARED HELPERS block unless the
+// change is meant to apply to all 3 pages.
+// ============================================
+
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
