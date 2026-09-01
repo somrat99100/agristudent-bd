@@ -1,11 +1,12 @@
-import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
+import { db } from "./firebase-config.js";
 import {
   doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
-import { getSession, saveSession, clearSession } from "./session.js";
+import { getSession, saveSession, clearSession, ensureStudentAuth } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, formatDate, formatRemaining } from "./access.js";
+import { uploadSignedToCloudinary } from "./cloudinary.js";
 
 initEmailNotifications();
 
@@ -48,7 +49,7 @@ avatarInput?.addEventListener("change", async (e) => {
   if (!file) return;
 
   const session = getSession();
-  if (!session) return;
+  if (!session || !await ensureStudentAuth()) return;
 
   avatarStatus.classList.remove("is-error");
 
@@ -72,22 +73,15 @@ avatarInput?.addEventListener("change", async (e) => {
   avatarImg.src = previewUrl;
 
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-    const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: formData });
-    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-    const data = await response.json();
-    if (!data.secure_url) throw new Error("Upload failed");
+    const secureUrl = await uploadSignedToCloudinary(file, "avatars");
+    await updateDoc(doc(db, "registrations", session.regId), { avatarUrl: secureUrl });
 
-    await updateDoc(doc(db, "registrations", session.regId), { avatarUrl: data.secure_url });
-
-    avatarImg.src = data.secure_url;
-    saveSession({ ...session, avatarUrl: data.secure_url });
+    avatarImg.src = secureUrl;
+    saveSession({ ...session, avatarUrl: secureUrl });
 
     // Reflect the change in the navbar avatar immediately too, without
     // needing a page reload.
-    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = data.secure_url; });
+    document.querySelectorAll(".navbar-auth-avatar").forEach(img => { img.src = secureUrl; });
 
     avatarStatus.textContent = "Profile photo updated ✅";
     setTimeout(() => {
@@ -107,7 +101,7 @@ avatarInput?.addEventListener("change", async (e) => {
 
 async function init() {
   const session = getSession();
-  if (!session) { showLoggedOut(); return; }
+  if (!session || !await ensureStudentAuth()) { showLoggedOut(); return; }
 
   try {
     // Re-fetch the live registration record rather than trusting the
@@ -168,8 +162,8 @@ function renderIdentity(reg) {
 
 async function renderCredits(email, fullName) {
   const [resourcesSnap, termsSnap] = await Promise.all([
-    getDocs(query(collection(db, "resources"), where("uploaderEmail", "==", email))),
-    getDocs(query(collection(db, "terms"), where("uploaderEmail", "==", email)))
+    getDocs(query(collection(db, "resources"), where("uploaderRegId", "==", session.regId), where("privacyVersion", "==", 2))),
+    getDocs(query(collection(db, "terms"), where("uploaderRegId", "==", session.regId), where("privacyVersion", "==", 2)))
   ]);
 
   const items = [
@@ -261,7 +255,7 @@ async function renderMyBlogPosts(email) {
 
   let posts;
   try {
-    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorEmail", "==", email)));
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("authorRegId", "==", session.regId), where("privacyVersion", "==", 2)));
     posts = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
