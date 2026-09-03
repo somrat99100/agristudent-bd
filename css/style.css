@@ -609,6 +609,31 @@ img{ max-width:100%; display:block; }
   text-align: center; padding: .5rem;
 }
 
+/* "Checking access…" — the neutral in-between state shown for the brief
+   moment before the real access check has come back. Deliberately NOT
+   styled like .file-locked/.image-locked (no lock icon, no dimming to
+   near-disabled, not clickable) so it never reads as "you're locked out"
+   when the truth simply isn't known yet. */
+.file-item.file-checking { cursor: default; }
+.file-lock-badge.is-checking{
+  opacity: .8;
+  color: var(--moss-600);
+  animation: checkingPulse 1.4s ease-in-out infinite;
+}
+.image-item.image-checking .image-item-thumb::after{
+  content: "⏳ Checking access…";
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(31,46,34,.35);
+  color: #fff; font-size: .8rem; font-weight: 600;
+  text-align: center; padding: .5rem;
+  animation: checkingPulse 1.4s ease-in-out infinite;
+}
+@keyframes checkingPulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+
 /* soft ambient color blobs drifting behind the glass card */
 .resource-lock-overlay::before,
 .resource-lock-overlay::after {

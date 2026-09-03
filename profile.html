@@ -82,6 +82,45 @@
   .status-tag.approved{ background:rgba(107,155,94,.15); color:var(--leaf-500); }
   .status-tag.pending{ background:rgba(214,171,74,.18); color:var(--wheat-400); }
   .status-tag.rejected{ background:rgba(196,90,63,.15); color:var(--terracotta-500); }
+
+  /* ============================================
+     LAYOUT REFRESH — page header band, clearer section
+     rhythm, and a responsive profile card that stacks on
+     narrow screens instead of cramping avatar + text.
+     ============================================ */
+  .profile-page-head{
+    padding:1.6rem 1.6rem 1.8rem;
+    margin-bottom:1.4rem;
+    border-radius:20px;
+    position:relative; overflow:hidden; isolation:isolate;
+    background:
+      radial-gradient(circle at 12% 15%, rgba(214,171,74,.30), transparent 55%),
+      radial-gradient(circle at 88% 85%, rgba(107,155,94,.38), transparent 55%),
+      linear-gradient(135deg, var(--moss-900), var(--moss-700));
+  }
+  .profile-page-head .crumb{ color:rgba(255,255,255,.7); margin-bottom:.5rem; }
+  .profile-page-head .crumb a{ color:rgba(255,255,255,.85); }
+  .profile-page-head h1{ color:#fff; margin:0; }
+
+  .profile-card{ margin-bottom:1.8rem; }
+
+  .profile-section{ margin-top:2.2rem; }
+  .profile-section-head{
+    display:flex; align-items:baseline; justify-content:space-between; gap:.6rem;
+    margin-bottom:.9rem; padding-bottom:.5rem; border-bottom:1px solid var(--line);
+  }
+  .profile-section-head h2{ font-size:1.05rem; margin:0; }
+
+  .credit-stat{ transition:transform .16s ease, box-shadow .16s ease; }
+  .credit-stat:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(31,46,34,.09); }
+  .upload-row{ transition:box-shadow .16s ease; }
+  .upload-row:hover{ box-shadow:0 4px 14px rgba(31,46,34,.08); }
+
+  @media (max-width:560px){
+    .profile-card{ flex-direction:column; text-align:center; padding:1.3rem 1.1rem; }
+    .profile-name-row{ justify-content:center; }
+    .profile-page-head{ padding:1.3rem 1.1rem 1.5rem; border-radius:16px; }
+  }
 </style>
 </head>
 <body>
@@ -91,8 +130,10 @@
 
 <section class="section-page">
   <div class="container" style="max-width:720px;">
-    <div class="crumb"><a href="index.html">Home</a> / Profile</div>
-    <h1>👤 My Profile</h1>
+    <div class="profile-page-head">
+      <div class="crumb"><a href="index.html">Home</a> / Profile</div>
+      <h1>👤 My Profile</h1>
+    </div>
 
     <div id="profile-loading" style="color:var(--moss-600);padding:2rem 0;">Loading your profile…</div>
 
@@ -140,24 +181,30 @@
         <div id="access-timeline-list"></div>
       </div>
 
-      <h2 style="font-size:1.1rem;margin-bottom:.8rem;">📊 My Contributions</h2>
-      <div class="credit-stats">
-        <div class="credit-stat"><div class="num" id="stat-total">0</div><div class="label">Total Submitted</div></div>
-        <div class="credit-stat"><div class="num" id="stat-approved">0</div><div class="label">✅ Approved (Credits)</div></div>
-        <div class="credit-stat"><div class="num" id="stat-pending">0</div><div class="label">⏳ Pending Review</div></div>
-        <div class="credit-stat"><div class="num" id="stat-rejected">0</div><div class="label">❌ Rejected</div></div>
+      <div class="profile-section" style="margin-top:0;">
+        <div class="profile-section-head"><h2>📊 My Contributions</h2></div>
+        <div class="credit-stats">
+          <div class="credit-stat"><div class="num" id="stat-total">0</div><div class="label">Total Submitted</div></div>
+          <div class="credit-stat"><div class="num" id="stat-approved">0</div><div class="label">✅ Approved (Credits)</div></div>
+          <div class="credit-stat"><div class="num" id="stat-pending">0</div><div class="label">⏳ Pending Review</div></div>
+          <div class="credit-stat"><div class="num" id="stat-rejected">0</div><div class="label">❌ Rejected</div></div>
+        </div>
       </div>
 
-      <h2 style="font-size:1.1rem;margin-bottom:.8rem;">📁 My Uploads</h2>
-      <div id="uploads-list"></div>
-      <div id="uploads-empty" class="uc-panel hidden">
-        <p>You haven't uploaded anything yet. Contributions to Resources or the Knowledge Hub will show up here.</p>
+      <div class="profile-section">
+        <div class="profile-section-head"><h2>📁 My Uploads</h2></div>
+        <div id="uploads-list"></div>
+        <div id="uploads-empty" class="uc-panel hidden">
+          <p>You haven't uploaded anything yet. Contributions to Resources or the Knowledge Hub will show up here.</p>
+        </div>
       </div>
 
-      <h2 style="font-size:1.1rem;margin-bottom:.8rem;margin-top:1.8rem;">📰 My Blog Posts</h2>
-      <div id="my-posts-list"></div>
-      <div id="my-posts-empty" class="uc-panel hidden">
-        <p>You haven't published any blog posts yet. Head to the <a href="blog.html" style="color:var(--leaf-500);font-weight:600;">Blog</a> to share something.</p>
+      <div class="profile-section">
+        <div class="profile-section-head"><h2>📰 My Blog Posts</h2></div>
+        <div id="my-posts-list"></div>
+        <div id="my-posts-empty" class="uc-panel hidden">
+          <p>You haven't published any blog posts yet. Head to the <a href="blog.html" style="color:var(--leaf-500);font-weight:600;">Blog</a> to share something.</p>
+        </div>
       </div>
 
       <button type="button" id="profile-logout-btn" style="margin-top:2rem;background:none;border:1px solid var(--line);color:var(--terracotta-500);padding:.7rem 1.4rem;border-radius:8px;font-weight:600;cursor:pointer;">Log Out</button>

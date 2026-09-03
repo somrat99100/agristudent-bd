@@ -848,11 +848,28 @@ if (handNotesGate && handNotesContent) {
 
   const unlockStrip = document.getElementById("resource-unlock-strip");
 
+  // Refresh on load and periodically so a 12-hour pending timeout or an
+  // admin approval/rejection takes effect without a page refresh.
+  const cachedEmail = normalizeEmail(getSession()?.email || localStorage.getItem("agri_handnotes_user_email") || "");
+
+  // ------------------------------------------------------------------
+  // FIX — "I have active access but files still show locked":
+  // window.__hnAccessActive starts out `undefined` (falsy) the instant
+  // this script runs, and the very first file-list render (a few lines
+  // below, `loadThreeCardLayout()`) used to fire BEFORE the Firestore
+  // round trip that determines the real access state ever resolves. For
+  // that whole window every file rendered with a 🔒 lock badge even when
+  // the student's access was genuinely active — it just hadn't been
+  // *checked* yet. window.__hnAccessKnown tracks whether a real check has
+  // completed at least once, so the file lists can show a neutral
+  // "checking access…" state instead of a false 🔒 until we actually know.
+  // ------------------------------------------------------------------
+  window.__hnAccessKnown = !cachedEmail; // nothing to check for a guest — treat as "known" (locked)
+
   function renderAccessState(state, userEmail) {
+    window.__hnAccessKnown = true;
     if (!accessStatusBar) return false;
-    const now = Date.now();
     accessStatusBar.classList.remove("hidden", "approved", "pending", "rejected");
-    const wasActive = window.__hnAccessActive;
 
     const count = state.approvedFileCount + state.pendingActiveCount;
     const content = accessStatusBar.querySelector(".status-content");
@@ -872,7 +889,7 @@ if (handNotesGate && handNotesContent) {
         <div class="file-info">Your access and uploads are restricted until <strong>${formatDate(state.restrictedUntil)}</strong>.</div>
         <div class="file-info">⚠️ <strong>Upload relevant files only.</strong> Please wait until the restriction ends before submitting another file.</div>
       `;
-      if (wasActive) loadThreeCardLayoutIfAvailable();
+      loadThreeCardLayoutIfAvailable();
       return false;
     }
 
@@ -891,6 +908,9 @@ if (handNotesGate && handNotesContent) {
         <div class="file-info">Every file you upload adds <strong>24 hours</strong> · every classroom code adds <strong>6 hours</strong> — access starts the moment you upload, no need to wait for review, and new unlocks top up whatever time you have left.</div>
         <div class="file-info">Files counted: <strong>${count}</strong></div>
       `;
+      // Don't also call loadThreeCardLayoutIfAvailable() here — the
+      // caller (hnRefreshAccess) already replays window.__onResourceAccessGranted,
+      // which includes loadThreeCardLayout, once for this exact transition.
       return true;
     }
 
@@ -909,7 +929,7 @@ if (handNotesGate && handNotesContent) {
       <div class="file-info">Browse folders freely — unlock to open a file.</div>
       <div class="file-info">Uploading a file gives <strong>24 hours</strong> of access starting right away, a classroom code gives <strong>6 hours</strong> — no review wait.</div>
     `;
-    if (wasActive) loadThreeCardLayoutIfAvailable();
+    loadThreeCardLayoutIfAvailable();
     return false;
   }
 
@@ -927,13 +947,15 @@ if (handNotesGate && handNotesContent) {
       return state;
     } catch (err) {
       console.error("[Access Status Check] failed:", err);
+      // A failed check must not leave the file list permanently stuck on
+      // a "checking…" placeholder — fall back to treating it as known
+      // (and unlocked-if-we-already-knew-it-was) so the page recovers.
+      window.__hnAccessKnown = true;
+      loadThreeCardLayoutIfAvailable();
       return null;
     }
   }
 
-  // Refresh on load and periodically so a 12-hour pending timeout or an
-  // admin approval/rejection takes effect without a page refresh.
-  const cachedEmail = normalizeEmail(getSession()?.email || localStorage.getItem("agri_handnotes_user_email") || "");
   if (cachedEmail) {
     hnRefreshAccess(cachedEmail);
     setInterval(() => hnRefreshAccess(cachedEmail), 15000);
@@ -1271,17 +1293,24 @@ if (pdfList || imageGrid) {
       ? `${esc(state.courseCode)} — ${esc(state.faculty)}`
       : `${esc(state.courseCode)}${courseName ? `: ${esc(courseName)}` : ""}`;
 
-    const locked = !window.__hnAccessActive;
+    // Still waiting on the very first access check to come back from
+    // Firestore — show a neutral "checking" state instead of a false 🔒,
+    // so a student with genuinely active access never sees files marked
+    // locked just because the check hasn't finished yet.
+    const checking = !window.__hnAccessKnown;
+    const locked = !checking && !window.__hnAccessActive;
     const fileRows = [];
     facultyItems.forEach(item => {
       (item.fileUrls || []).forEach(file => {
         fileRows.push(`
-          <div class="file-item${locked ? " file-locked" : ""}" ${locked ? 'data-locked-file="1"' : ""}>
+          <div class="file-item${locked ? " file-locked" : ""}${checking ? " file-checking" : ""}" ${locked ? 'data-locked-file="1"' : ""}>
             <span class="file-status">${docIcon(item)}</span>
             <span class="file-name">${esc(fileDisplayName(file))} <span class="note-type-tag">${esc(noteTypeLabel(item))}</span></span>
-            ${locked
-              ? `<span class="file-action file-lock-badge">🔒 Unlock</span>`
-              : `<a href="${buildViewHref(file, item)}" class="file-action" title="${esc(file.name)}">View</a>`}
+            ${checking
+              ? `<span class="file-action file-lock-badge is-checking">⏳ Checking…</span>`
+              : locked
+                ? `<span class="file-action file-lock-badge">🔒 Unlock</span>`
+                : `<a href="${buildViewHref(file, item)}" class="file-action" title="${esc(file.name)}">View</a>`}
           </div>`);
       });
     });
@@ -1309,6 +1338,7 @@ if (pdfList || imageGrid) {
   }
 
   let pdfSearchWired = false;
+  let pdfLoadedOnce = false;
   const pdfCardState = { courseCode: null, faculty: null };
 
   function renderPdfCard() {
@@ -1322,9 +1352,26 @@ if (pdfList || imageGrid) {
       return;
     }
 
+    // BUG FIX: loadThreeCardLayout() reruns in the background (the 15s
+    // access poll, or right after an access-state change) purely to
+    // refresh lock badges/counts — it isn't a fresh page visit. Only
+    // reset the folder drill-down (and re-apply the search box's current
+    // term) on the very FIRST render; later automatic reruns now keep the
+    // student exactly where they were browsing instead of bouncing them
+    // back to the top-level course list mid-navigation.
+    const resetNav = !pdfLoadedOnce;
+    pdfLoadedOnce = true;
+
     if (pdfSearch) {
       pdfSearch.style.display = "block";
-      renderPdfList(allDocs);
+      const term = pdfSearch.value.trim().toLowerCase();
+      const filtered = term
+        ? allDocs.filter(item =>
+            (item.courseCode || "").toLowerCase().includes(term) ||
+            (item.courseName || "").toLowerCase().includes(term)
+          )
+        : allDocs;
+      renderPdfList(filtered, resetNav);
 
       if (!pdfSearchWired) {
         pdfSearchWired = true;
@@ -1336,17 +1383,20 @@ if (pdfList || imageGrid) {
                 (item.courseName || "").toLowerCase().includes(term)
               )
             : allDocs;
-          renderPdfList(filtered);
+          // A new search term always starts back at the top level.
+          renderPdfList(filtered, true);
         });
       }
     } else {
-      renderPdfList(allDocs);
+      renderPdfList(allDocs, resetNav);
     }
   }
 
-  function renderPdfList(items) {
-    pdfCardState.courseCode = null;
-    pdfCardState.faculty = null;
+  function renderPdfList(items, resetNav = true) {
+    if (resetNav) {
+      pdfCardState.courseCode = null;
+      pdfCardState.faculty = null;
+    }
     renderPdfFolder(pdfList, items, pdfCardState, {
       limitTopLevel: 6,
       onTopLevelCount: (total, shown) => {
@@ -1354,6 +1404,8 @@ if (pdfList || imageGrid) {
       }
     });
   }
+
+  let imageSearchWired = false;
 
   function renderImageCard() {
     const imageCount = allImages.length;
@@ -1368,22 +1420,35 @@ if (pdfList || imageGrid) {
 
     imageSearch.style.display = "block";
     const displayCount = Math.min(6, imageCount);
-    const displayed = allImages.slice(0, displayCount);
 
-    renderImageGrid(displayed);
-    document.getElementById("image-view-all").style.display = imageCount > displayCount ? "block" : "none";
-
-    // Search functionality
-    imageSearch.addEventListener("input", (e) => {
-      const term = e.target.value.toLowerCase();
-      const filtered = term 
-        ? allImages.filter(img => 
-            img.courseName.toLowerCase().includes(term) || 
-            img.courseCode.toLowerCase().includes(term)
+    // BUG FIX #1: this used to re-attach a brand-new "input" listener on
+    // EVERY call — and this function reruns on every background access
+    // check (every 15s, or on any access-state change), not just once —
+    // so listeners piled up endlessly, each firing again on the next
+    // keystroke.
+    // BUG FIX #2: it also always rendered the default unfiltered first-6
+    // images, so if a student was mid-search when a background refresh
+    // fired, their search results got silently replaced. Both are fixed
+    // by re-applying whatever's currently in the search box on every
+    // call, and wiring the listener exactly once.
+    const applyFilter = () => {
+      const term = imageSearch.value.trim().toLowerCase();
+      const filtered = term
+        ? allImages.filter(img =>
+            (img.courseName || "").toLowerCase().includes(term) ||
+            (img.courseCode || "").toLowerCase().includes(term)
           )
         : allImages.slice(0, displayCount);
       renderImageGrid(filtered);
-    });
+    };
+
+    applyFilter();
+    document.getElementById("image-view-all").style.display = imageCount > displayCount ? "block" : "none";
+
+    if (!imageSearchWired) {
+      imageSearchWired = true;
+      imageSearch.addEventListener("input", applyFilter);
+    }
   }
 
   function renderImageGrid(images) {
@@ -1392,18 +1457,19 @@ if (pdfList || imageGrid) {
       return;
     }
 
-    const locked = !window.__hnAccessActive;
+    const checking = !window.__hnAccessKnown;
+    const locked = !checking && !window.__hnAccessActive;
     imageGrid.innerHTML = images.map(img => {
       const file = img.fileUrls[0];
       const viewHref = buildViewHref(file, img);
       const tag = locked ? "div" : "a";
       return `
-      <${tag} class="image-item${locked ? " image-locked" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
+      <${tag} class="image-item${locked ? " image-locked" : ""}${checking ? " image-checking" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
         <div class="image-item-thumb">
           <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
           <div class="status-badge">✓</div>
           <div class="view-overlay">
-            <button type="button">${locked ? "🔒" : "View"}</button>
+            <button type="button">${checking ? "⏳" : locked ? "🔒" : "View"}</button>
           </div>
         </div>
         <div class="image-item-caption">
