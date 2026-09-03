@@ -565,32 +565,48 @@ img{ max-width:100%; display:block; }
   display: none;
 }
 
+/* Folders/lists stay fully visible and browsable even when locked — only
+   the individual files/images inside require an unlock (see .file-locked
+   / .image-locked below). The old full-card blur + overlay is gone. */
 #resource-content.locked .premium-cards-grid {
-  filter: blur(5px) saturate(0.7);
-  pointer-events: none;
-  user-select: none;
+  filter: none;
+  pointer-events: auto;
+  user-select: auto;
 }
 
 #resource-content.locked .resource-lock-overlay {
-  opacity: 1;
-  visibility: visible;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .resource-lock-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.35s ease;
-  z-index: 5;
-  overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, rgba(250, 248, 242, 0.35), rgba(250, 248, 242, 0.08) 70%);
-  backdrop-filter: blur(2px) saturate(115%);
-  -webkit-backdrop-filter: blur(2px) saturate(115%);
+  display: none;
+}
+
+/* A locked individual file/image row — click opens the unlock flow
+   instead of the file. */
+.file-item.file-locked .file-action,
+.file-item.file-locked {
+  cursor: pointer;
+}
+.file-item.file-locked .file-action {
+  opacity: .55;
+}
+.file-lock-badge{
+  font-size: .78rem;
+  margin-left: .3rem;
+  opacity: .75;
+}
+.image-item.image-locked .image-item-thumb::after{
+  content: "🔒 Unlock to view";
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(31,46,34,.55);
+  color: #fff; font-size: .82rem; font-weight: 600;
+  text-align: center; padding: .5rem;
 }
 
 /* soft ambient color blobs drifting behind the glass card */
@@ -1051,6 +1067,16 @@ img{ max-width:100%; display:block; }
 }
 .search-bar button:active{ transform:translateY(0) scale(.98); }
 
+.hero-cta-row{
+  display:flex; justify-content:center; margin-top:1.4rem;
+}
+.hero-register-btn{
+  font-size:1rem; font-weight:700;
+  padding:.9rem 1.8rem; border-radius:999px;
+  box-shadow:0 10px 24px rgba(107,155,94,.35);
+  text-decoration:none;
+}
+
 .search-results{
   position:absolute;
   top:calc(100% + .6rem);
@@ -1413,6 +1439,105 @@ img{ max-width:100%; display:block; }
   .help-tile:not(.help-tile--form){ flex-direction:column; align-items:flex-start; }
   .help-tile-cta{ width:100%; text-align:center; margin-top:.3rem; }
 }
+
+/* ============================================
+   HELP PAGE — WhatsApp-style chat shell
+   ============================================ */
+.help-chat-shell{
+  max-width:560px;
+  background:#eef3ea;
+  border:1.5px solid var(--line);
+  border-radius:22px;
+  overflow:hidden;
+  box-shadow:0 6px 20px rgba(31,46,34,.08);
+}
+.help-chat-header{
+  display:flex; align-items:center; gap:.8rem;
+  background:var(--moss-900);
+  color:#fff;
+  padding:1rem 1.2rem;
+}
+.help-chat-avatar{
+  width:42px; height:42px; border-radius:50%;
+  background:var(--leaf-500);
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.25rem; flex-shrink:0;
+}
+.help-chat-title{ font-weight:700; font-size:1rem; }
+.help-chat-status{
+  font-size:.75rem; opacity:.85;
+  display:flex; align-items:center; gap:.35rem;
+}
+.help-chat-dot{
+  width:7px; height:7px; border-radius:50%;
+  background:#6bcf6b; display:inline-block;
+}
+.help-chat-wa{
+  margin-left:auto;
+  width:38px; height:38px; border-radius:50%;
+  background:rgba(255,255,255,.15);
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.1rem; text-decoration:none;
+  flex-shrink:0;
+}
+.help-chat-body{
+  padding:1.2rem;
+  display:flex; flex-direction:column; gap:.8rem;
+}
+.help-bubble{
+  background:#fff;
+  border-radius:16px 16px 16px 4px;
+  padding:.9rem 1.1rem;
+  max-width:92%;
+  box-shadow:0 1px 4px rgba(31,46,34,.06);
+}
+.help-bubble p{ margin:0; font-size:.9rem; color:var(--moss-800,var(--moss-700)); line-height:1.55; }
+.help-bubble-actions{
+  display:flex; flex-wrap:wrap; gap:.6rem;
+  background:transparent; box-shadow:none; padding:0;
+}
+.help-quick-btn{
+  border:none; cursor:pointer;
+  font-weight:700; font-size:.86rem;
+  padding:.7rem 1.1rem;
+  border-radius:999px;
+  text-decoration:none;
+  display:inline-flex; align-items:center; gap:.4rem;
+  transition:transform .15s ease, background .15s ease;
+}
+.help-quick-btn--wa{ background:#25D366; color:#fff; }
+.help-quick-btn--email{ background:var(--leaf-500); color:#fff; }
+.help-quick-btn:hover{ transform:translateY(-1px); }
+.help-email-box{ max-width:100%; }
+.help-email-box .help-form .form-field input,
+.help-email-box .help-form .form-field textarea{
+  border-radius:12px;
+}
+
+/* ============================================
+   HELP PAGE — FAQ accordion
+   ============================================ */
+.faq-list{ max-width:560px; display:flex; flex-direction:column; gap:.7rem; }
+.faq-item{
+  background:#fff; border:1.5px solid var(--line);
+  border-radius:14px; overflow:hidden;
+}
+.faq-question{
+  width:100%; text-align:left; background:none; border:none;
+  cursor:pointer; font-weight:600; font-size:.92rem;
+  padding:.95rem 1.1rem;
+  display:flex; align-items:center; justify-content:space-between; gap:.6rem;
+  color:var(--moss-800,var(--moss-700));
+}
+.faq-chevron{ transition:transform .2s ease; color:var(--leaf-500); }
+.faq-item.is-open .faq-chevron{ transform:rotate(180deg); }
+.faq-answer{
+  max-height:0; overflow:hidden;
+  transition:max-height .25s ease;
+  padding:0 1.1rem;
+}
+.faq-item.is-open .faq-answer{ max-height:220px; padding:0 1.1rem 1rem; }
+.faq-answer p{ margin:0; font-size:.86rem; color:var(--moss-600); line-height:1.55; }
 
 /* ============================================
    FOOTER
@@ -1958,6 +2083,13 @@ body.viewer-layout {
   padding:.4rem .8rem; border:1px solid var(--line); border-radius:8px;
 }
 .navbar-auth-login:hover{ background:var(--paper-100); }
+.navbar-auth-register{
+  font-weight:700; font-size:.85rem; color:#fff;
+  background:var(--leaf-500);
+  padding:.4rem .9rem; border-radius:8px;
+  transition:background .15s ease;
+}
+.navbar-auth-register:hover{ background:var(--moss-700); }
 .navbar-auth-profile{
   display:flex; align-items:center; gap:.4rem; font-weight:600; font-size:.85rem;
   color:var(--moss-700);
@@ -2227,6 +2359,22 @@ body.viewer-layout {
 .access-badge.active{ background:rgba(107,155,94,.15); color:var(--leaf-500); }
 .access-badge.expired{ background:rgba(196,90,63,.15); color:var(--terracotta-500); }
 .access-badge.locked{ background:rgba(214,171,74,.18); color:var(--wheat-400); }
+
+.access-scale-wrap{ margin-top:1rem; }
+.access-scale-track{
+  width:100%; height:10px; border-radius:99px;
+  background:rgba(107,155,94,.12); overflow:hidden;
+}
+.access-scale-fill{
+  height:100%; border-radius:99px;
+  background:linear-gradient(90deg,var(--leaf-500),var(--moss-600));
+  width:0%; transition:width .6s ease;
+}
+.access-scale-fill.is-low{ background:linear-gradient(90deg,var(--terracotta-500),var(--wheat-400)); }
+.access-scale-labels{
+  display:flex; justify-content:space-between; margin-top:.4rem;
+  font-size:.75rem; color:var(--moss-600);
+}
 
 /* ============================================
    ADMIN PAGE — Login Screen

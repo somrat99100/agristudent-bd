@@ -24,6 +24,16 @@ function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
+/** DD/MM/YYYY — matches js/access.js formatDate so admin and student
+    pages agree on date format. */
+function fmtAdminDate(val) {
+  const d = val?.toDate?.() ? val.toDate() : new Date(Number(val) || val);
+  if (Number.isNaN(d.getTime())) return "—";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
 // ============================================
 // SHOW A GENERIC ERROR IN A PANEL without leaking internals
 // (full error still goes to console for debugging)
@@ -231,6 +241,7 @@ function buildResourceRowHTML(d) {
       </select>
       <div style="display:flex;gap:.4rem;">
         <button type="button" class="edit-btn" data-schema="resources" data-id="${esc(id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
+        ${item.status !== "approved" ? `<button type="button" class="publish-resource-btn" data-id="${esc(id)}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🚀 Publish</button>` : ""}
         <button type="button" class="delete-resource-btn" data-id="${esc(id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🗑 Delete</button>
       </div>
     </div>`;
@@ -328,6 +339,44 @@ async function loadResources() {
           console.error("[AgriAdmin] file delete failed:", err);
           alert("Something went wrong deleting this file. Please try again.");
           btn.disabled = false;
+        }
+      });
+    });
+
+    // One-click publish: sets status=approved directly (same effect as
+    // picking "✅ Approved" from the dropdown, without opening it) — lets
+    // the admin review a file and push it live to Resources in one tap.
+    list.querySelectorAll(".publish-resource-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Publishing…";
+        const id = btn.dataset.id;
+        try {
+          await updateDoc(doc(db, "resources", id), {
+            status: "approved",
+            reviewedAt: new Date(),
+            rejectedAt: null,
+            restrictedUntil: null
+          });
+          const item = resourcesCache[id];
+          if (item) {
+            item.status = "approved";
+            sendReviewEmail({
+              toEmail: item.uploaderEmail,
+              toName: item.uploaderName || item.courseCode,
+              status: "Approved",
+              itemType: item.resourceType === "previous_questions" ? "Suggestion upload" : "Hand Notes upload",
+              courseCode: item.courseCode,
+              courseName: item.courseName,
+              detail: item.fileUrls?.[0]?.name || ""
+            });
+          }
+          loadResources();
+        } catch (err) {
+          console.error("[AgriAdmin] one-click publish failed:", err);
+          alert("Something went wrong publishing this resource. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "🚀 Publish";
         }
       });
     });
@@ -723,7 +772,14 @@ async function loadRegistrations() {
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
           <span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(63,91,61,.10);color:var(--moss-700);font-size:.78rem;font-weight:600;">✅ OTP Verified · Auto-approved</span>
-          <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
+          ${item.accountRestrictedUntil ? `<span class="account-restriction-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.12);color:var(--terracotta-500);font-size:.78rem;font-weight:600;">⛔ Restricted until ${esc(fmtAdminDate(item.accountRestrictedUntil))}</span>` : ""}
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
+            <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
+            ${item.accountRestrictedUntil
+              ? `<button type="button" class="unrestrict-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--leaf-500);color:var(--leaf-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Lift Restriction</button>`
+              : `<button type="button" class="restrict-week-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Restrict 7d</button>
+                 <button type="button" class="restrict-custom-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Custom…</button>`}
+          </div>
         </div>`;
       regList.appendChild(row);
     });
@@ -735,6 +791,55 @@ async function loadRegistrations() {
       });
     });
 
+    async function applyAccountRestriction(id, days, reason) {
+      const until = Date.now() + days * 24 * 60 * 60 * 1000;
+      try {
+        await updateDoc(doc(db, "registrations", id), {
+          accountRestrictedUntil: until,
+          accountRestrictedReason: reason || "",
+          accountRestrictedAt: new Date()
+        });
+        loadRegistrations();
+      } catch (err) {
+        console.error("[AgriAdmin] account restriction failed:", err);
+        alert("Something went wrong applying the restriction. Please try again.");
+      }
+    }
+
+    regList.querySelectorAll(".restrict-week-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!confirm("Restrict this account for 7 days? They'll see a freeze screen until then.")) return;
+        applyAccountRestriction(btn.dataset.id, 7, "Restricted for 7 days by admin");
+      });
+    });
+
+    regList.querySelectorAll(".restrict-custom-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const daysStr = prompt("Restrict this account for how many days?", "14");
+        if (!daysStr) return;
+        const days = Number(daysStr);
+        if (!Number.isFinite(days) || days <= 0) { alert("Please enter a valid number of days."); return; }
+        const reason = prompt("Reason to show the user (optional):", "") || "";
+        applyAccountRestriction(btn.dataset.id, days, reason);
+      });
+    });
+
+    regList.querySelectorAll(".unrestrict-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Lift this account's restriction now?")) return;
+        try {
+          await updateDoc(doc(db, "registrations", btn.dataset.id), {
+            accountRestrictedUntil: null,
+            accountRestrictedReason: "",
+            accountRestrictedAt: null
+          });
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] lift restriction failed:", err);
+          alert("Something went wrong lifting the restriction. Please try again.");
+        }
+      });
+    });
 
   } catch (err) {
     showLoadError(regList, "registrations", err);

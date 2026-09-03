@@ -1,40 +1,3 @@
-// ============================================
-// TABLE OF CONTENTS — js/resources.js
-// One module, loaded (type="module") by 3 pages: resources.html,
-// slides-notes.html, previous-questions.html. Each page-specific block
-// below is self-guarded (checks for its own DOM elements before doing
-// anything), so it's safe that all 3 pages load the whole file.
-//
-// SHARED HELPERS — used by more than one page, keep these together:
-//   L82   uploadFileToCloudinary()        Cloudinary upload + progress
-//   L112  autoRenameIfDuplicate()         de-dupe filenames on submit
-//   L157  noteTypeLabel() / wireNoteTypeVisual()   Hand Notes/Slide/Other tag
-//   L170  esc()                           XSS-safe HTML escape — used everywhere
-//   L185  wireSelectedFilesPreview()      file-input chip preview
-//   L206  prefillFromSession()            autofill name/email from session
-//   L223  lookupStudentIdByEmail()
-//   L244  buildViewHref()                 builds the /view.html link for a file
-//
-// RESOURCES.HTML — upload flow:
-//   L253  Upload form modal (open/close wiring)
-//   L267  "Send us classroom code" modal + form
-//   L322  Upload form submit handler (validation, Cloudinary, Firestore write)
-//   L630  Login-only gate for the Resources page
-//
-// SLIDES-NOTES.HTML — hand-notes unlock flow:
-//   L544  Slides & Notes browsing (course/faculty folder list)
-//   L649  Hand Notes unlock gate (access states, restriction check)
-//   L1010 Three-card premium layout (PDF/Image folder browser, view-all modal)
-//   L1425 "Upload another file" flow (re-upload to extend access)
-//
-// PREVIOUS-QUESTIONS.HTML — browsing:
-//   L1678 Suggestions browsing / filtering
-//
-// To edit ONLY one page's behavior, jump to its line range above — you
-// generally won't need to touch the SHARED HELPERS block unless the
-// change is meant to apply to all 3 pages.
-// ============================================
-
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, serverTimestamp, query, where, getDocs, setDoc, doc, getDoc
@@ -42,7 +5,7 @@ import {
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeResourceAccessStatus, formatDate, formatRemaining } from "./access.js";
+import { computeResourceAccessStatus, formatDate, formatRemaining, normalizeClassroomCode } from "./access.js";
 
 initEmailNotifications();
 
@@ -277,6 +240,7 @@ const classroomCodeForm = document.getElementById("classroom-code-form");
 const classroomCodeInput = document.getElementById("classroom-code-input");
 const classroomCodeSubmit = document.getElementById("classroom-code-submit");
 const classroomCodeSuccess = document.getElementById("classroom-code-success");
+const classroomCodeError = document.getElementById("classroom-code-error");
 
 if (openClassroomCodeBtn) {
   openClassroomCodeBtn.addEventListener("click", () => classroomCodeModal?.classList.remove("hidden"));
@@ -297,11 +261,34 @@ if (classroomCodeForm) {
     if (!code) return;
 
     classroomCodeSubmit.disabled = true;
-    classroomCodeSubmit.textContent = "Sending…";
+    classroomCodeSubmit.textContent = "Checking…";
     try {
+      const normalized = normalizeClassroomCode(code);
+
+      // A code can only ever unlock access once — reject a resubmission of
+      // a code that's already on file and ask for a fresh one.
+      const dupSnap = await getDocs(
+        query(collection(db, "classroomCodes"), where("normalizedCode", "==", normalized))
+      );
+      if (!dupSnap.empty) {
+        classroomCodeSubmit.disabled = false;
+        classroomCodeSubmit.textContent = "Send";
+        classroomCodeInput.setCustomValidity?.("");
+        if (classroomCodeError) {
+          classroomCodeError.textContent = "This classroom code has already been used. Please provide a new, unused code.";
+          classroomCodeError.classList.remove("hidden");
+        } else {
+          alert("This classroom code has already been used. Please provide a new, unused code.");
+        }
+        return;
+      }
+      if (classroomCodeError) classroomCodeError.classList.add("hidden");
+
+      classroomCodeSubmit.textContent = "Sending…";
       const session = getSession?.();
       await addDoc(collection(db, "classroomCodes"), {
         classroomCode: code,
+        normalizedCode: normalized,
         fromName: session?.fullName || session?.email || "",
         fromEmail: session?.email || "",
         status: "new",
@@ -627,23 +614,14 @@ if (courseButtonsWrap) {
 }
 
 // ============================================
-// RESOURCES PAGE — LOGIN-ONLY GATE (resources.html)
+// RESOURCES PAGE (resources.html)
 // ============================================
-// No more Student-ID "Check Access" step here — a logged-in session
-// (see js/session.js) is all that's needed to browse the Resources hub
-// and reach the Upload form. Real access control for the notes
-// themselves happens on slides-notes.html's own Hand Notes gate below,
-// keyed off the student's upload status.
-const resourceGate = document.getElementById("resource-gate");
-const resourceContent = document.getElementById("resource-content");
-
-if (resourceGate && resourceContent) {
-  if (getSession()) {
-    resourceGate.classList.add("hidden");
-    resourceContent.classList.remove("hidden");
-    (window.__onResourceAccessGranted || []).forEach(fn => fn());
-  }
-}
+// The Resources hub itself is open to everyone, logged in or not — no
+// gate. Registered/non-registered visitors can browse straight away.
+// Real access control for the note FILES themselves happens on
+// slides-notes.html's own Hand Notes unlock gate below, and login is
+// only required at the point of unlocking or uploading.
+(window.__onResourceAccessGranted || []).forEach(fn => fn());
 
 // ============================================
 // HAND NOTES UNLOCK GATE (slides-notes.html)
@@ -725,6 +703,15 @@ if (handNotesGate && handNotesContent) {
   }
 
   const hnGateBackBtn = document.getElementById("hn-gate-back");
+  const hnStepLogin = document.getElementById("hn-gate-step-login");
+  const hnStepChoice = document.getElementById("hn-gate-step-choice");
+  const hnStepNotes = document.getElementById("hn-gate-step-notes");
+  const hnStepClassroom = document.getElementById("hn-gate-step-classroom");
+  const hnAllSteps = [hnStepLogin, hnStepChoice, hnStepNotes, hnStepClassroom];
+
+  function hnShowStep(step) {
+    hnAllSteps.forEach(s => s?.classList.toggle("hidden", s !== step));
+  }
 
   // When the unlock form is showing, hide the preview entirely (show only
   // the form). `dismissible` controls whether the back (✕) button appears —
@@ -743,10 +730,83 @@ if (handNotesGate && handNotesContent) {
   window.hnOpenGate = function () {
     handNotesGate.classList.remove("hidden");
     hnEnterFormOnly(true);
+    hnShowStep(getSession() ? hnStepChoice : hnStepLogin);
     handNotesGate.scrollIntoView({ behavior: "smooth" });
   };
 
+  // If we were sent back here after login/registration (?return=...#unlock),
+  // pick straight back up at the unlock flow instead of making the person
+  // click "Unlock Access" again.
+  if (window.location.hash === "#unlock") window.hnOpenGate();
+
   hnGateBackBtn?.addEventListener("click", hnExitFormOnly);
+  document.getElementById("hn-choose-notes")?.addEventListener("click", () => hnShowStep(hnStepNotes));
+  document.getElementById("hn-choose-classroom")?.addEventListener("click", () => hnShowStep(hnStepClassroom));
+  document.getElementById("hn-notes-back")?.addEventListener("click", () => hnShowStep(hnStepChoice));
+  document.getElementById("hn-classroom-back")?.addEventListener("click", () => hnShowStep(hnStepChoice));
+  document.getElementById("hn-notes-success-close")?.addEventListener("click", hnExitFormOnly);
+  document.getElementById("hn-classroom-success-close")?.addEventListener("click", hnExitFormOnly);
+
+  // ============================================
+  // UNLOCK WITH GOOGLE CLASSROOM — same duplicate-code rule as the
+  // resources.html "Send Us Classroom Code" form: a code already on file
+  // can't be reused, and a fresh one grants 6 hours of access immediately.
+  // ============================================
+  const hnClassroomForm = document.getElementById("hn-classroom-form");
+  const hnClassroomInput = document.getElementById("hn-classroom-code-input");
+  const hnClassroomSubmit = document.getElementById("hn-classroom-submit");
+  const hnClassroomError = document.getElementById("hn-classroom-error");
+  const hnClassroomSuccess = document.getElementById("hn-classroom-success");
+
+  if (hnClassroomForm) {
+    hnClassroomForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = hnClassroomInput.value.trim();
+      if (!code) return;
+      const session = getSession();
+      if (!session) { hnShowStep(hnStepLogin); return; }
+
+      hnClassroomSubmit.disabled = true;
+      hnClassroomSubmit.textContent = "Checking…";
+      hnClassroomError.classList.add("hidden");
+
+      try {
+        const normalized = normalizeClassroomCode(code);
+        const dupSnap = await getDocs(
+          query(collection(db, "classroomCodes"), where("normalizedCode", "==", normalized))
+        );
+        if (!dupSnap.empty) {
+          hnClassroomError.textContent = "This classroom code has already been used. Please provide a new, unused code.";
+          hnClassroomError.classList.remove("hidden");
+          hnClassroomSubmit.disabled = false;
+          hnClassroomSubmit.textContent = "Send & Unlock";
+          return;
+        }
+
+        hnClassroomSubmit.textContent = "Unlocking…";
+        await addDoc(collection(db, "classroomCodes"), {
+          classroomCode: code,
+          normalizedCode: normalized,
+          fromName: session.fullName || session.email || "",
+          fromEmail: normalizeEmail(session.email || ""),
+          status: "new",
+          submittedAt: serverTimestamp()
+        });
+
+        hnClassroomForm.classList.add("hidden");
+        hnClassroomSuccess.classList.remove("hidden");
+        window.__hnAccessActive = true;
+        (window.__onResourceAccessGranted || []).forEach(fn => fn());
+        hnRefreshAccess(normalizeEmail(session.email));
+      } catch (err) {
+        console.error("[Hand Notes] classroom unlock failed:", err);
+        hnClassroomError.textContent = "Something went wrong. Please try again.";
+        hnClassroomError.classList.remove("hidden");
+        hnClassroomSubmit.disabled = false;
+        hnClassroomSubmit.textContent = "Send & Unlock";
+      }
+    });
+  }
 
   // Access is calculated from Firestore moderation records. Do not use a
   // browser-only countdown because it can be cleared or become stale.
@@ -764,10 +824,13 @@ if (handNotesGate && handNotesContent) {
     return computeResourceAccessStatus(docs);
   }
 
+  const unlockStrip = document.getElementById("resource-unlock-strip");
+
   function renderAccessState(state, userEmail) {
     if (!accessStatusBar) return false;
     const now = Date.now();
     accessStatusBar.classList.remove("hidden", "approved", "pending", "rejected");
+    const wasActive = window.__hnAccessActive;
 
     const count = state.approvedFileCount + state.pendingActiveCount;
     const content = accessStatusBar.querySelector(".status-content");
@@ -775,45 +838,62 @@ if (handNotesGate && handNotesContent) {
 
     if (state.restricted) {
       resourceUploadBlockedUntil = state.restrictedUntil;
+      window.__hnAccessActive = false;
       accessStatusBar.classList.add("rejected");
-      handNotesGate.classList.remove("hidden");
-      handNotesContent.classList.add("locked", "form-only");
+      handNotesContent.classList.add("locked");
+      handNotesContent.classList.remove("form-only");
+      handNotesGate.classList.add("hidden");
+      unlockStrip?.classList.remove("hidden");
       document.getElementById("open-another-upload")?.classList.add("hidden");
       content.innerHTML = `
         <strong>⚠️ UPLOAD RESTRICTED FOR 30 DAYS</strong>
         <div class="file-info">Your access and uploads are restricted until <strong>${formatDate(state.restrictedUntil)}</strong>.</div>
         <div class="file-info">⚠️ <strong>Upload relevant files only.</strong> Please wait until the restriction ends before submitting another file.</div>
       `;
+      if (wasActive) loadThreeCardLayoutIfAvailable();
       return false;
     }
 
     resourceUploadBlockedUntil = 0;
 
     if (state.active) {
+      window.__hnAccessActive = true;
       handNotesGate.classList.add("hidden");
       handNotesContent.classList.remove("locked", "form-only");
+      unlockStrip?.classList.add("hidden");
       document.getElementById("open-another-upload")?.classList.remove("hidden");
       accessStatusBar.classList.add(state.approvedFileCount ? "approved" : "pending");
       const kind = state.approvedFileCount ? "APPROVED ACCESS ACTIVE" : "TEMPORARY ACCESS ACTIVE";
       content.innerHTML = `
         <strong>🔓 ${kind} — ${state.daysRemaining} day${state.daysRemaining === 1 ? "" : "s"} remaining</strong>
         <div class="file-info">Access expires on <strong>${formatDate(state.accessUntil)}</strong>.</div>
-        <div class="file-info">Each approved file gives <strong>24 hours</strong> of access. A pending upload gives temporary access for up to 12 hours.</div>
+        <div class="file-info">Each approved file gives <strong>24 hours</strong> of access · classroom code gives <strong>6 hours</strong> · a pending upload gives temporary access for up to 12 hours.</div>
         <div class="file-info">Files counted: <strong>${count}</strong></div>
       `;
       return true;
     }
 
-    handNotesGate.classList.remove("hidden");
-    handNotesContent.classList.add("locked", "form-only");
+    // Not active, not restricted: folders stay browsable (no forced gate/
+    // form-only) — the gate only opens when the person clicks a locked
+    // file or the "Unlock Access" strip.
+    window.__hnAccessActive = false;
+    handNotesGate.classList.add("hidden");
+    handNotesContent.classList.add("locked");
+    handNotesContent.classList.remove("form-only");
+    unlockStrip?.classList.remove("hidden");
     document.getElementById("open-another-upload")?.classList.add("hidden");
     accessStatusBar.classList.add("pending");
     content.innerHTML = `
-      <strong>🔒 ACCESS EXPIRED</strong>
-      <div class="file-info">Upload a relevant PDF, image, or presentation.</div>
-      <div class="file-info">One approved file gives <strong>24 hours</strong> of access. If a submission stays pending for 12 hours, its temporary access ends.</div>
+      <strong>🔒 NO ACTIVE ACCESS</strong>
+      <div class="file-info">Browse folders freely — unlock to open a file.</div>
+      <div class="file-info">One approved file gives <strong>24 hours</strong>, a classroom code gives <strong>6 hours</strong>, a pending upload gives up to 12 hours.</div>
     `;
+    if (wasActive) loadThreeCardLayoutIfAvailable();
     return false;
+  }
+
+  function loadThreeCardLayoutIfAvailable() {
+    (window.__resourcesReloadLayout || (() => {}))();
   }
 
   async function hnRefreshAccess(userEmail) {
@@ -987,7 +1067,16 @@ if (handNotesGate && handNotesContent) {
         await addDoc(collection(db, "resources"), hnDocData);
 
         hnShowStatus("✅ Submitted! Unlocking Hand Notes…");
-        setTimeout(() => hnRefreshAccess(uploaderEmail), 700);
+        setTimeout(() => {
+          hnRefreshAccess(uploaderEmail);
+          hnForm.classList.add("hidden");
+          const successBoxEl = document.getElementById("hn-notes-success");
+          const titleEl = document.getElementById("hn-notes-success-title");
+          const detailEl = document.getElementById("hn-notes-success-detail");
+          if (titleEl) titleEl.textContent = "You've got 12 hours of temporary access";
+          if (detailEl) detailEl.textContent = "Your file is pending review. Once an admin approves it, you'll get 24 hours of access instead.";
+          successBoxEl?.classList.remove("hidden");
+        }, 700);
       } catch (err) {
         console.error("[Hand Notes Unlock] failed:", err);
         let userMessage = "Something went wrong. Please try again.";
@@ -1161,14 +1250,17 @@ if (pdfList || imageGrid) {
       ? `${esc(state.courseCode)} — ${esc(state.faculty)}`
       : `${esc(state.courseCode)}${courseName ? `: ${esc(courseName)}` : ""}`;
 
+    const locked = !window.__hnAccessActive;
     const fileRows = [];
     facultyItems.forEach(item => {
       (item.fileUrls || []).forEach(file => {
         fileRows.push(`
-          <div class="file-item">
+          <div class="file-item${locked ? " file-locked" : ""}" ${locked ? 'data-locked-file="1"' : ""}>
             <span class="file-status">${docIcon(item)}</span>
             <span class="file-name">${esc(fileDisplayName(file))} <span class="note-type-tag">${esc(noteTypeLabel(item))}</span></span>
-            <a href="${buildViewHref(file, item)}" class="file-action" title="${esc(file.name)}">View</a>
+            ${locked
+              ? `<span class="file-action file-lock-badge">🔒 Unlock</span>`
+              : `<a href="${buildViewHref(file, item)}" class="file-action" title="${esc(file.name)}">View</a>`}
           </div>`);
       });
     });
@@ -1187,6 +1279,12 @@ if (pdfList || imageGrid) {
       else { state.faculty = null; }
       renderPdfFolder(container, items, state, opts);
     });
+
+    if (locked) {
+      container.querySelectorAll("[data-locked-file]").forEach(el => {
+        el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
+      });
+    }
   }
 
   let pdfSearchWired = false;
@@ -1273,28 +1371,37 @@ if (pdfList || imageGrid) {
       return;
     }
 
+    const locked = !window.__hnAccessActive;
     imageGrid.innerHTML = images.map(img => {
       const file = img.fileUrls[0];
       const viewHref = buildViewHref(file, img);
+      const tag = locked ? "div" : "a";
       return `
-      <a class="image-item" href="${viewHref}" style="text-decoration:none;">
+      <${tag} class="image-item${locked ? " image-locked" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
         <div class="image-item-thumb">
           <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
           <div class="status-badge">✓</div>
           <div class="view-overlay">
-            <button type="button">View</button>
+            <button type="button">${locked ? "🔒" : "View"}</button>
           </div>
         </div>
         <div class="image-item-caption">
           <span class="image-item-code">${esc(img.courseCode)}</span>
           ${file.title ? `<span class="image-item-title">${esc(file.title)}</span>` : ""}
         </div>
-      </a>`;
+      </${tag}>`;
     }).join("");
+
+    if (locked) {
+      imageGrid.querySelectorAll("[data-locked-image]").forEach(el => {
+        el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
+      });
+    }
   }
 
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
   window.__onResourceAccessGranted.push(loadThreeCardLayout);
+  window.__resourcesReloadLayout = loadThreeCardLayout;
 
   // Load the preview immediately, regardless of unlock status — the
   // handnotes gate now shows a blurred/locked preview of real resources

@@ -36,11 +36,33 @@
       <div class="modal-box" style="max-width:520px;margin:0 auto;">
         <button type="button" class="modal-close hidden" id="hn-gate-back" title="Back to preview">✕</button>
         <div class="modal-body">
-          <div style="text-align:center;">
-            <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">📤</div>
-            <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock Hand Notes</h2>
-            <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.6rem;line-height:1.6;">Contribute lecture notes to unlock access. Upload PDF, images, or presentations below — you'll get immediate access to view notes while your upload is under review.</p>
+
+          <!-- STEP: LOGIN REQUIRED (shown when no session) -->
+          <div id="hn-gate-step-login" class="hidden" style="text-align:center;">
+            <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">🔐</div>
+            <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Log In to Unlock</h2>
+            <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;line-height:1.6;">Log in or register first — you'll be brought right back here to finish unlocking.</p>
+            <a href="login.html?return=slides-notes.html%23unlock" class="btn-primary" style="display:block;width:100%;padding:.8rem;text-decoration:none;margin-bottom:.7rem;">🔐 Log In</a>
+            <a href="register.html?return=slides-notes.html%23unlock" class="btn-primary" style="display:block;width:100%;padding:.8rem;text-decoration:none;background:var(--moss-600);">📝 Register Now</a>
           </div>
+
+          <!-- STEP: CHOICE (shown once logged in) -->
+          <div id="hn-gate-step-choice" class="hidden" style="text-align:center;">
+            <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">🔓</div>
+            <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock Hand Notes</h2>
+            <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;line-height:1.6;">Choose how you'd like to unlock access.</p>
+            <button type="button" id="hn-choose-notes" class="btn-primary" style="display:block;width:100%;padding:.8rem;margin-bottom:.7rem;">📤 Unlock with Notes <span style="font-weight:400;opacity:.85;">— upload a file, 24h on approval</span></button>
+            <button type="button" id="hn-choose-classroom" class="btn-primary" style="display:block;width:100%;padding:.8rem;background:var(--moss-600);">🏫 Unlock with Google Classroom <span style="font-weight:400;opacity:.85;">— send a code, 6h access</span></button>
+          </div>
+
+          <!-- STEP: UNLOCK WITH NOTES (existing upload form) -->
+          <div id="hn-gate-step-notes" class="hidden">
+            <button type="button" id="hn-notes-back" class="modal-close" title="Back" style="position:static;float:right;">✕</button>
+            <div style="text-align:center;">
+              <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">📤</div>
+              <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock with Notes</h2>
+              <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.6rem;line-height:1.6;">Contribute lecture notes to unlock access. Upload PDF, images, or presentations below — you'll get immediate access to view notes while your upload is under review.</p>
+            </div>
           <form id="handnotes-unlock-form">
             <div class="form-field">
               <label for="hn-courseCode">Course Code *</label>
@@ -120,6 +142,39 @@
               <div class="progress-label" id="hn-unlock-status">Uploading…</div>
             </div>
           </form>
+
+          <div id="hn-notes-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);margin-top:1rem;">
+            <span class="badge" style="background:var(--leaf-500);">🎉 Congratulations!</span>
+            <h3 id="hn-notes-success-title">You've got temporary access</h3>
+            <p id="hn-notes-success-detail">Your upload is pending review — you have temporary access for up to 12 hours. Once approved, each file gives 24 hours.</p>
+            <button type="button" id="hn-notes-success-close" class="btn-primary" style="margin-top:.8rem;">See the Notes</button>
+          </div>
+          </div>
+
+          <!-- STEP: UNLOCK WITH GOOGLE CLASSROOM (new) -->
+          <div id="hn-gate-step-classroom" class="hidden">
+            <button type="button" id="hn-classroom-back" class="modal-close" title="Back" style="position:static;float:right;">✕</button>
+            <div style="text-align:center;">
+              <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">🏫</div>
+              <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock with Google Classroom</h2>
+              <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;line-height:1.6;">Share your Google Classroom code to get 6 hours of access. Each code can only be used once — a code that's already on file won't unlock access.</p>
+            </div>
+            <form id="hn-classroom-form">
+              <div class="form-field">
+                <label for="hn-classroom-code-input">Google Classroom Code *</label>
+                <input type="text" id="hn-classroom-code-input" required placeholder="e.g., a1b2c3d">
+              </div>
+              <p id="hn-classroom-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin:-.4rem 0 .8rem;"></p>
+              <button type="submit" id="hn-classroom-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send &amp; Unlock</button>
+            </form>
+            <div id="hn-classroom-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);margin-top:1rem;">
+              <span class="badge" style="background:var(--leaf-500);">🎉 Congratulations!</span>
+              <h3>You've got 6 hours of access</h3>
+              <p>Counting down from right now — check your Profile page for the remaining time.</p>
+              <button type="button" id="hn-classroom-success-close" class="btn-primary" style="margin-top:.8rem;">See the Notes</button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -171,19 +226,11 @@
         </div>
 
         <!-- LOCK OVERLAY: shown only while #resource-content has the .locked class -->
-        <div class="resource-lock-overlay">
-          <div class="resource-lock-card">
-            <div class="resource-lock-icon">🔒</div>
-            <h3>Preview only</h3>
-            <p>These are real hand notes already on Agri Core. Upload a relevant file to unlock access. A pending upload gives up to 12 hours of temporary access; once approved, each file gives 24 hours.</p>
-            <div class="resource-lock-perks">
-              <span>⏱️ 24h per approved file</span>
-              <span>🆓 Always free</span>
-              <span>⏱️ ~2 min upload</span>
-            </div>
-            <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">📤 Upload to Unlock</button>
-          </div>
-        </div>
+      </div>
+
+      <div id="resource-unlock-strip" class="uc-panel hidden" style="margin-top:1.2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <span style="font-size:.88rem;color:var(--moss-600);">🔒 Folders are open to browse — unlock to open a file.</span>
+        <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">Unlock Access</button>
       </div>
 
     </div>

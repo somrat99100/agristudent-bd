@@ -1664,9 +1664,29 @@ async function loadDeepLinkedEdit() {
 }
 
 // ============================================
+// HERO STATS — approved post count + distinct contributor count, shown
+// in the banner above the feed. A lightweight query (approved posts
+// only) so it doesn't compete with the main feed pagination.
+// ============================================
+async function loadHeroStats() {
+  const postsEl = document.getElementById("blog-hero-stat-posts");
+  const authorsEl = document.getElementById("blog-hero-stat-authors");
+  if (!postsEl && !authorsEl) return;
+  try {
+    const snap = await getDocs(query(collection(db, "blogPosts"), where("status", "==", "approved")));
+    const authors = new Set(snap.docs.map(d => normalizeEmail(d.data().authorEmail || "")).filter(Boolean));
+    if (postsEl) postsEl.textContent = snap.size;
+    if (authorsEl) authorsEl.textContent = authors.size;
+  } catch (err) {
+    console.error("[Blog] failed to load hero stats:", err);
+  }
+}
+
+// ============================================
 // INIT
 // ============================================
 updateComposerUI();
 loadDeepLinkedPost();
 loadDeepLinkedEdit();
 loadMorePosts();
+loadHeroStats();

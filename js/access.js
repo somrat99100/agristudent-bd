@@ -15,6 +15,7 @@ import { sendReviewEmail } from "./email-config.js";
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const PENDING_GRACE_MS = 12 * 60 * 60 * 1000;
 export const ACCESS_PER_FILE_MS = DAY_MS;
+export const ACCESS_PER_CLASSROOM_MS = 6 * 60 * 60 * 1000;
 export const RESTRICTION_MS = 30 * DAY_MS;
 const REMINDER_WINDOW_DAYS = 1;
 
@@ -48,9 +49,23 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
   let restrictedUntil = 0;
   const approved = [];
   const pending = [];
+  const classroom = [];
 
   for (const item of list) {
     const status = item?.status || "pending";
+
+    // Admin-set restrictions (rejection, or a manual/custom-duration
+    // restriction from the moderation panel) always take priority.
+    if (item?.restrictedUntil && (status === "rejected" || item?.restricted)) {
+      const explicit = toDate(item.restrictedUntil)?.getTime?.() || 0;
+      if (explicit) restrictedUntil = Math.max(restrictedUntil, explicit);
+      if (status !== "rejected") continue;
+    }
+
+    if (item?.kind === "classroom") {
+      if (status !== "rejected") classroom.push(item);
+      if (status !== "rejected") continue;
+    }
 
     if (status === "rejected") {
       const rejectedAt = eventTime(item, "rejectedAt")?.getTime?.() || 0;
@@ -94,7 +109,17 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     }
   }
 
-  const accessUntil = Math.max(approvedAccessUntil, pendingAccessUntil);
+  // Classroom-code unlocks grant a flat 6h from the moment the code was
+  // submitted (no admin approval needed) — real-time, counted from
+  // submission, same as the pending-upload grace window.
+  let classroomAccessUntil = 0;
+  for (const item of classroom) {
+    const grantedAt = eventTime(item, "submittedAt")?.getTime?.() || now;
+    const until = grantedAt + ACCESS_PER_CLASSROOM_MS;
+    if (until > now) classroomAccessUntil = Math.max(classroomAccessUntil, until);
+  }
+
+  const accessUntil = Math.max(approvedAccessUntil, pendingAccessUntil, classroomAccessUntil);
   const restricted = restrictedUntil > now;
   const active = !restricted && accessUntil > now;
   const msRemaining = active ? accessUntil - now : 0;
@@ -110,6 +135,7 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     pendingActiveCount,
     approvedAccessUntil: approvedAccessUntil || null,
     pendingAccessUntil: pendingAccessUntil || null,
+    classroomAccessUntil: classroomAccessUntil || null,
     daysRemaining,
     hoursRemaining,
     msRemaining
@@ -188,4 +214,40 @@ export function renderAccessBadge({ badgeEl, detailEl }, access) {
 // Backward-compatible export used by any older page code.
 export function computeAccessStatus(items) {
   return computeResourceAccessStatus(items);
+}
+
+/** Normalize a classroom code for duplicate comparison (case/space-insensitive). */
+export function normalizeClassroomCode(code) {
+  return String(code || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+/**
+ * Renders the "remaining access" scale/progress bar on the Profile page
+ * and keeps it ticking in real time (no page refresh needed).
+ * windowMs is the size of the most recent grant (24h file / 6h classroom /
+ * 12h pending) so the bar reflects how much of THAT grant is left.
+ */
+export function renderAccessScale({ wrapEl, fillEl, remainingEl, untilEl }, access, windowMs = DAY_MS) {
+  if (!wrapEl || !fillEl) return () => {};
+  let timer = null;
+
+  function tick() {
+    const now = Date.now();
+    const msLeft = Math.max(0, (access.accessUntil || 0) - now);
+    if (!access.active || !access.accessUntil || msLeft <= 0) {
+      wrapEl.classList.add("hidden");
+      if (timer) clearInterval(timer);
+      return;
+    }
+    wrapEl.classList.remove("hidden");
+    const pct = Math.max(0, Math.min(100, (msLeft / windowMs) * 100));
+    fillEl.style.width = pct + "%";
+    fillEl.classList.toggle("is-low", pct < 20);
+    if (remainingEl) remainingEl.textContent = `⏱ ${formatRemaining(msLeft)} left`;
+    if (untilEl) untilEl.textContent = `until ${formatDate(access.accessUntil)}`;
+  }
+
+  tick();
+  timer = setInterval(tick, 30 * 1000);
+  return () => clearInterval(timer);
 }

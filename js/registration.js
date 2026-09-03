@@ -243,7 +243,10 @@ otpVerifyBtn.addEventListener("click", async () => {
     successBox.classList.remove("hidden");
     document.getElementById("form-success-msg").textContent = "Email verified — logging you in…";
 
-    setTimeout(() => { window.location.href = "profile.html"; }, 900);
+    setTimeout(() => {
+      const returnTo = new URLSearchParams(window.location.search).get("return");
+      window.location.href = (returnTo && !returnTo.includes("://")) ? returnTo : "profile.html";
+    }, 900);
   } catch (err) {
     console.error(err);
     showOtpStatus("Something went wrong creating your account. (" + err.message + ")", true);

@@ -87,3 +87,23 @@ form.addEventListener("submit", async (e) => {
     submitBtn.textContent = "Submit";
   }
 });
+
+// Reveal the email form when its quick-action button is tapped (WhatsApp-
+// style chat: the person picks a channel, then the box for it appears).
+const openEmailBtn = document.getElementById("help-open-email");
+const emailBox = document.getElementById("help-email-box");
+openEmailBtn?.addEventListener("click", () => {
+  emailBox?.classList.remove("hidden");
+  openEmailBtn.classList.add("hidden");
+  emailBox?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+
+// FAQ accordion — only one answer open at a time.
+document.querySelectorAll(".faq-question").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const item = btn.closest(".faq-item");
+    const isOpen = item.classList.contains("is-open");
+    document.querySelectorAll(".faq-item.is-open").forEach(el => el.classList.remove("is-open"));
+    if (!isOpen) item.classList.add("is-open");
+  });
+});

@@ -5,7 +5,7 @@ import {
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, formatDate, formatRemaining } from "./access.js";
+import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining, DAY_MS, ACCESS_PER_CLASSROOM_MS, PENDING_GRACE_MS } from "./access.js";
 
 initEmailNotifications();
 
@@ -132,14 +132,36 @@ async function init() {
     });
 
     renderIdentity(reg);
-    await renderCredits(normalizeEmail(reg.email), reg.fullName);
-    await renderMyBlogPosts(normalizeEmail(reg.email));
 
+    // Each section loads independently — a failure in one (e.g. a blocked
+    // Firestore query for blog posts) no longer blanks out the whole page.
     loadingEl.classList.add("hidden");
     contentEl.classList.remove("hidden");
+
+    try {
+      await renderCredits(normalizeEmail(reg.email), reg.fullName);
+    } catch (err) {
+      console.error("[Profile] failed to load resource credits:", err);
+      const listEl = document.getElementById("uploads-list");
+      if (listEl) listEl.innerHTML = `<p style="color:var(--terracotta-500);font-size:.85rem;">Couldn't load your uploads right now. <button type="button" id="retry-credits" style="background:none;border:none;color:var(--leaf-500);font-weight:600;cursor:pointer;text-decoration:underline;">Retry</button></p>`;
+      document.getElementById("retry-credits")?.addEventListener("click", () => renderCredits(normalizeEmail(reg.email), reg.fullName).catch(e => console.error(e)));
+    }
+
+    try {
+      await renderMyBlogPosts(normalizeEmail(reg.email));
+    } catch (err) {
+      console.error("[Profile] failed to load blog posts:", err);
+    }
   } catch (err) {
     console.error("[Profile] failed to load:", err);
-    loadingEl.textContent = "Something went wrong loading your profile. Please try again.";
+    loadingEl.innerHTML = `
+      <p style="color:var(--terracotta-500);font-weight:600;">Something went wrong loading your profile.</p>
+      <p style="font-size:.85rem;color:var(--moss-600);margin-top:.4rem;">${esc(err?.message || "Please check your connection and try again.")}</p>
+      <button type="button" id="profile-retry-btn" class="btn-primary" style="margin-top:1rem;">Try Again</button>`;
+    document.getElementById("profile-retry-btn")?.addEventListener("click", () => {
+      loadingEl.innerHTML = "Loading your profile…";
+      init();
+    });
   }
 }
 
@@ -167,15 +189,20 @@ function renderIdentity(reg) {
 }
 
 async function renderCredits(email, fullName) {
-  const [resourcesSnap, termsSnap] = await Promise.all([
+  const [resourcesSnap, termsSnap, classroomSnap] = await Promise.all([
     getDocs(query(collection(db, "resources"), where("uploaderEmail", "==", email))),
-    getDocs(query(collection(db, "terms"), where("uploaderEmail", "==", email)))
+    getDocs(query(collection(db, "terms"), where("uploaderEmail", "==", email))),
+    getDocs(query(collection(db, "classroomCodes"), where("fromEmail", "==", email))).catch(() => ({ docs: [] }))
   ]);
 
   const items = [
     ...resourcesSnap.docs.map(d => ({ id: d.id, kind: "resource", ...d.data() })),
     ...termsSnap.docs.map(d => ({ id: d.id, kind: "term", ...d.data() }))
   ].sort((a, b) => (b.submittedAt?.toDate?.() || 0) - (a.submittedAt?.toDate?.() || 0));
+
+  // Classroom-code unlocks aren't shown in "My Contributions" (they aren't
+  // reviewed uploads) but they DO count toward resource access time.
+  const classroomItems = classroomSnap.docs.map(d => ({ id: d.id, kind: "classroom", status: "approved", ...d.data() }));
 
   const approved = items.filter(i => i.status === "approved").length;
   const pending = items.filter(i => (i.status || "pending") === "pending").length;
@@ -189,12 +216,26 @@ async function renderCredits(email, fullName) {
   // Resource access is based only on actual resource files. Each approved
   // file grants 24h; pending uploads provide up to 12h temporary access.
   const resourceItems = items.filter(i => i.kind === "resource" && i.resourceType === "slides_notes");
-  const access = computeResourceAccessStatus(resourceItems);
+  const access = computeResourceAccessStatus([...resourceItems, ...classroomItems]);
   renderAccessBadge({
     badgeEl: document.getElementById("access-badge"),
     detailEl: document.getElementById("access-detail")
   }, access);
   maybeSendAccessReminder(access, { email, name: fullName });
+
+  // Figure out which kind of grant is currently active, so the scale bar
+  // reflects the right window size (24h/file, 6h/classroom code, 12h pending).
+  let scaleWindowMs = DAY_MS;
+  if (access.accessUntil) {
+    if (access.classroomAccessUntil === access.accessUntil) scaleWindowMs = ACCESS_PER_CLASSROOM_MS;
+    else if (access.pendingAccessUntil === access.accessUntil && access.approvedFileCount === 0) scaleWindowMs = PENDING_GRACE_MS;
+  }
+  renderAccessScale({
+    wrapEl: document.getElementById("access-scale-wrap"),
+    fillEl: document.getElementById("access-scale-fill"),
+    remainingEl: document.getElementById("access-scale-remaining"),
+    untilEl: document.getElementById("access-scale-until")
+  }, access, scaleWindowMs);
 
   const accessDetail = document.getElementById("access-detail");
   const accessAlert = document.getElementById("resource-access-alert");

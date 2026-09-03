@@ -3,9 +3,18 @@ import { collection, query, where, getDocs } from "https://www.gstatic.com/fireb
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession, saveSession } from "./session.js";
 
-// Already logged in? Skip the form and go straight to the profile.
+// Supports an optional ?return=page.html so flows like the Hand Notes
+// unlock gate can send the person to log in and land right back where
+// they started, instead of always bouncing to the profile page.
+const returnTo = new URLSearchParams(window.location.search).get("return");
+function destinationAfterLogin() {
+  if (returnTo && returnTo.startsWith("/") === false && !returnTo.includes("://")) return returnTo;
+  return "profile.html";
+}
+
+// Already logged in? Skip the form and go straight to the destination.
 if (getSession()) {
-  window.location.replace("profile.html");
+  window.location.replace(destinationAfterLogin());
 }
 
 const form = document.getElementById("login-form");
@@ -71,7 +80,7 @@ form.addEventListener("submit", async (e) => {
     });
 
     showStatus("✅ Logged in! Redirecting…");
-    setTimeout(() => { window.location.href = "profile.html"; }, 500);
+    setTimeout(() => { window.location.href = destinationAfterLogin(); }, 500);
   } catch (err) {
     console.error("[Login] failed:", err);
     showStatus("Something went wrong. Please try again.", true);

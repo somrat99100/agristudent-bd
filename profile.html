@@ -92,10 +92,19 @@
       <div id="profile-status-note" class="uc-panel hidden" style="margin-bottom:1.8rem;"></div>
       <div id="resource-access-alert" class="uc-panel hidden" style="margin-bottom:1.8rem;border-color:var(--terracotta-500);background:rgba(196,90,63,.07);color:var(--terracotta-500);font-weight:600;"></div>
 
-      <div class="uc-panel" style="margin-bottom:1.8rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
-        <div>
-          <span id="access-badge" class="access-badge"></span>
-          <div id="access-detail" style="font-size:.82rem;color:var(--moss-600);margin-top:.3rem;"></div>
+      <div class="uc-panel" style="margin-bottom:1.8rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+          <div>
+            <span id="access-badge" class="access-badge"></span>
+            <div id="access-detail" style="font-size:.82rem;color:var(--moss-600);margin-top:.3rem;"></div>
+          </div>
+        </div>
+        <div id="access-scale-wrap" class="access-scale-wrap hidden">
+          <div class="access-scale-track"><div id="access-scale-fill" class="access-scale-fill"></div></div>
+          <div class="access-scale-labels">
+            <span id="access-scale-remaining"></span>
+            <span id="access-scale-until"></span>
+          </div>
         </div>
       </div>
 

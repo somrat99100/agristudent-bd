@@ -40,6 +40,9 @@
       <input type="text" placeholder="Search resources, terms, questions, or events…" aria-label="Universal search">
       <button type="submit">Search</button>
     </form>
+    <div class="hero-cta-row reveal" id="hero-register-cta">
+      <a href="register.html" class="btn-primary hero-register-btn" autofocus>📝 Register Now — It's Free</a>
+    </div>
   </div>
 </section>
 
@@ -167,6 +170,10 @@
 <script type="module" src="js/stats.js"></script>
 <script type="module" src="js/search.js"></script>
 <script type="module" src="js/session.js"></script>
+<script type="module">
+  import { getSession } from "./js/session.js";
+  if (getSession()) document.getElementById("hero-register-cta")?.classList.add("hidden");
+</script>
 <script src="js/main.js"></script>
 </body>
 </html>

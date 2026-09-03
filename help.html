@@ -26,50 +26,75 @@
     <h1>💬 Ask For Help</h1>
     <p style="color:var(--moss-600);max-width:560px;margin-bottom:2rem;">Reach the Agri Core team directly.</p>
 
-    <div class="help-contact-stack">
-      <div class="help-tile">
-        <div class="help-tile-icon help-tile-icon--whatsapp">📱</div>
-        <div class="help-tile-body">
-          <span class="help-tile-eyebrow">Fastest</span>
-          <h3>Chat on WhatsApp</h3>
-          <p>Get instant support from the team</p>
+    <div class="help-chat-shell">
+      <div class="help-chat-header">
+        <div class="help-chat-avatar">🌾</div>
+        <div>
+          <div class="help-chat-title">Agri Core Support</div>
+          <div class="help-chat-status"><span class="help-chat-dot"></span>Usually replies within a day</div>
         </div>
-        <a id="whatsapp-link" href="https://wa.me/8801753486065" target="_blank" rel="noopener" class="help-tile-cta">Chat Now</a>
+        <a href="https://wa.me/8801753486065" target="_blank" rel="noopener" class="help-chat-wa" title="Chat on WhatsApp">📱</a>
       </div>
 
-      <div class="help-tile help-tile--form">
-        <div class="help-tile-header">
-          <div class="help-tile-icon help-tile-icon--email">📧</div>
-          <div class="help-tile-body">
-            <span class="help-tile-eyebrow">Email</span>
-            <h3>Send a Message</h3>
-            <p>We'll reply as soon as we can</p>
-          </div>
+      <div class="help-chat-body">
+        <div class="help-bubble help-bubble-in">
+          <p>👋 Hi! How can we help? Chat with us instantly on WhatsApp, or send a message below and we'll email you back.</p>
+        </div>
+        <div class="help-bubble help-bubble-in help-bubble-actions">
+          <a href="https://wa.me/8801753486065" target="_blank" rel="noopener" class="help-quick-btn help-quick-btn--wa">📱 Chat on WhatsApp</a>
+          <button type="button" id="help-open-email" class="help-quick-btn help-quick-btn--email">📧 Send an Email</button>
         </div>
 
-        <form id="help-form" class="help-form">
-          <div class="form-field">
-            <label for="help-name">Name *</label>
-            <input type="text" id="help-name" required>
-          </div>
-          <div class="form-field">
-            <label for="help-email">Email *</label>
-            <input type="email" id="help-email" required>
-          </div>
-          <div class="form-field">
-            <label for="help-message">Message *</label>
-            <textarea id="help-message" required rows="4"></textarea>
-          </div>
+        <div id="help-email-box" class="help-bubble help-bubble-in help-email-box hidden">
+          <p style="margin-bottom:.8rem;">Sure — leave your details and we'll get back to you by email.</p>
+          <form id="help-form" class="help-form">
+            <div class="form-field">
+              <label for="help-name">Name *</label>
+              <input type="text" id="help-name" required>
+            </div>
+            <div class="form-field">
+              <label for="help-email">Email *</label>
+              <input type="email" id="help-email" required>
+            </div>
+            <div class="form-field">
+              <label for="help-message">Message *</label>
+              <textarea id="help-message" required rows="4"></textarea>
+            </div>
 
-          <button type="submit" id="help-submit" class="btn-primary help-submit-btn">Submit</button>
-          <p id="help-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
-        </form>
+            <button type="submit" id="help-submit" class="btn-primary help-submit-btn">Submit</button>
+            <p id="help-status" class="hidden" style="font-size:.88rem;margin-top:.8rem;"></p>
+          </form>
 
-        <div id="help-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
-          <span class="badge" style="background:var(--leaf-500);">✅ Sent</span>
-          <h3>Thanks for reaching out!</h3>
-          <p>We'll get back to you as soon as possible.</p>
+          <div id="help-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);margin-top:1rem;">
+            <span class="badge" style="background:var(--leaf-500);">✅ Sent</span>
+            <h3>Thanks for reaching out!</h3>
+            <p>We'll get back to you as soon as possible.</p>
+          </div>
         </div>
+      </div>
+    </div>
+
+    <h2 style="font-size:1.2rem;margin:2.6rem 0 1rem;">❓ Frequently Asked Questions</h2>
+    <div class="faq-list" id="faq-list">
+      <div class="faq-item">
+        <button type="button" class="faq-question">How long does resource access last? <span class="faq-chevron">▾</span></button>
+        <div class="faq-answer"><p>An approved upload gives 24 hours of access, a Google Classroom code gives 6 hours, and a pending (not-yet-reviewed) upload gives up to 12 hours of temporary access.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">Why was my upload rejected? <span class="faq-chevron">▾</span></button>
+        <div class="faq-answer"><p>Uploads are reviewed for relevance and quality. If a file doesn't match its course or looks incorrect, it may be rejected — check your Profile page for status and reach out here if you have questions.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">Can I reuse the same Google Classroom code? <span class="faq-chevron">▾</span></button>
+        <div class="faq-answer"><p>No — each classroom code can only unlock access once. If a code has already been submitted, you'll need to provide a different, unused one.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">My account is restricted — what do I do? <span class="faq-chevron">▾</span></button>
+        <div class="faq-answer"><p>Restrictions are applied when a submission is found to be irrelevant or false. Wait for the restriction period to end, or contact us here if you believe it was a mistake.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">Do I need to register to browse Resources? <span class="faq-chevron">▾</span></button>
+        <div class="faq-answer"><p>No — anyone can browse the Resources hub and its folders. You only need to log in when you want to unlock and open individual files.</p></div>
       </div>
     </div>
 
