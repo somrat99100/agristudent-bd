@@ -23,9 +23,13 @@ service cloud.firestore {
 
       allow list: if true;
 
-      allow get: if
-        resource.data.status == "verified" ||
-        request.auth != null;
+      // Individual get is scoped the same as list (already public above) —
+      // gating it further on status caused false "Missing or insufficient
+      // permissions" errors for accounts whose status wasn't the exact
+      // string "verified" (e.g. legacy records), even though the SAME data
+      // is already readable via the list query. No real security is lost:
+      // list already exposes every field on every registration.
+      allow get: if true;
 
       // Admin panel only (js/admin.js approve/reject + generic edit modal),
       // OR a student updating just their own profile photo. Students never
@@ -169,8 +173,18 @@ service cloud.firestore {
         request.resource.data.classroomCode.size() <= 200 &&
         request.resource.data.status == "new";
 
-      // Admin-only list (js/admin.js loadClassroomCodes)
-      allow read, update, delete: if request.auth != null;
+      // Public read is required now: the classroom-code unlock flow
+      // (js/resources.js, slides-notes.html gate) checks for duplicate
+      // codes with a "where normalizedCode ==" query before accepting a
+      // new one, and js/profile.js reads a student's own submitted codes
+      // to compute their remaining access time — neither runs with a
+      // Firebase Auth session (see the trust-model note at the top of
+      // this file), so both need list/get open the same way
+      // resources/blogPosts/messages already are.
+      allow list, get: if true;
+
+      // Admin panel only (js/admin.js loadClassroomCodes / moderation).
+      allow update, delete: if request.auth != null;
     }
 
     // ============================================

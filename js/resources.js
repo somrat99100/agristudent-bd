@@ -652,6 +652,21 @@ if (handNotesGate && handNotesContent) {
   let hnMatchedCourse = null;
   const HN_CIRCUMFERENCE = 226.19;
 
+  // These were being called (submit handler, classroom-unlock handler)
+  // but never defined — the missing functions threw a silent
+  // ReferenceError right after the button flipped to "Uploading…",
+  // which is why the form looked stuck with no progress and no error.
+  function hnSetProgress(pct) {
+    if (hnProgressWrap) hnProgressWrap.classList.remove("hidden");
+    if (hnProgressBar) hnProgressBar.style.strokeDashoffset = HN_CIRCUMFERENCE - (Math.max(0, Math.min(100, pct)) / 100) * HN_CIRCUMFERENCE;
+    if (hnProgressText) hnProgressText.textContent = Math.round(pct) + "%";
+  }
+  function hnShowStatus(msg, isError = false) {
+    if (!hnStatus) return;
+    hnStatus.textContent = msg;
+    hnStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  }
+
   // File type acceptances
   const fileTypeAccepts = {
     pdf: ".pdf,application/pdf",
@@ -1508,22 +1523,29 @@ if (pdfList || imageGrid) {
         grid.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;grid-column:1/-1;">No matching images found.</p>`;
         return;
       }
+      const locked = !window.__hnAccessActive;
       grid.innerHTML = items.map(img => {
         const file = img.fileUrls[0];
         const viewHref = buildViewHref(file, img);
+        const tag = locked ? "div" : "a";
         return `
-        <a class="image-item" href="${viewHref}" style="text-decoration:none;">
+        <${tag} class="image-item${locked ? " image-locked" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
           <div class="image-item-thumb">
             <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
             <div class="status-badge">✓</div>
-            <div class="view-overlay"><button type="button">View</button></div>
+            <div class="view-overlay"><button type="button">${locked ? "🔒" : "View"}</button></div>
           </div>
           <div class="image-item-caption">
             <span class="image-item-code">${esc(img.courseCode)}</span>
             ${file.title ? `<span class="image-item-title">${esc(file.title)}</span>` : ""}
           </div>
-        </a>`;
+        </${tag}>`;
       }).join("");
+      if (locked) {
+        grid.querySelectorAll("[data-locked-image]").forEach(el => {
+          el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
+        });
+      }
     }
   });
 }
