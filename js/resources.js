@@ -440,20 +440,6 @@ if (uploadForm) {
     const uploaderEmail = normalizeEmail(document.getElementById("uploaderEmail").value);
     const files = Array.from(fileInput.files);
 
-    // Moderation guard: was previously missing on THIS form (the main
-    // resources.html upload form), which meant a student whose upload
-    // had been rejected could still submit new files here even while
-    // restricted — the other two upload forms (Hand Notes, Upload
-    // Another File) already had this check.
-    const restriction = await window.__checkResourceRestriction(uploaderEmail);
-    if (restriction !== 0) {
-      const msg = restriction === -1
-        ? "⚠️ We could not verify your upload status. Please try again."
-        : "⚠️ Uploads are restricted for 30 days after a rejected file. Please wait until the restriction ends.";
-      showError(msg);
-      return;
-    }
-
     if (files.length === 0) { showError(`Please choose at least one ${currentFileType.toUpperCase()} file.`); return; }
     if (files.length > MAX_FILES) { showError(`Maximum ${MAX_FILES} files allowed.`); return; }
 
@@ -898,12 +884,11 @@ if (handNotesGate && handNotesContent) {
       handNotesContent.classList.remove("locked", "form-only");
       unlockStrip?.classList.add("hidden");
       document.getElementById("open-another-upload")?.classList.remove("hidden");
-      accessStatusBar.classList.add(state.approvedFileCount ? "approved" : "pending");
-      const kind = state.approvedFileCount ? "APPROVED ACCESS ACTIVE" : "TEMPORARY ACCESS ACTIVE";
+      accessStatusBar.classList.add("approved");
       content.innerHTML = `
-        <strong>🔓 ${kind} — ${formatRemaining(state.msRemaining)} remaining</strong>
+        <strong>🔓 RESOURCE ACCESS ACTIVE — ${formatRemaining(state.msRemaining)} remaining</strong>
         <div class="file-info">Access expires on <strong>${formatDate(state.accessUntil)}</strong>.</div>
-        <div class="file-info">Each approved file adds <strong>24 hours</strong> · each classroom code adds <strong>6 hours</strong> · a pending upload gives up to 12 hours while it's reviewed — new unlocks top up whatever time you have left.</div>
+        <div class="file-info">Every file you upload adds <strong>24 hours</strong> · every classroom code adds <strong>6 hours</strong> — access starts the moment you upload, no need to wait for review, and new unlocks top up whatever time you have left.</div>
         <div class="file-info">Files counted: <strong>${count}</strong></div>
       `;
       return true;
@@ -922,7 +907,7 @@ if (handNotesGate && handNotesContent) {
     content.innerHTML = `
       <strong>🔒 NO ACTIVE ACCESS</strong>
       <div class="file-info">Browse folders freely — unlock to open a file.</div>
-      <div class="file-info">One approved file gives <strong>24 hours</strong>, a classroom code gives <strong>6 hours</strong>, a pending upload gives up to 12 hours.</div>
+      <div class="file-info">Uploading a file gives <strong>24 hours</strong> of access starting right away, a classroom code gives <strong>6 hours</strong> — no review wait.</div>
     `;
     if (wasActive) loadThreeCardLayoutIfAvailable();
     return false;
@@ -1109,8 +1094,8 @@ if (handNotesGate && handNotesContent) {
           const successBoxEl = document.getElementById("hn-notes-success");
           const titleEl = document.getElementById("hn-notes-success-title");
           const detailEl = document.getElementById("hn-notes-success-detail");
-          if (titleEl) titleEl.textContent = "You've got 12 hours of temporary access";
-          if (detailEl) detailEl.textContent = "Your file is pending review. Once an admin approves it, you'll get 24 hours of access instead.";
+          if (titleEl) titleEl.textContent = "You've got 24 hours of access";
+          if (detailEl) detailEl.textContent = "Access started the moment you uploaded — no need to wait for admin review. Your file is still pending review in the background.";
           successBoxEl?.classList.remove("hidden");
         }, 700);
       } catch (err) {

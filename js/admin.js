@@ -56,6 +56,34 @@ async function restrictAccountByEmail(email, days, reason) {
 }
 
 // ============================================
+// FULLY REMOVE A USER (registration + every trace they left behind)
+// ============================================
+// Deletes the registration record AND everything tied to that email
+// across every collection a student can write to, so "remove user" really
+// means the account and its footprint are gone — not just hidden.
+async function deleteDocsByField(collectionName, field, value) {
+  if (!value) return 0;
+  const snap = await getDocs(query(collection(db, collectionName), where(field, "==", value)));
+  if (snap.empty) return 0;
+  const batch = writeBatch(db);
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+  return snap.docs.length;
+}
+
+async function deleteUserFully(regId, email) {
+  const normalized = normalizeEmail(email || "");
+  await Promise.all([
+    deleteDocsByField("resources", "uploaderEmail", normalized),
+    deleteDocsByField("terms", "uploaderEmail", normalized),
+    deleteDocsByField("blogPosts", "authorEmail", normalized),
+    deleteDocsByField("classroomCodes", "fromEmail", normalized),
+    deleteDocsByField("messages", "fromEmail", normalized)
+  ]);
+  await deleteDoc(doc(db, "registrations", regId));
+}
+
+// ============================================
 // SHOW A GENERIC ERROR IN A PANEL without leaking internals
 // (full error still goes to console for debugging)
 // ============================================
@@ -831,9 +859,34 @@ async function loadRegistrations() {
               ? `<button type="button" class="unrestrict-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--leaf-500);color:var(--leaf-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Lift Restriction</button>`
               : `<button type="button" class="restrict-week-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Restrict 7d</button>
                  <button type="button" class="restrict-custom-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Custom…</button>`}
+            <button type="button" class="remove-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:var(--terracotta-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">🗑️ Remove User</button>
           </div>
         </div>`;
       regList.appendChild(row);
+    });
+
+    regList.querySelectorAll(".remove-user-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { id, email, name } = btn.dataset;
+        const typed = prompt(
+          `This permanently deletes ${name || email || "this user"}'s account and everything they submitted ` +
+          `(uploads, terms, blog posts, classroom codes, messages). This cannot be undone.\n\n` +
+          `Type REMOVE to confirm.`
+        );
+        if (typed !== "REMOVE") return;
+
+        btn.disabled = true;
+        btn.textContent = "Removing…";
+        try {
+          await deleteUserFully(id, email);
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] failed to remove user:", err);
+          alert("Something went wrong removing this user. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "🗑️ Remove User";
+        }
+      });
     });
 
     regList.querySelectorAll(".edit-btn").forEach(btn => {

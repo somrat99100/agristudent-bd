@@ -6,7 +6,6 @@ import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
-import { checkPasswordStrength, validatePassword, friendlyAuthError, createPasswordAccount, sendResetEmail } from "./password-auth.js";
 
 initEmailNotifications();
 
@@ -133,7 +132,6 @@ async function init() {
     });
 
     renderIdentity(reg);
-    renderPasswordSection(reg, session.regId);
 
     // Each section loads independently — a failure in one (e.g. a blocked
     // Firestore query for blog posts) no longer blanks out the whole page.
@@ -195,135 +193,6 @@ function renderIdentity(reg) {
   }
 }
 
-// ============================================
-// ACCOUNT SECURITY / PASSWORD SETUP
-// Already-registered students who signed up before password login
-// existed get a banner + form here to set one up. Once passwordSet is
-// true, this instead shows a "Change Password" (reset-email) option.
-// ============================================
-function renderPasswordSection(reg, regId) {
-  const section = document.getElementById("password-section");
-  if (!section) return;
-  section.classList.remove("hidden");
-
-  const banner = document.getElementById("password-setup-banner");
-  const setupForm = document.getElementById("password-setup-form");
-  const enabledNote = document.getElementById("password-enabled-note");
-
-  if (reg.passwordSet) {
-    banner.classList.add("hidden");
-    setupForm.classList.add("hidden");
-    enabledNote.classList.remove("hidden");
-  } else {
-    banner.classList.remove("hidden");
-    setupForm.classList.remove("hidden");
-    enabledNote.classList.add("hidden");
-  }
-
-  wirePasswordSetupForm(reg, regId);
-  wirePasswordResetButton(reg);
-}
-
-let passwordSetupWired = false;
-function wirePasswordSetupForm(reg, regId) {
-  const form = document.getElementById("password-setup-form");
-  const newPasswordInput = document.getElementById("new-password");
-  const confirmInput = document.getElementById("new-password-confirm");
-  const toggleBtn = document.getElementById("new-password-toggle");
-  const strengthEl = document.getElementById("new-password-strength");
-  const submitBtn = document.getElementById("password-setup-submit");
-  const statusEl = document.getElementById("password-setup-status");
-  if (!form) return;
-
-  function showStatus(msg, isError = false) {
-    statusEl.textContent = msg;
-    statusEl.style.color = isError ? "var(--terracotta-500)" : "var(--leaf-500)";
-    statusEl.classList.remove("hidden");
-  }
-
-  if (passwordSetupWired) return; // listeners attached once; reg/regId read fresh via closures below
-  passwordSetupWired = true;
-
-  newPasswordInput?.addEventListener("input", () => {
-    const { label, color } = checkPasswordStrength(newPasswordInput.value);
-    strengthEl.textContent = newPasswordInput.value ? `Strength: ${label}` : "At least 8 characters, with a letter and a number.";
-    strengthEl.style.color = newPasswordInput.value ? color : "var(--moss-600)";
-  });
-
-  toggleBtn?.addEventListener("click", () => {
-    const showing = newPasswordInput.type === "text";
-    newPasswordInput.type = showing ? "password" : "text";
-    confirmInput.type = showing ? "password" : "text";
-    toggleBtn.textContent = showing ? "👁️" : "🙈";
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const session = getSession();
-    if (!session) return;
-
-    const password = newPasswordInput.value;
-    const confirm = confirmInput.value;
-
-    const check = validatePassword(password);
-    if (!check.ok) { showStatus(check.message, true); return; }
-    if (password !== confirm) { showStatus("Passwords do not match.", true); return; }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Saving…";
-    showStatus("Setting up your password…");
-
-    try {
-      const authUser = await createPasswordAccount(session.email, password);
-      await updateDoc(doc(db, "registrations", session.regId), {
-        passwordSet: true,
-        authUid: authUser.uid
-      });
-
-      showStatus("✅ Password set! Next time, log in with your Student ID and password.");
-      form.reset();
-      form.classList.add("hidden");
-      document.getElementById("password-setup-banner")?.classList.add("hidden");
-      document.getElementById("password-enabled-note")?.classList.remove("hidden");
-    } catch (err) {
-      console.error("[Profile] password setup failed:", err);
-      showStatus(friendlyAuthError(err), true);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Set Password";
-    }
-  });
-}
-
-function wirePasswordResetButton(reg) {
-  const btn = document.getElementById("password-reset-btn");
-  const statusEl = document.getElementById("password-reset-status");
-  if (!btn || btn.dataset.wired) return;
-  btn.dataset.wired = "1";
-
-  btn.addEventListener("click", async () => {
-    const session = getSession();
-    if (!session) return;
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = "Sending…";
-    try {
-      await sendResetEmail(session.email);
-      statusEl.textContent = `✅ A password reset link was sent to ${session.email}.`;
-      statusEl.style.color = "var(--leaf-500)";
-      statusEl.classList.remove("hidden");
-    } catch (err) {
-      console.error("[Profile] password reset email failed:", err);
-      statusEl.textContent = friendlyAuthError(err);
-      statusEl.style.color = "var(--terracotta-500)";
-      statusEl.classList.remove("hidden");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = original;
-    }
-  });
-}
-
 async function renderCredits(email, fullName) {
   const [resourcesSnap, termsSnap, classroomSnap] = await Promise.all([
     getDocs(query(collection(db, "resources"), where("uploaderEmail", "==", email))),
@@ -349,8 +218,9 @@ async function renderCredits(email, fullName) {
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-rejected").textContent = rejected;
 
-  // Resource access is based only on actual resource files. Each approved
-  // file grants 24h; pending uploads provide up to 12h temporary access.
+  // Resource access is based only on actual resource files (Slides/Notes).
+  // Every upload grants 24h starting the moment it's uploaded, whether or
+  // not it's been reviewed yet — see js/access.js for the stacking rules.
   const resourceItems = items.filter(i => i.kind === "resource" && i.resourceType === "slides_notes");
   const access = computeResourceAccessStatus([...resourceItems, ...classroomItems]);
   renderAccessBadge({
@@ -368,6 +238,8 @@ async function renderCredits(email, fullName) {
     remainingEl: document.getElementById("access-scale-remaining"),
     untilEl: document.getElementById("access-scale-until")
   }, access, access.lastGrantMs);
+
+  renderAccessTimeline(access);
 
   const accessDetail = document.getElementById("access-detail");
   const accessAlert = document.getElementById("resource-access-alert");
@@ -409,6 +281,66 @@ async function renderCredits(email, fullName) {
           <div style="font-size:.75rem;color:var(--moss-600);">${date}</div>
         </div>
         <span class="status-tag ${esc(status)}">${status === "approved" ? "✅ Approved" : status === "rejected" ? "❌ Rejected" : "⏳ Pending"}</span>
+      </div>`;
+  }).join("");
+}
+
+/** DD/MM HH:MM — used only for the per-file access breakdown, where the
+    hour matters (unlike formatDate elsewhere which is date-only). */
+function formatDateTime(ms) {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "—";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day}/${month} ${hh}:${mm}`;
+}
+
+// Shows exactly how much access time each individual upload (file or
+// classroom code) contributed, and the window it occupies within the
+// stacked total — so a student never has to guess "how much time did I
+// get for which file".
+function renderAccessTimeline(access) {
+  const wrap = document.getElementById("access-timeline-wrap");
+  const totalEl = document.getElementById("access-timeline-total");
+  const listEl = document.getElementById("access-timeline-list");
+  if (!wrap || !totalEl || !listEl) return;
+
+  const breakdown = access.breakdown || [];
+  if (breakdown.length === 0) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  wrap.classList.remove("hidden");
+
+  const totalHoursGranted = Math.round((access.totalGrantedMs || 0) / (60 * 60 * 1000));
+  totalEl.innerHTML = `
+    <span>Total access earned: <strong>${totalHoursGranted} hour${totalHoursGranted === 1 ? "" : "s"}</strong> across ${breakdown.length} upload${breakdown.length === 1 ? "" : "s"}</span>
+    <span>${access.active ? `⏱ ${formatRemaining(access.msRemaining)} left right now` : "No time left right now"}</span>
+  `;
+
+  listEl.innerHTML = breakdown.slice().reverse().map(entry => {
+    const isClassroom = entry.kind === "classroom";
+    const item = entry.item || {};
+    const title = isClassroom
+      ? `🏫 Classroom Code — ${esc(item.classroomCode || "Unlock")}`
+      : `📄 ${esc(item.courseCode || "Unknown course")} — Slides/Notes`;
+    const hours = Math.round(entry.durationMs / (60 * 60 * 1000));
+    const startStr = formatDateTime(entry.startsAt);
+    const endStr = formatDateTime(entry.endsAt);
+    const statusCls = entry.active ? "is-active" : "is-expired";
+    const statusText = entry.active ? "Active" : "Used up";
+    return `
+      <div class="access-timeline-row">
+        <div>
+          <div class="atl-title">${title}</div>
+          <div class="atl-sub">+${hours}h · uploaded ${formatDate(entry.grantedAt)}</div>
+        </div>
+        <div class="atl-window">
+          ${startStr} → ${endStr}
+          <div><span class="atl-status ${statusCls}">${statusText}</span></div>
+        </div>
       </div>`;
   }).join("");
 }

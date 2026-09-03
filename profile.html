@@ -116,42 +116,6 @@
       </div>
 
       <div id="profile-status-note" class="uc-panel hidden" style="margin-bottom:1.8rem;"></div>
-
-      <!-- ACCOUNT SECURITY / PASSWORD SETUP -->
-      <div id="password-section" class="uc-panel hidden" style="margin-bottom:1.8rem;">
-        <h2 style="font-size:1.05rem;margin-bottom:.6rem;">🔐 Account Security</h2>
-
-        <div id="password-setup-banner" class="hidden" style="background:rgba(214,171,74,.15);color:var(--wheat-400,#a3791f);border-radius:8px;padding:.8rem 1rem;font-size:.88rem;margin-bottom:1rem;">
-          ⚠️ <strong>Set up a new password.</strong> From next time, you'll need to log in with your Student ID and password instead of your email.
-        </div>
-
-        <form id="password-setup-form" class="hidden" style="display:flex;flex-direction:column;gap:.9rem;max-width:420px;">
-          <div>
-            <label for="new-password" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">New Password *</label>
-            <div style="position:relative;">
-              <input type="password" id="new-password" required autocomplete="new-password" minlength="8"
-                     style="width:100%;padding:.65rem 2.6rem .65rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
-              <button type="button" id="new-password-toggle" aria-label="Show password"
-                      style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;">👁️</button>
-            </div>
-            <div id="new-password-strength" style="font-size:.78rem;margin-top:.3rem;color:var(--moss-600);">At least 8 characters, with a letter and a number.</div>
-          </div>
-          <div>
-            <label for="new-password-confirm" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">Confirm Password *</label>
-            <input type="password" id="new-password-confirm" required autocomplete="new-password"
-                   style="width:100%;padding:.65rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
-          </div>
-          <button type="submit" id="password-setup-submit" style="background:var(--moss-700);color:#fff;border:none;padding:.75rem;border-radius:8px;font-weight:600;font-size:.95rem;cursor:pointer;align-self:flex-start;padding-left:1.4rem;padding-right:1.4rem;">Set Password</button>
-          <div id="password-setup-status" class="hidden" style="font-size:.85rem;"></div>
-        </form>
-
-        <div id="password-enabled-note" class="hidden" style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
-          <span style="color:var(--leaf-500);font-weight:600;font-size:.9rem;">🔒 Password login is enabled — log in with your Student ID and password.</span>
-          <button type="button" id="password-reset-btn" style="background:none;border:1px solid var(--line);border-radius:6px;padding:.4rem .8rem;font-size:.82rem;cursor:pointer;">Change Password</button>
-          <div id="password-reset-status" class="hidden" style="font-size:.8rem;width:100%;"></div>
-        </div>
-      </div>
-
       <div id="resource-access-alert" class="uc-panel hidden" style="margin-bottom:1.8rem;border-color:var(--terracotta-500);background:rgba(196,90,63,.07);color:var(--terracotta-500);font-weight:600;"></div>
 
       <div class="uc-panel" style="margin-bottom:1.8rem;">
@@ -168,6 +132,12 @@
             <span id="access-scale-until"></span>
           </div>
         </div>
+      </div>
+
+      <div id="access-timeline-wrap" class="uc-panel hidden" style="margin-bottom:1.8rem;">
+        <h2 style="font-size:1rem;margin-bottom:.7rem;">⏱ Access Breakdown — where your time comes from</h2>
+        <div id="access-timeline-total" class="access-timeline-total"></div>
+        <div id="access-timeline-list"></div>
       </div>
 
       <h2 style="font-size:1.1rem;margin-bottom:.8rem;">📊 My Contributions</h2>

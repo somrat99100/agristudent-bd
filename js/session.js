@@ -15,7 +15,6 @@
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { db } from "./firebase-config.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { signOutOfAuth } from "./password-auth.js";
 
 const SESSION_KEY = "agri_session_v1";
 
@@ -63,10 +62,6 @@ export function clearSession() {
     sessionStorage.removeItem("agri_student_id");
     localStorage.removeItem("agri_handnotes_user_email");
   } catch (err) { /* storage unavailable — non-fatal */ }
-  // Also sign out of Firebase Auth (for students who have set up a
-  // password) so no stale ID token lingers after logout. Fire-and-forget:
-  // callers navigate away right after calling clearSession() anyway.
-  signOutOfAuth();
 }
 
 // ============================================
@@ -82,7 +77,10 @@ function renderAuthSlot() {
   const session = getSession();
 
   if (!session) {
-    slot.innerHTML = `<a href="register.html" class="navbar-auth-register">Register Now</a><a href="login.html" class="navbar-auth-login">Login</a>`;
+    // Registration now happens as part of the Login flow (an email that
+    // isn't found there offers to register), so the navbar only needs a
+    // single Login entry point — no separate "Register Now" link.
+    slot.innerHTML = `<a href="login.html" class="navbar-auth-login">Login</a>`;
     return;
   }
 
@@ -148,14 +146,7 @@ function showAccountFreezeScreen(untilMs, reason) {
 
 async function checkAccountRestriction() {
   // Admins reviewing/managing the site must never be locked out by this.
-  // Also exempt help.html, login.html, and register.html: a restricted
-  // student must still be able to reach the Contact/Help page (the
-  // freeze screen itself links there) and to log in/register. Without
-  // this exemption, navigating to help.html re-triggered the SAME
-  // freeze overlay, making the "Contact Admin" button on the freeze
-  // screen effectively dead — this was the reported "restricted user
-  // can't press Contact/Help" bug.
-  if (/\/?(admin|help|login|register)\.html/.test(window.location.pathname)) return;
+  if (/\/?admin\.html/.test(window.location.pathname)) return;
   const session = getSession();
   if (!session || !session.regId) return;
   try {

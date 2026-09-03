@@ -2376,6 +2376,34 @@ body.viewer-layout {
   font-size:.75rem; color:var(--moss-600);
 }
 
+/* Per-file access breakdown list (profile.html) — shows exactly how much
+   time each upload contributed and its own window within the stack. */
+.access-timeline-total{
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:.4rem;
+  padding:.6rem .9rem; margin-bottom:.7rem;
+  border-radius:10px; background:rgba(107,155,94,.08);
+  font-size:.82rem; color:var(--moss-700);
+}
+.access-timeline-total strong{ color:var(--leaf-500); }
+.access-timeline-row{
+  display:flex; justify-content:space-between; align-items:center;
+  gap:.8rem; padding:.6rem .2rem; border-bottom:1px solid var(--line);
+  font-size:.85rem; flex-wrap:wrap;
+}
+.access-timeline-row:last-child{ border-bottom:none; }
+.access-timeline-row .atl-title{ font-weight:600; }
+.access-timeline-row .atl-sub{ font-size:.75rem; color:var(--moss-600); margin-top:.15rem; }
+.access-timeline-row .atl-window{
+  text-align:right; font-size:.78rem; color:var(--moss-600); white-space:nowrap;
+}
+.atl-status{
+  display:inline-block; margin-top:.25rem; padding:.15rem .55rem; border-radius:999px;
+  font-size:.7rem; font-weight:700;
+}
+.atl-status.is-active{ background:rgba(107,155,94,.15); color:var(--leaf-500); }
+.atl-status.is-expired{ background:rgba(214,171,74,.15); color:var(--wheat-400); }
+
 /* ============================================
    ADMIN PAGE — Login Screen
    ============================================ */
