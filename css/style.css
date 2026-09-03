@@ -2073,12 +2073,32 @@ body.viewer-layout {
   .viewer-controls { padding: 0.25rem 0.4rem; gap: 0.25rem; }
   .zoom-btn { width: 26px; height: 26px; min-width: 26px; font-size: 0.9rem; }
   .size-display { display: none; }
-  .book-controls { padding: 0.6rem; gap: 0.5rem; justify-content: space-between; }
+  /* FIX — "page controls not visible perfectly on mobile": .book-controls
+     had no flex-wrap, so on narrow phones (Prev button + page indicator +
+     Go button) didn't all fit on one row. Flex items shrink but text/inputs
+     have a minimum content width, so the row overflowed past the edge of
+     .viewer-book, which clips overflow (needed elsewhere for its rounded
+     corners) — the result was the Next button or page input getting cut
+     off / unreachable. flex-wrap lets the row break onto a second line
+     instead of being clipped, and the tighter sizing below keeps it on one
+     line for most phone widths in the first place. */
+  .book-controls { padding: 0.6rem; gap: 0.4rem; row-gap: 0.4rem; justify-content: center; flex-wrap: wrap; }
   .book-btn { padding: 0.55rem 1rem; font-size: 0.8rem; }
+  .page-indicator { gap: 0.3rem; font-size: 0.85rem; }
   .page-search-input { width: 38px; font-size: 0.9rem; }
   .page-search-input:focus { width: 44px; }
   .viewer-book { border-radius: 4px; }
   .side-nav-btn { width: 38px; height: 38px; font-size: 1rem; }
+}
+@media (max-width: 400px) {
+  /* Very narrow phones: shrink further so Prev / page indicator / Next
+     reliably fit on a single row without wrapping. */
+  .book-controls { gap: 0.3rem; padding: 0.5rem 0.4rem; }
+  .book-btn { padding: 0.5rem 0.7rem; font-size: 0.74rem; }
+  .page-indicator { font-size: 0.78rem; gap: 0.2rem; }
+  .page-search-input { width: 32px; font-size: 0.82rem; padding: 0.25rem 0.15rem; }
+  .page-search-input:focus { width: 36px; }
+  .btn-go { padding: 0.35rem 0.6rem; font-size: 0.72rem; }
 }
 
 /* ============================================
