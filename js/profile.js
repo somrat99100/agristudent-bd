@@ -1,6 +1,6 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs
+  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
@@ -8,6 +8,30 @@ import { initEmailNotifications } from "./email-config.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
+
+
+// ============================================
+// ACCESS STATUS SYNC
+// ============================================
+// Save the computed access status back to Firestore so storage.rules can verify it.
+async function syncAccessToRegistration(db, session, access) {
+  if (!session || !session.regId) return;
+
+  try {
+    await updateDoc(doc(db, "registrations", session.regId), {
+      accessUntil: access.accessUntil ? new Date(access.accessUntil) : null,
+      restricted: access.restricted,
+      restrictedUntil: access.restrictedUntil ? new Date(access.restrictedUntil) : null,
+      lastAccessSyncAt: serverTimestamp(),
+      approvedFileCount: access.approvedFileCount || 0,
+      pendingActiveCount: access.pendingActiveCount || 0
+    });
+
+    console.log("[Profile] Synced access status → accessUntil:", access.accessUntil);
+  } catch (err) {
+    console.warn("[Profile] Failed to sync access status:", err);
+  }
+}
 
 function esc(val) {
   return String(val ?? "")
@@ -238,6 +262,11 @@ async function renderCredits(email, fullName) {
     remainingEl: document.getElementById("access-scale-remaining"),
     untilEl: document.getElementById("access-scale-until")
   }, access, access.lastGrantMs);
+  // Sync the computed access status back to Firestore for storage.rules
+  const session = getSession();
+  if (access && session?.regId) {
+    await syncAccessToRegistration(db, session, access);
+  }
 
   renderAccessTimeline(access);
 

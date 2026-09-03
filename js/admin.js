@@ -7,8 +7,60 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
+import { computeResourceAccessStatus } from "./access.js";
 
 initEmailNotifications();
+
+
+// ============================================
+// RESOURCE ACCESS SYNC
+// ============================================
+// When resource approval/rejection changes, recalculate and sync the student's
+// access status to Firestore so storage.rules can verify it.
+async function syncStudentAccessStatus(db, uploaderEmail) {
+  const normalizedEmail = normalizeEmail(uploaderEmail);
+  if (!normalizedEmail) return;
+
+  try {
+    const regSnap = await getDocs(
+      query(collection(db, "registrations"), where("emailNormalized", "==", normalizedEmail))
+    );
+    
+    if (regSnap.empty) return;
+
+    const regDoc = regSnap.docs[0];
+    const regId = regDoc.id;
+
+    const resourcesSnap = await getDocs(
+      query(collection(db, "resources"), where("uploaderEmail", "==", normalizedEmail))
+    );
+    
+    const classroomSnap = await getDocs(
+      query(collection(db, "terms"), where("uploaderEmail", "==", normalizedEmail), where("kind", "==", "classroom"))
+    );
+
+    const resourceDocs = resourcesSnap.docs.map(d => ({ id: d.id, kind: "resource", ...d.data() }));
+    const classroomDocs = classroomSnap.docs.map(d => ({ 
+      id: d.id, 
+      kind: "classroom", 
+      status: "approved",
+      ...d.data() 
+    }));
+
+    const access = computeResourceAccessStatus([...resourceDocs, ...classroomDocs]);
+
+    await updateDoc(doc(db, "registrations", regId), {
+      accessUntil: access.accessUntil ? new Date(access.accessUntil) : null,
+      restricted: access.restricted,
+      restrictedUntil: access.restrictedUntil ? new Date(access.restrictedUntil) : null,
+      lastAccessSyncAt: serverTimestamp()
+    });
+
+    console.log("[Admin] Synced access for", uploaderEmail);
+  } catch (err) {
+    console.error("[Admin] Failed to sync student access:", err);
+  }
+}
 
 // ============================================
 // ESCAPE HELPER — prevents stored XSS from user-submitted
@@ -420,6 +472,7 @@ async function loadResources() {
               courseName: item.courseName,
               detail: item.fileUrls?.[0]?.name || ""
             });
+            await syncStudentAccessStatus(db, item.uploaderEmail);
           }
           loadResources();
         } catch (err) {
@@ -485,6 +538,7 @@ async function loadResources() {
             item.status = newStatus;
           }
         } catch (err) {
+            await syncStudentAccessStatus(db, item.uploaderEmail);
           console.error("[AgriAdmin] resource status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
         }
@@ -596,6 +650,7 @@ async function loadBlogPosts() {
             item.status = newStatus;
           }
           loadBlogPosts();
+            await syncStudentAccessStatus(db, item.uploaderEmail);
         } catch (err) {
           console.error("[AgriAdmin] blog status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
@@ -721,6 +776,7 @@ async function loadTerms() {
             item.status = newStatus;
           }
         } catch (err) {
+            await syncStudentAccessStatus(db, item.uploaderEmail);
           console.error("[AgriAdmin] term status update failed:", err);
           alert("Something went wrong updating the status. Please try again.");
         }
