@@ -136,6 +136,36 @@ async function deleteUserFully(regId, email) {
 }
 
 // ============================================
+// REMOVE / RESTORE A USER (reversible)
+// ============================================
+// This is now the primary "Remove User" action. It does NOT delete
+// anything — it just marks the registration as removed, which:
+//   • blocks that email/Student ID from logging in (js/login.js)
+//   • shows a "removed" overlay if they're already logged in elsewhere
+//     on the site (js/session.js), same pattern as account restriction
+// Every upload, blog post, classroom code, and message they ever
+// submitted is left untouched, so "Restore User" (below) brings the
+// account back exactly as it was. Permanently erasing all trace of a
+// user is still possible via deleteUserFully() above, kept as a
+// separate, clearly-labelled danger action for cases that genuinely
+// need it (e.g. a takedown request) rather than the default path.
+async function removeUserAccount(regId, reason) {
+  await updateDoc(doc(db, "registrations", regId), {
+    removed: true,
+    removedAt: new Date(),
+    removedReason: reason || ""
+  });
+}
+
+async function restoreUserAccount(regId) {
+  await updateDoc(doc(db, "registrations", regId), {
+    removed: false,
+    removedAt: null,
+    removedReason: ""
+  });
+}
+
+// ============================================
 // SHOW A GENERIC ERROR IN A PANEL without leaking internals
 // (full error still goes to console for debugging)
 // ============================================
@@ -906,6 +936,7 @@ async function loadRegistrations() {
             ? `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:linear-gradient(135deg,rgba(107,155,94,.22),rgba(63,91,61,.18));color:var(--leaf-500);font-size:.78rem;font-weight:700;">🟢 ID Verified</span>`
             : `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(214,171,74,.15);color:var(--wheat-400);font-size:.78rem;font-weight:600;">🕓 ID Not Verified</span>`}
           ${item.accountRestrictedUntil ? `<span class="account-restriction-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.12);color:var(--terracotta-500);font-size:.78rem;font-weight:600;">⛔ Restricted until ${esc(fmtAdminDate(item.accountRestrictedUntil))}</span>` : ""}
+          ${item.removed ? `<span class="user-removed-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.14);color:var(--terracotta-500);font-size:.78rem;font-weight:700;">🚫 Removed${item.removedAt ? ` · ${esc(fmtAdminDate(item.removedAt))}` : ""}</span>` : ""}
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
             <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
             ${item.idVerified
@@ -915,7 +946,10 @@ async function loadRegistrations() {
               ? `<button type="button" class="unrestrict-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--leaf-500);color:var(--leaf-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Lift Restriction</button>`
               : `<button type="button" class="restrict-week-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Restrict 7d</button>
                  <button type="button" class="restrict-custom-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Custom…</button>`}
-            <button type="button" class="remove-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:var(--terracotta-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">🗑️ Remove User</button>
+            ${item.removed
+              ? `<button type="button" class="restore-user-btn" data-id="${esc(d.id)}" data-name="${esc(item.fullName || "")}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">↩️ Restore User</button>
+                 <button type="button" class="erase-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.72rem;">🗑️ Erase Permanently</button>`
+              : `<button type="button" class="remove-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:var(--terracotta-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">🗑️ Remove User</button>`}
           </div>
         </div>`;
       regList.appendChild(row);
@@ -923,24 +957,65 @@ async function loadRegistrations() {
 
     regList.querySelectorAll(".remove-user-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const { id, email, name } = btn.dataset;
-        const typed = prompt(
-          `This permanently deletes ${name || email || "this user"}'s account and everything they submitted ` +
-          `(uploads, terms, blog posts, classroom codes, messages). This cannot be undone.\n\n` +
-          `Type REMOVE to confirm.`
-        );
-        if (typed !== "REMOVE") return;
+        const { id, name, email } = btn.dataset;
+        if (!confirm(
+          `Remove ${name || email || "this user"}'s account? They'll no longer be able to log in, ` +
+          `but everything they've submitted (uploads, terms, blog posts, classroom codes, messages) is kept, ` +
+          `and you can restore this account any time from this same list.`
+        )) return;
 
         btn.disabled = true;
         btn.textContent = "Removing…";
         try {
-          await deleteUserFully(id, email);
+          await removeUserAccount(id);
           loadRegistrations();
         } catch (err) {
           console.error("[AgriAdmin] failed to remove user:", err);
           alert("Something went wrong removing this user. Please try again.");
           btn.disabled = false;
           btn.textContent = "🗑️ Remove User";
+        }
+      });
+    });
+
+    regList.querySelectorAll(".restore-user-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { id, name } = btn.dataset;
+        if (!confirm(`Restore ${name || "this user"}'s account? They'll be able to log in again immediately.`)) return;
+        btn.disabled = true;
+        btn.textContent = "Restoring…";
+        try {
+          await restoreUserAccount(id);
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] failed to restore user:", err);
+          alert("Something went wrong restoring this user. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "↩️ Restore User";
+        }
+      });
+    });
+
+    regList.querySelectorAll(".erase-user-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { id, email, name } = btn.dataset;
+        const typed = prompt(
+          `This PERMANENTLY deletes ${name || email || "this user"}'s account and everything they submitted ` +
+          `(uploads, terms, blog posts, classroom codes, messages). Unlike "Remove User", this cannot be undone.\n\n` +
+          `Type ERASE to confirm.`
+        );
+        if (typed !== "ERASE") return;
+
+        btn.disabled = true;
+        btn.textContent = "Erasing…";
+        try {
+          await deleteUserFully(id, email);
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] failed to erase user:", err);
+          alert("Something went wrong erasing this user. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "🗑️ Erase Permanently";
         }
       });
     });

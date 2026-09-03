@@ -5,7 +5,7 @@ import {
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeResourceAccessStatus, formatDate, formatRemaining, normalizeClassroomCode } from "./access.js";
+import { computeResourceAccessStatus, formatDate, formatRemaining, normalizeClassroomCode, isAuthenticClassroomCode } from "./access.js";
 
 initEmailNotifications();
 
@@ -278,6 +278,21 @@ if (classroomCodeForm) {
     classroomCodeSubmit.textContent = "Checking…";
     try {
       const normalized = normalizeClassroomCode(code);
+
+      // Reject anything that isn't shaped like a genuine Google Classroom
+      // code (wrong length/characters, or an obvious placeholder) before
+      // it ever reaches Firestore or the admin panel.
+      if (!isAuthenticClassroomCode(normalized)) {
+        classroomCodeSubmit.disabled = false;
+        classroomCodeSubmit.textContent = "Send";
+        if (classroomCodeError) {
+          classroomCodeError.textContent = "That doesn't look like a genuine Google Classroom code. Please enter the exact code your teacher shared (6-8 letters/numbers, e.g. a1b2c3d).";
+          classroomCodeError.classList.remove("hidden");
+        } else {
+          alert("That doesn't look like a genuine Google Classroom code. Please enter the exact code your teacher shared (6-8 letters/numbers, e.g. a1b2c3d).");
+        }
+        return;
+      }
 
       // A code can only ever unlock access once — reject a resubmission of
       // a code that's already on file and ask for a fresh one.
@@ -801,6 +816,15 @@ if (handNotesGate && handNotesContent) {
 
       try {
         const normalized = normalizeClassroomCode(code);
+
+        if (!isAuthenticClassroomCode(normalized)) {
+          hnClassroomError.textContent = "That doesn't look like a genuine Google Classroom code. Please enter the exact code your teacher shared (6-8 letters/numbers, e.g. a1b2c3d).";
+          hnClassroomError.classList.remove("hidden");
+          hnClassroomSubmit.disabled = false;
+          hnClassroomSubmit.textContent = "Send & Unlock";
+          return;
+        }
+
         const dupSnap = await getDocs(
           query(collection(db, "classroomCodes"), where("normalizedCode", "==", normalized))
         );
@@ -882,16 +906,32 @@ if (handNotesGate && handNotesContent) {
 
   function renderAccessState(state, userEmail) {
     window.__hnAccessKnown = true;
-    if (!accessStatusBar) return false;
+
+    // BUG FIX — "profile shows access active but resource files still show
+    // locked": window.__hnAccessActive is the single source of truth the
+    // PDF/Image/Slides file-list renderers check to decide 🔒 vs unlocked,
+    // and it must reflect the REAL Firestore-computed state on every page
+    // that lists resource files — including resources.html, which has no
+    // #access-status-bar / #handnotes-gate / #resource-content elements of
+    // its own (those only exist on slides-notes.html). The old code set
+    // this flag AFTER an `if (!accessStatusBar) return false;` early exit,
+    // so on resources.html the flag was never updated past its initial
+    // `undefined` (falsy) value and every file rendered as permanently
+    // locked no matter how much real access time the student had. The
+    // flag is now always set first, from `state` alone, before any of the
+    // optional status-bar/gate UI (which may not exist on this page) is
+    // touched.
+    window.__hnAccessActive = !state.restricted && !!state.active;
+
+    if (!accessStatusBar) return window.__hnAccessActive;
     accessStatusBar.classList.remove("hidden", "approved", "pending", "rejected");
 
     const count = state.approvedFileCount + state.pendingActiveCount;
     const content = accessStatusBar.querySelector(".status-content");
-    if (!content) return false;
+    if (!content) return window.__hnAccessActive;
 
     if (state.restricted) {
       resourceUploadBlockedUntil = state.restrictedUntil;
-      window.__hnAccessActive = false;
       accessStatusBar.classList.add("rejected");
       handNotesContent.classList.add("locked");
       handNotesContent.classList.remove("form-only");
@@ -910,7 +950,6 @@ if (handNotesGate && handNotesContent) {
     resourceUploadBlockedUntil = 0;
 
     if (state.active) {
-      window.__hnAccessActive = true;
       handNotesGate.classList.add("hidden");
       handNotesContent.classList.remove("locked", "form-only");
       unlockStrip?.classList.add("hidden");
@@ -931,7 +970,6 @@ if (handNotesGate && handNotesContent) {
     // Not active, not restricted: folders stay browsable (no forced gate/
     // form-only) — the gate only opens when the person clicks a locked
     // file or the "Unlock Access" strip.
-    window.__hnAccessActive = false;
     handNotesGate.classList.add("hidden");
     handNotesContent.classList.add("locked");
     handNotesContent.classList.remove("form-only");

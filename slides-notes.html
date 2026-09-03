@@ -10,6 +10,19 @@
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
 <title>Hand Notes — Agri Core</title>
+<meta name="description" content="Browse and share handwritten class notes by course code, or unlock notes instantly with a Google Classroom code — built for agriculture students in Bangladesh.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://agristudent-bd.web.app/slides-notes.html">
+<meta property="og:title" content="Hand Notes — Agri Core">
+<meta property="og:description" content="Browse and share handwritten class notes by course code, or unlock notes instantly with a Google Classroom code — built for agriculture students in Bangladesh.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agristudent-bd.web.app/slides-notes.html">
+<meta property="og:image" content="https://agristudent-bd.web.app/assets/icon-512.png">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Hand Notes — Agri Core">
+<meta name="twitter:description" content="Browse and share handwritten class notes by course code, or unlock notes instantly with a Google Classroom code — built for agriculture students in Bangladesh.">
+<meta name="twitter:image" content="https://agristudent-bd.web.app/assets/icon-512.png">
 <script src="js/auth-guard.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -164,7 +177,8 @@
             <form id="hn-classroom-form">
               <div class="form-field">
                 <label for="hn-classroom-code-input">Google Classroom Code *</label>
-                <input type="text" id="hn-classroom-code-input" required placeholder="e.g., a1b2c3d">
+                <input type="text" id="hn-classroom-code-input" required maxlength="8" placeholder="e.g., a1b2c3d">
+                <small style="display:block;margin-top:.3rem;color:var(--moss-600);font-size:.8rem;">6-7 letters/numbers, exactly as shown in your Google Classroom.</small>
               </div>
               <p id="hn-classroom-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin:-.4rem 0 .8rem;"></p>
               <button type="submit" id="hn-classroom-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send &amp; Unlock</button>

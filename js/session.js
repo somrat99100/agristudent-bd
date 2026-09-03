@@ -144,6 +144,34 @@ function showAccountFreezeScreen(untilMs, reason) {
   document.body.style.overflow = "hidden";
 }
 
+// ============================================
+// ACCOUNT REMOVAL — SITE-WIDE OVERLAY
+// Admin can remove an account (js/admin.js "Remove User") without
+// deleting any of the student's data — it's reversible any time from
+// the same admin panel via "Restore User". If a removed student is
+// still logged in elsewhere, this covers the page and clears their
+// local session so they can't keep browsing as that account until
+// they're restored.
+// ============================================
+function showAccountRemovedScreen(reason) {
+  if (document.getElementById("account-freeze-overlay")) return;
+  clearSession();
+  const overlay = document.createElement("div");
+  overlay.id = "account-freeze-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(31,46,34,.96);display:flex;align-items:center;justify-content:center;padding:1.5rem;text-align:center;";
+  overlay.innerHTML = `
+    <div style="max-width:420px;background:#fff;border-radius:18px;padding:2rem 1.6rem;">
+      <div style="font-size:2.2rem;margin-bottom:.6rem;">🚫</div>
+      <h2 style="font-family:var(--font-display, serif);font-size:1.3rem;margin-bottom:.6rem;">This account has been removed</h2>
+      <p style="color:var(--moss-600,#5b6f57);font-size:.9rem;margin-bottom:.4rem;">An admin has removed this account. You've been logged out.</p>
+      ${reason ? `<p style="color:var(--moss-600,#5b6f57);font-size:.85rem;margin-bottom:1rem;">Reason: ${reason}</p>` : `<div style="margin-bottom:1rem;"></div>`}
+      <p style="color:var(--moss-600,#5b6f57);font-size:.85rem;margin-bottom:1.2rem;">If you believe this is a mistake, please contact admin — removals can be reversed.</p>
+      <a href="help.html" style="display:inline-block;background:var(--leaf-500,#6b9b5e);color:#fff;font-weight:700;padding:.75rem 1.4rem;border-radius:999px;text-decoration:none;">💬 Contact Admin / Help</a>
+    </div>`;
+  document.documentElement.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+}
+
 async function checkAccountRestriction() {
   // Admins reviewing/managing the site must never be locked out by this.
   if (/\/?admin\.html/.test(window.location.pathname)) return;
@@ -153,6 +181,12 @@ async function checkAccountRestriction() {
     const snap = await getDoc(doc(db, "registrations", session.regId));
     if (!snap.exists()) return;
     const reg = snap.data();
+
+    if (reg.removed) {
+      showAccountRemovedScreen(reg.removedReason || "");
+      return;
+    }
+
     const until = reg.accountRestrictedUntil?.toDate?.()?.getTime?.() || Number(reg.accountRestrictedUntil) || 0;
     if (until && until > Date.now()) {
       showAccountFreezeScreen(until, reg.accountRestrictedReason || "");

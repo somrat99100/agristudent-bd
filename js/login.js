@@ -69,6 +69,14 @@ form.addEventListener("submit", async (e) => {
     }
 
     const reg = match.data();
+
+    if (reg.removed) {
+      showStatus("❌ This account has been removed by an admin. If you believe this is a mistake, please contact us via the Help page.", true);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Log In";
+      return;
+    }
+
     saveSession({
       regId: match.id,
       fullName: reg.fullName,

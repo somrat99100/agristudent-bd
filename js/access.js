@@ -243,6 +243,60 @@ export function normalizeClassroomCode(code) {
   return String(code || "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
+// ============================================
+// CLASSROOM CODE AUTHENTICITY CHECK
+// ============================================
+// A real Google Classroom join code is always 6-8 characters made up of
+// lowercase letters and digits only (no spaces, punctuation, or symbols).
+// We can't call Google's servers to confirm a code belongs to a real,
+// live class — that requires OAuth consent from the class owner, which
+// students submitting a code obviously don't have. What we CAN do is
+// reject anything that isn't even shaped like a genuine code: wrong
+// length/characters, or an obvious placeholder someone typed to get
+// past the form (repeated characters, keyboard runs, "test"/"fake"/etc).
+// This is a first line of defense; the admin panel's Classroom Codes tab
+// and the account-restriction tool remain the backstop for anyone who
+// still slips through with a fabricated but well-formed code.
+const CLASSROOM_CODE_SHAPE_RE = /^[a-z0-9]{6,8}$/;
+
+const CLASSROOM_CODE_BLOCKLIST = new Set([
+  "test", "tests", "testing", "fake", "faker", "none", "null", "undefined",
+  "demo", "sample", "dummy", "asdfgh", "qwerty", "qwerty1", "abc123",
+  "123456", "1234567", "000000", "0000000", "111111", "aaaaaa", "xxxxxx",
+  "xxxxxxx", "codehere", "yourcode"
+]);
+
+/** True if every character in the (already-normalized) string is identical. */
+function isRepeatedChar(s) {
+  return /^(.)\1+$/.test(s);
+}
+
+/** True if the string is a simple ascending or descending run, e.g. "123456" or "fedcba". */
+function isKeyboardSequence(s) {
+  let ascending = true, descending = true;
+  for (let i = 1; i < s.length; i++) {
+    const diff = s.charCodeAt(i) - s.charCodeAt(i - 1);
+    if (diff !== 1) ascending = false;
+    if (diff !== -1) descending = false;
+  }
+  return ascending || descending;
+}
+
+/**
+ * Returns true only if `code` is shaped like a genuine Google Classroom
+ * join code. Call this BEFORE writing a submitted classroom code to
+ * Firestore (both the "Send Us Classroom Code" form and the Hand Notes
+ * unlock flow use this).
+ */
+export function isAuthenticClassroomCode(code) {
+  const normalized = normalizeClassroomCode(code);
+  if (!CLASSROOM_CODE_SHAPE_RE.test(normalized)) return false;
+  if (CLASSROOM_CODE_BLOCKLIST.has(normalized)) return false;
+  if (isRepeatedChar(normalized)) return false;
+  if (isKeyboardSequence(normalized)) return false;
+  return true;
+}
+
 /**
  * Renders the "remaining access" scale/progress bar on the Profile page
  * and keeps it ticking in real time (no page refresh needed).

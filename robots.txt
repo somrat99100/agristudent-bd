@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /profile.html
+Disallow: /view.html
+Disallow: /login.html
+
+Sitemap: https://agristudent-bd.web.app/sitemap.xml

@@ -10,6 +10,19 @@
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
 <title>Resources — Agri Core</title>
+<meta name="description" content="Browse and download agriculture lecture slides, presentations, and past exam questions by course code — a free, student-run resource library for agriculture students in Bangladesh.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://agristudent-bd.web.app/resources.html">
+<meta property="og:title" content="Resources — Agri Core">
+<meta property="og:description" content="Browse and download agriculture lecture slides, presentations, and past exam questions by course code — a free, student-run resource library for agriculture students in Bangladesh.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agristudent-bd.web.app/resources.html">
+<meta property="og:image" content="https://agristudent-bd.web.app/assets/icon-512.png">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Resources — Agri Core">
+<meta name="twitter:description" content="Browse and download agriculture lecture slides, presentations, and past exam questions by course code — a free, student-run resource library for agriculture students in Bangladesh.">
+<meta name="twitter:image" content="https://agristudent-bd.web.app/assets/icon-512.png">
 <script src="js/auth-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -157,7 +170,8 @@
           <form id="classroom-code-form">
             <div class="form-field">
               <label for="classroom-code-input">Google Classroom Code *</label>
-              <input type="text" id="classroom-code-input" required placeholder="e.g., a1b2c3d">
+              <input type="text" id="classroom-code-input" required maxlength="8" placeholder="e.g., a1b2c3d">
+              <small style="display:block;margin-top:.3rem;color:var(--moss-600);font-size:.8rem;">6-7 letters/numbers, exactly as shown in your Google Classroom.</small>
             </div>
             <p id="classroom-code-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin:-.4rem 0 .8rem;"></p>
             <button type="submit" id="classroom-code-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send</button>

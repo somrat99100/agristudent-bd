@@ -203,7 +203,7 @@ function renderIdentity(reg) {
   const status = reg.status || "unverified";
   const pill = document.getElementById("profile-status-pill");
   const note = document.getElementById("profile-status-note");
-  const labels = { verified: "✅ Verified", unverified: "🕓 Unverified", rejected: "❌ Rejected" };
+  const labels = { verified: "✅ Email Verified", unverified: "🕓 Unverified", rejected: "❌ Rejected" };
   pill.textContent = labels[status] || status;
   pill.className = "profile-status-pill " + status;
 
