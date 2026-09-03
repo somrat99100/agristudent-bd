@@ -170,7 +170,21 @@ function prefillFromSession(emailInputId, nameInputId) {
   const session = getSession();
   if (!session) return;
   const emailInput = document.getElementById(emailInputId);
-  if (emailInput && !emailInput.value) emailInput.value = session.email;
+  if (emailInput) {
+    emailInput.value = session.email;
+    // BUG FIX — "unlocks after submit, locked again on reload": this field
+    // was only ever *pre*filled, so it stayed a normal editable text input.
+    // A student could retype it (typo, autocorrect, a different personal
+    // email) and the upload would get stamped with THAT email — but every
+    // later access check (hnRefreshAccess) always queries by session.email.
+    // If the two don't match, the access-check query returns zero
+    // documents and genuinely-active access renders as locked. Since we
+    // just set the field from the session ourselves, lock it so it can
+    // never drift from the identity that access checks actually use.
+    emailInput.readOnly = true;
+    emailInput.classList.add("field-locked-to-session");
+    emailInput.title = "Locked to your account email so your access status stays in sync.";
+  }
   if (nameInputId) {
     const nameInput = document.getElementById(nameInputId);
     if (nameInput && !nameInput.value && session.fullName) nameInput.value = session.fullName;
@@ -937,9 +951,26 @@ if (handNotesGate && handNotesContent) {
     (window.__resourcesReloadLayout || (() => {}))();
   }
 
+  // BUG FIX — "unlocks after submit, locked again on reload": if the
+  // very FIRST access check on a fresh page load fails (a transient
+  // network blip, a slow connection, etc.), window.__hnAccessActive has
+  // never been set to anything yet, so it's falsy — and the old catch
+  // block immediately marked the check "known" and moved on, which
+  // rendered every file as 🔒 with no way to tell "genuinely no access"
+  // apart from "we simply failed to check". That false lock looked
+  // identical to real expiry. Now a failure on the first-ever check
+  // retries a few times (with a visible, distinct status) before ever
+  // falling back to a locked render — a real "no access" state is only
+  // ever shown once we've actually heard back from Firestore.
+  let hnAccessEverKnown = false;
+  let hnCheckRetries = 0;
+  const HN_MAX_CHECK_RETRIES = 3;
+
   async function hnRefreshAccess(userEmail) {
     try {
       const state = await getResourceAccessState(userEmail);
+      hnAccessEverKnown = true;
+      hnCheckRetries = 0;
       const active = renderAccessState(state, userEmail);
       if (active) {
         (window.__onResourceAccessGranted || []).forEach(fn => fn());
@@ -947,9 +978,28 @@ if (handNotesGate && handNotesContent) {
       return state;
     } catch (err) {
       console.error("[Access Status Check] failed:", err);
-      // A failed check must not leave the file list permanently stuck on
-      // a "checking…" placeholder — fall back to treating it as known
-      // (and unlocked-if-we-already-knew-it-was) so the page recovers.
+
+      if (!hnAccessEverKnown && hnCheckRetries < HN_MAX_CHECK_RETRIES) {
+        hnCheckRetries++;
+        if (accessStatusBar) {
+          accessStatusBar.classList.remove("hidden", "approved", "rejected");
+          accessStatusBar.classList.add("pending");
+          const content = accessStatusBar.querySelector(".status-content");
+          if (content) {
+            content.innerHTML = `
+              <strong>⏳ Checking your access…</strong>
+              <div class="file-info">Having trouble reaching the server — retrying (${hnCheckRetries}/${HN_MAX_CHECK_RETRIES})…</div>
+            `;
+          }
+        }
+        setTimeout(() => hnRefreshAccess(userEmail), 2500 * hnCheckRetries);
+        return null;
+      }
+
+      // Either we've already had at least one successful check this visit
+      // (so whatever __hnAccessActive currently holds is trustworthy), or
+      // we've genuinely retried and it's still failing — in both cases the
+      // file list must not be stuck on "checking…" forever, so unblock it.
       window.__hnAccessKnown = true;
       loadThreeCardLayoutIfAvailable();
       return null;

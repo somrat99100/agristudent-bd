@@ -1,6 +1,6 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
-  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp
+  doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
@@ -19,9 +19,9 @@ async function syncAccessToRegistration(db, session, access) {
 
   try {
     await updateDoc(doc(db, "registrations", session.regId), {
-      accessUntil: access.accessUntil ? new Date(access.accessUntil) : null,
+      accessUntil: access.accessUntil ? Timestamp.fromDate(new Date(access.accessUntil)) : null,
       restricted: access.restricted,
-      restrictedUntil: access.restrictedUntil ? new Date(access.restrictedUntil) : null,
+      restrictedUntil: access.restrictedUntil ? Timestamp.fromDate(new Date(access.restrictedUntil)) : null,
       lastAccessSyncAt: serverTimestamp(),
       approvedFileCount: access.approvedFileCount || 0,
       pendingActiveCount: access.pendingActiveCount || 0

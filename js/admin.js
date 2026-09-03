@@ -50,9 +50,9 @@ async function syncStudentAccessStatus(db, uploaderEmail) {
     const access = computeResourceAccessStatus([...resourceDocs, ...classroomDocs]);
 
     await updateDoc(doc(db, "registrations", regId), {
-      accessUntil: access.accessUntil ? new Date(access.accessUntil) : null,
+      accessUntil: access.accessUntil ? Timestamp.fromDate(new Date(access.accessUntil)) : null,
       restricted: access.restricted,
-      restrictedUntil: access.restrictedUntil ? new Date(access.restrictedUntil) : null,
+      restrictedUntil: access.restrictedUntil ? Timestamp.fromDate(new Date(access.restrictedUntil)) : null,
       lastAccessSyncAt: serverTimestamp()
     });
 

@@ -1666,6 +1666,11 @@ footer{
   box-shadow:0 0 0 4px rgba(107,155,94,.15);
 }
 .form-field textarea{ resize:vertical; min-height:80px; }
+.field-locked-to-session{
+  background:rgba(107,155,94,.08) !important;
+  color:var(--moss-600,#5b6f57);
+  cursor:not-allowed;
+}
 
 /* File-type picker (PDF / Image / PPT) — glass pill cards, active state via :has() */
 .filetype-grid{

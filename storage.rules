@@ -28,7 +28,14 @@ service firebase.storage {
       //   1. User is not restricted, AND
       //   2. accessUntil is in the future
       let accessUntil = regData.accessUntil;
-      let restricted = regData.get('restricted', false) == true || regData.get('restrictedUntil', 0) > request.time.toMillis();
+      // restrictedUntil is stored as a Firestore Timestamp (see
+      // js/profile.js / js/admin.js), so it must be converted to millis
+      // before comparing — comparing a Timestamp directly against a
+      // number always evaluates to false in security rules, which
+      // silently made every custom/rejection restriction a no-op here.
+      let restrictedUntilRaw = regData.get('restrictedUntil', null);
+      let restrictedUntilMs = restrictedUntilRaw is timestamp ? restrictedUntilRaw.toMillis() : 0;
+      let restricted = regData.get('restricted', false) == true || restrictedUntilMs > request.time.toMillis();
       
       if (restricted) return false;
       if (accessUntil == null) return false;
