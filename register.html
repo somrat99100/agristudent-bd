@@ -57,10 +57,32 @@
       </div>
 
       <div style="border:1.5px dashed var(--moss-600);border-radius:8px;padding:1rem;background:#fff;">
+        <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Create a Password</p>
+
+        <label for="password" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Password *</label>
+        <div style="position:relative;margin-bottom:.5rem;">
+          <input type="password" id="password" required autocomplete="new-password" minlength="8"
+                 style="width:100%;padding:.6rem 2.6rem .6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
+          <button type="button" id="password-toggle" aria-label="Show password"
+                  style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;padding:.2rem;">👁️</button>
+        </div>
+        <div id="password-strength" style="font-size:.78rem;margin-bottom:.9rem;color:var(--moss-600);">At least 8 characters, with a letter and a number.</div>
+
+        <label for="passwordConfirm" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Confirm Password *</label>
+        <input type="password" id="passwordConfirm" required autocomplete="new-password"
+               style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;margin-bottom:.4rem;">
+        <div id="password-match" style="font-size:.78rem;min-height:1.1em;"></div>
+      </div>
+
+      <div style="border:1.5px dashed var(--moss-600);border-radius:8px;padding:1rem;background:#fff;">
         <p style="font-weight:600;margin-bottom:.6rem;font-size:.92rem;">Student Information</p>
 
         <label for="studentIdNumber" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Number *</label>
         <input type="text" id="studentIdNumber" required placeholder="e.g. 24209150 " style="width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;margin-bottom:.9rem;">
+
+        <label for="studentIdPhoto" style="display:block;font-size:.88rem;margin-bottom:.3rem;">Student ID Card Photo (optional)</label>
+        <input type="file" id="studentIdPhoto" accept="image/*" style="width:100%;font-size:.85rem;">
+        <p style="font-size:.8rem;color:var(--moss-600);margin-top:.4rem;">Optional, but recommended — an admin reviews it and marks your profile with a verified ✅ badge once confirmed.</p>
       </div>
 
       <button type="submit" id="submit-btn" style="background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Register</button>
@@ -79,7 +101,10 @@
 
     <div id="otp-panel" class="uc-panel hidden" style="border-color:var(--moss-600);">
       <h3 style="margin-bottom:.4rem;">📧 Check your email</h3>
-      <p id="otp-sent-to" style="color:var(--moss-600);font-size:.92rem;margin-bottom:1rem;"></p>
+      <p id="otp-sent-to" style="color:var(--moss-600);font-size:.92rem;margin-bottom:.6rem;"></p>
+      <p style="background:rgba(214,171,74,.15);color:var(--wheat-400,#a3791f);border-radius:8px;padding:.6rem .8rem;font-size:.85rem;margin-bottom:1rem;">
+        📩 Don't see it? Please also check your <strong>Spam</strong> or <strong>Junk</strong> folder — verification emails sometimes land there.
+      </p>
 
       <label for="otp-code" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">6-digit code</label>
       <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••"

@@ -1,0 +1,54 @@
+<svg viewBox="0 0 480 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Illustration of rolling farm fields with crop rows, a sun, and birds">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdf3d8"/>
+      <stop offset="100%" stop-color="#f6e2a8"/>
+    </linearGradient>
+    <linearGradient id="hillFar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8fb579"/>
+      <stop offset="100%" stop-color="#6b9b5e"/>
+    </linearGradient>
+    <linearGradient id="hillNear" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4f7a45"/>
+      <stop offset="100%" stop-color="#3c5f36"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="480" height="380" rx="0" fill="url(#skyGrad)"/>
+
+  <!-- sun -->
+  <circle cx="380" cy="80" r="46" fill="#e8b84b" opacity="0.9"/>
+  <circle cx="380" cy="80" r="46" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="10"/>
+
+  <!-- birds -->
+  <path d="M70 60 q10 -12 20 0 q10 -12 20 0" fill="none" stroke="#3c5f36" stroke-width="3" stroke-linecap="round"/>
+  <path d="M130 90 q8 -10 16 0 q8 -10 16 0" fill="none" stroke="#3c5f36" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- far rolling hill -->
+  <path d="M0 210 Q120 160 240 205 T480 195 V380 H0 Z" fill="url(#hillFar)"/>
+
+  <!-- crop rows on the near hill -->
+  <path d="M0 260 Q140 205 280 250 T480 235 V380 H0 Z" fill="url(#hillNear)"/>
+  <g stroke="#2f4b2b" stroke-width="3" stroke-linecap="round" opacity="0.55">
+    <path d="M10 300 Q140 250 280 292 T470 278"/>
+    <path d="M0 330 Q140 282 290 322 T480 308"/>
+    <path d="M0 360 Q150 316 300 352 T480 340"/>
+  </g>
+
+  <!-- simple crop tufts -->
+  <g fill="#d6ab4a">
+    <g transform="translate(60,270)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+    <g transform="translate(100,258)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+    <g transform="translate(150,268)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+    <g transform="translate(340,255)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+    <g transform="translate(390,268)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+    <g transform="translate(430,258)"><path d="M0 20 C-6 6 -4 -8 0 -18 C4 -8 6 6 0 20 Z"/></g>
+  </g>
+
+  <!-- small barn silhouette -->
+  <g transform="translate(190,205)">
+    <polygon points="0,40 40,10 80,40" fill="#c4553f"/>
+    <rect x="8" y="40" width="64" height="42" fill="#e7d9b8"/>
+    <rect x="32" y="58" width="16" height="24" fill="#3c5f36"/>
+  </g>
+</svg>

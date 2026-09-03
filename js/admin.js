@@ -35,6 +35,27 @@ function fmtAdminDate(val) {
 }
 
 // ============================================
+// ACCOUNT RESTRICTION — shared helpers (used from both the Registrations
+// tab and, one click away, right from a Resources review row).
+// ============================================
+async function restrictAccountById(id, days, reason) {
+  const until = Date.now() + days * 24 * 60 * 60 * 1000;
+  await updateDoc(doc(db, "registrations", id), {
+    accountRestrictedUntil: until,
+    accountRestrictedReason: reason || "",
+    accountRestrictedAt: new Date()
+  });
+}
+
+async function restrictAccountByEmail(email, days, reason) {
+  const normalized = normalizeEmail(email || "");
+  if (!normalized) throw new Error("This submission has no uploader email to restrict.");
+  const snap = await getDocs(query(collection(db, "registrations"), where("email", "==", normalized)));
+  if (snap.empty) throw new Error(`No registered account found for ${email}.`);
+  await restrictAccountById(snap.docs[0].id, days, reason);
+}
+
+// ============================================
 // SHOW A GENERIC ERROR IN A PANEL without leaking internals
 // (full error still goes to console for debugging)
 // ============================================
@@ -242,6 +263,7 @@ function buildResourceRowHTML(d) {
       <div style="display:flex;gap:.4rem;">
         <button type="button" class="edit-btn" data-schema="resources" data-id="${esc(id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
         ${item.status !== "approved" ? `<button type="button" class="publish-resource-btn" data-id="${esc(id)}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🚀 Publish</button>` : ""}
+        <button type="button" class="restrict-account-btn" data-email="${esc(item.uploaderEmail || "")}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;" title="Restrict this uploader's whole account">⛔ Restrict Account</button>
         <button type="button" class="delete-resource-btn" data-id="${esc(id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🗑 Delete</button>
       </div>
     </div>`;
@@ -377,6 +399,30 @@ async function loadResources() {
           alert("Something went wrong publishing this resource. Please try again.");
           btn.disabled = false;
           btn.textContent = "🚀 Publish";
+        }
+      });
+    });
+
+    list.querySelectorAll(".restrict-account-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const email = btn.dataset.email;
+        if (!email) { alert("This submission has no uploader email to restrict."); return; }
+        const daysStr = prompt(`Restrict ${email}'s whole account for how many days?`, "7");
+        if (!daysStr) return;
+        const days = Number(daysStr);
+        if (!Number.isFinite(days) || days <= 0) { alert("Please enter a valid number of days."); return; }
+        const reason = prompt("Reason to show the user (optional):", "Irrelevant or false upload") || "";
+        btn.disabled = true;
+        btn.textContent = "Restricting…";
+        try {
+          await restrictAccountByEmail(email, days, reason);
+          alert(`${email} is now restricted for ${days} day(s).`);
+        } catch (err) {
+          console.error("[AgriAdmin] restrict-by-email failed:", err);
+          alert(err.message || "Something went wrong applying the restriction.");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "⛔ Restrict Account";
         }
       });
     });
@@ -772,9 +818,15 @@ async function loadRegistrations() {
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
           <span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(63,91,61,.10);color:var(--moss-700);font-size:.78rem;font-weight:600;">✅ OTP Verified · Auto-approved</span>
+          ${item.idVerified
+            ? `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:linear-gradient(135deg,rgba(107,155,94,.22),rgba(63,91,61,.18));color:var(--leaf-500);font-size:.78rem;font-weight:700;">🟢 ID Verified</span>`
+            : `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(214,171,74,.15);color:var(--wheat-400);font-size:.78rem;font-weight:600;">🕓 ID Not Verified</span>`}
           ${item.accountRestrictedUntil ? `<span class="account-restriction-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.12);color:var(--terracotta-500);font-size:.78rem;font-weight:600;">⛔ Restricted until ${esc(fmtAdminDate(item.accountRestrictedUntil))}</span>` : ""}
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
             <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
+            ${item.idVerified
+              ? `<button type="button" class="unverify-id-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);color:var(--moss-600);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">↩️ Unverify</button>`
+              : `<button type="button" class="verify-id-btn" data-id="${esc(d.id)}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🟢 Mark Verified</button>`}
             ${item.accountRestrictedUntil
               ? `<button type="button" class="unrestrict-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--leaf-500);color:var(--leaf-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Lift Restriction</button>`
               : `<button type="button" class="restrict-week-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Restrict 7d</button>
@@ -791,14 +843,46 @@ async function loadRegistrations() {
       });
     });
 
+    regList.querySelectorAll(".verify-id-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Verifying…";
+        try {
+          await updateDoc(doc(db, "registrations", btn.dataset.id), {
+            idVerified: true,
+            idVerifiedAt: new Date()
+          });
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] ID verify failed:", err);
+          alert("Something went wrong marking this profile verified. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "🟢 Mark Verified";
+        }
+      });
+    });
+
+    regList.querySelectorAll(".unverify-id-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Remove the verified badge from this profile?")) return;
+        btn.disabled = true;
+        try {
+          await updateDoc(doc(db, "registrations", btn.dataset.id), {
+            idVerified: false,
+            idVerifiedAt: null
+          });
+          loadRegistrations();
+        } catch (err) {
+          console.error("[AgriAdmin] ID unverify failed:", err);
+          alert("Something went wrong. Please try again.");
+          btn.disabled = false;
+        }
+      });
+    });
+
     async function applyAccountRestriction(id, days, reason) {
-      const until = Date.now() + days * 24 * 60 * 60 * 1000;
       try {
-        await updateDoc(doc(db, "registrations", id), {
-          accountRestrictedUntil: until,
-          accountRestrictedReason: reason || "",
-          accountRestrictedAt: new Date()
-        });
+        await restrictAccountById(id, days, reason);
         loadRegistrations();
       } catch (err) {
         console.error("[AgriAdmin] account restriction failed:", err);

@@ -13,8 +13,8 @@ const successBox = document.getElementById("help-success");
 function autofillUserInfo() {
   const session = getSession();
   if (session) {
-    if (session.displayName) {
-      nameInput.value = session.displayName;
+    if (session.fullName) {
+      nameInput.value = session.fullName;
     }
     if (session.email) {
       emailInput.value = session.email;

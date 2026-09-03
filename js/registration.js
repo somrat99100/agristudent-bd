@@ -4,6 +4,7 @@ import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { initEmailNotifications, sendOtpEmail } from "./email-config.js";
 import { startOtp, verifyOtp, resendCooldownRemaining, clearOtp } from "./otp.js";
 import { saveSession } from "./session.js";
+import { checkPasswordStrength, validatePassword, friendlyAuthError, createPasswordAccount } from "./password-auth.js";
 
 initEmailNotifications();
 
@@ -56,6 +57,38 @@ function showOtpStatus(message, isError = false) {
   otpStatus.textContent = message;
   otpStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
 }
+
+// ============================================
+// PASSWORD FIELD — strength hint, confirm-match, show/hide toggle
+// ============================================
+const passwordInput = document.getElementById("password");
+const passwordConfirmInput = document.getElementById("passwordConfirm");
+const passwordToggleBtn = document.getElementById("password-toggle");
+const passwordStrengthEl = document.getElementById("password-strength");
+const passwordMatchEl = document.getElementById("password-match");
+
+passwordInput?.addEventListener("input", () => {
+  const { label, color } = checkPasswordStrength(passwordInput.value);
+  passwordStrengthEl.textContent = passwordInput.value ? `Strength: ${label}` : "At least 8 characters, with a letter and a number.";
+  passwordStrengthEl.style.color = passwordInput.value ? color : "var(--moss-600)";
+});
+
+function checkPasswordsMatch() {
+  if (!passwordConfirmInput.value) { passwordMatchEl.textContent = ""; return true; }
+  const match = passwordInput.value === passwordConfirmInput.value;
+  passwordMatchEl.textContent = match ? "✅ Passwords match" : "❌ Passwords do not match";
+  passwordMatchEl.style.color = match ? "var(--leaf-500)" : "var(--terracotta-500)";
+  return match;
+}
+passwordConfirmInput?.addEventListener("input", checkPasswordsMatch);
+
+passwordToggleBtn?.addEventListener("click", () => {
+  const showing = passwordInput.type === "text";
+  passwordInput.type = showing ? "password" : "text";
+  passwordConfirmInput.type = showing ? "password" : "text";
+  passwordToggleBtn.textContent = showing ? "👁️" : "🙈";
+  passwordToggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+});
 
 function uploadToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -116,7 +149,9 @@ form.addEventListener("submit", async (e) => {
   const genderInput = document.querySelector('input[name="gender"]:checked');
   const gender = genderInput ? genderInput.value : "";
   const studentIdNumber = normalizeStudentId(document.getElementById("studentIdNumber").value);
-  const idFile = document.getElementById("studentIdPhoto").files[0];
+  const idFile = document.getElementById("studentIdPhoto")?.files?.[0] || null;
+  const password = passwordInput.value;
+  const passwordConfirm = passwordConfirmInput.value;
 
   // Validation
   if (!fullName) {
@@ -135,6 +170,15 @@ form.addEventListener("submit", async (e) => {
     showError("Student ID number is required.");
     return;
   }
+  const pwCheck = validatePassword(password);
+  if (!pwCheck.ok) {
+    showError(pwCheck.message);
+    return;
+  }
+  if (password !== passwordConfirm) {
+    showError("Passwords do not match.");
+    return;
+  }
 
   // File size check (5MB max for ID photo)
   if (idFile && idFile.size > 5 * 1024 * 1024) {
@@ -150,7 +194,7 @@ form.addEventListener("submit", async (e) => {
     const { code } = startOtp(email);
     await sendOtpEmail({ toEmail: email, toName: fullName, otpCode: code });
 
-    pending = { fullName, email, gender, studentIdNumber, idFile };
+    pending = { fullName, email, gender, studentIdNumber, idFile, password };
     showOtpStep(email);
   } catch (err) {
     console.error(err);
@@ -203,13 +247,28 @@ otpVerifyBtn.addEventListener("click", async () => {
   showOtpStatus("Verified! Creating your account…");
 
   try {
-    const { fullName, email, gender, studentIdNumber, idFile } = pending;
+    const { fullName, email, gender, studentIdNumber, idFile, password } = pending;
 
     let studentIdUrl = null;
     if (idFile) {
       showOtpStatus("Uploading Student ID photo…");
       studentIdUrl = await uploadToCloudinary(idFile, () => {});
     }
+
+    showOtpStatus("Setting up your password login…");
+    // Create the real Firebase Auth account first. If this fails, nothing
+    // has been written to Firestore yet, so there's no orphaned record.
+    let authUser;
+    try {
+      authUser = await createPasswordAccount(email, password);
+    } catch (authErr) {
+      console.error(authErr);
+      showOtpStatus(friendlyAuthError(authErr), true);
+      otpVerifyBtn.disabled = false;
+      otpVerifyBtn.textContent = "Verify & Create Account";
+      return;
+    }
+
     showOtpStatus("Saving your registration…");
 
     const docData = {
@@ -220,6 +279,8 @@ otpVerifyBtn.addEventListener("click", async () => {
       studentIdNumber,
       status: "verified", // OTP verification is the only registration approval step now
       emailVerified: true,
+      passwordSet: true,
+      authUid: authUser.uid,
       submittedAt: serverTimestamp()
     };
     if (studentIdUrl) docData.studentIdUrl = studentIdUrl;

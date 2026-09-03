@@ -79,25 +79,51 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     }
   }
 
-  // Stack approved-file credits chronologically. If a new approval arrives
-  // after the old window has ended, its 24h starts at the approval time.
-  approved.sort((a, b) => {
-    const at = eventTime(a, "reviewedAt")?.getTime?.() || 0;
-    const bt = eventTime(b, "reviewedAt")?.getTime?.() || 0;
-    return at - bt;
-  });
+  // Approved files and classroom codes both grant DURABLE, stacking
+  // credit — 24h per approved file, 6h per classroom code — merged into
+  // one running balance in the order they were granted. Each new credit
+  // extends whatever time is left (or starts fresh from its own grant
+  // time if the previous balance had already run out), so unlocking a
+  // new file always "tops up" the remaining time rather than replacing
+  // it. Pending (not-yet-reviewed) uploads are the only thing NOT
+  // durable — see below.
+  const creditEvents = [];
+  for (const item of approved) {
+    creditEvents.push({
+      time: eventTime(item, "reviewedAt")?.getTime?.() || now,
+      durationMs: fileCount(item) * ACCESS_PER_FILE_MS
+    });
+  }
+  for (const item of classroom) {
+    creditEvents.push({
+      time: eventTime(item, "submittedAt")?.getTime?.() || now,
+      durationMs: ACCESS_PER_CLASSROOM_MS
+    });
+  }
+  creditEvents.sort((a, b) => a.time - b.time);
 
   let approvedAccessUntil = 0;
   let approvedFileCount = 0;
-  for (const item of approved) {
-    const approvedAt = eventTime(item, "reviewedAt")?.getTime?.() || now;
-    approvedFileCount += fileCount(item);
-    approvedAccessUntil = Math.max(approvedAccessUntil, approvedAt);
-    approvedAccessUntil += fileCount(item) * ACCESS_PER_FILE_MS;
+  let classroomAccessUntil = 0;
+  for (const item of approved) approvedFileCount += fileCount(item);
+  for (const ev of creditEvents) {
+    const base = Math.max(approvedAccessUntil, ev.time);
+    approvedAccessUntil = base + ev.durationMs;
+  }
+  // Kept for callers that specifically want "is a classroom code the most
+  // recent/active credit" (e.g. to size the profile scale bar) — this is
+  // just the last classroom event's own un-stacked window, not part of
+  // the combined balance above.
+  for (const item of classroom) {
+    const grantedAt = eventTime(item, "submittedAt")?.getTime?.() || now;
+    const until = grantedAt + ACCESS_PER_CLASSROOM_MS;
+    if (until > now) classroomAccessUntil = Math.max(classroomAccessUntil, until);
   }
 
-  // A pending upload is usable only during its first 12 hours. Once that
-  // window passes, it contributes zero access until an admin approves it.
+  // A pending upload is usable only during its first 12 hours, and only
+  // as a bridge while nothing durable is active yet — it does NOT stack
+  // with itself or with the durable balance above. Once that window
+  // passes, it contributes zero access until an admin approves it.
   let pendingAccessUntil = 0;
   let pendingActiveCount = 0;
   for (const item of pending) {
@@ -109,22 +135,23 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     }
   }
 
-  // Classroom-code unlocks grant a flat 6h from the moment the code was
-  // submitted (no admin approval needed) — real-time, counted from
-  // submission, same as the pending-upload grace window.
-  let classroomAccessUntil = 0;
-  for (const item of classroom) {
-    const grantedAt = eventTime(item, "submittedAt")?.getTime?.() || now;
-    const until = grantedAt + ACCESS_PER_CLASSROOM_MS;
-    if (until > now) classroomAccessUntil = Math.max(classroomAccessUntil, until);
-  }
-
-  const accessUntil = Math.max(approvedAccessUntil, pendingAccessUntil, classroomAccessUntil);
+  const accessUntil = Math.max(approvedAccessUntil, pendingAccessUntil);
   const restricted = restrictedUntil > now;
   const active = !restricted && accessUntil > now;
   const msRemaining = active ? accessUntil - now : 0;
   const daysRemaining = Math.max(0, Math.ceil(msRemaining / DAY_MS));
   const hoursRemaining = Math.max(0, Math.ceil(msRemaining / (60 * 60 * 1000)));
+
+  // Size of the most recently granted top-up — used so the profile scale
+  // bar shows "how much of THIS last grant is left" (refilling back to
+  // ~100% each time a new file/code is unlocked) rather than shrinking
+  // forever against the ever-growing cumulative balance.
+  let lastGrantMs = 0;
+  if (creditEvents.length && approvedAccessUntil >= pendingAccessUntil) {
+    lastGrantMs = creditEvents[creditEvents.length - 1].durationMs;
+  } else if (pendingAccessUntil > 0) {
+    lastGrantMs = PENDING_GRACE_MS;
+  }
 
   return {
     active,
@@ -136,6 +163,7 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     approvedAccessUntil: approvedAccessUntil || null,
     pendingAccessUntil: pendingAccessUntil || null,
     classroomAccessUntil: classroomAccessUntil || null,
+    lastGrantMs: lastGrantMs || DAY_MS,
     daysRemaining,
     hoursRemaining,
     msRemaining
@@ -201,7 +229,7 @@ export function renderAccessBadge({ badgeEl, detailEl }, access) {
     badgeEl.textContent = pendingOnly ? "⏳ Temporary Access Active" : "🔓 Resource Access Active";
     badgeEl.className = "access-badge active";
     const expires = formatDate(access.accessUntil);
-    detailEl.textContent = `${access.daysRemaining} day${access.daysRemaining === 1 ? "" : "s"} remaining · expires ${expires}`;
+    detailEl.textContent = `⏱ ${formatRemaining(access.msRemaining)} remaining · expires ${expires}`;
     if (pendingOnly) detailEl.textContent += " · Pending uploads expire after 12 hours if not approved.";
     return;
   }

@@ -5,7 +5,8 @@ import {
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining, DAY_MS, ACCESS_PER_CLASSROOM_MS, PENDING_GRACE_MS } from "./access.js";
+import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
+import { checkPasswordStrength, validatePassword, friendlyAuthError, createPasswordAccount, sendResetEmail } from "./password-auth.js";
 
 initEmailNotifications();
 
@@ -132,6 +133,7 @@ async function init() {
     });
 
     renderIdentity(reg);
+    renderPasswordSection(reg, session.regId);
 
     // Each section loads independently — a failure in one (e.g. a blocked
     // Firestore query for blog posts) no longer blanks out the whole page.
@@ -171,6 +173,11 @@ function renderIdentity(reg) {
   document.getElementById("profile-email").textContent = reg.email || "—";
   document.getElementById("profile-studentid").textContent = reg.studentIdNumber || "—";
 
+  const idBadge = document.getElementById("profile-id-verified-badge");
+  const avatarWrapEl = document.getElementById("profile-avatar-wrap");
+  idBadge?.classList.toggle("hidden", !reg.idVerified);
+  avatarWrapEl?.classList.toggle("is-id-verified", !!reg.idVerified);
+
   const status = reg.status || "unverified";
   const pill = document.getElementById("profile-status-pill");
   const note = document.getElementById("profile-status-note");
@@ -186,6 +193,135 @@ function renderIdentity(reg) {
   } else {
     note.classList.add("hidden");
   }
+}
+
+// ============================================
+// ACCOUNT SECURITY / PASSWORD SETUP
+// Already-registered students who signed up before password login
+// existed get a banner + form here to set one up. Once passwordSet is
+// true, this instead shows a "Change Password" (reset-email) option.
+// ============================================
+function renderPasswordSection(reg, regId) {
+  const section = document.getElementById("password-section");
+  if (!section) return;
+  section.classList.remove("hidden");
+
+  const banner = document.getElementById("password-setup-banner");
+  const setupForm = document.getElementById("password-setup-form");
+  const enabledNote = document.getElementById("password-enabled-note");
+
+  if (reg.passwordSet) {
+    banner.classList.add("hidden");
+    setupForm.classList.add("hidden");
+    enabledNote.classList.remove("hidden");
+  } else {
+    banner.classList.remove("hidden");
+    setupForm.classList.remove("hidden");
+    enabledNote.classList.add("hidden");
+  }
+
+  wirePasswordSetupForm(reg, regId);
+  wirePasswordResetButton(reg);
+}
+
+let passwordSetupWired = false;
+function wirePasswordSetupForm(reg, regId) {
+  const form = document.getElementById("password-setup-form");
+  const newPasswordInput = document.getElementById("new-password");
+  const confirmInput = document.getElementById("new-password-confirm");
+  const toggleBtn = document.getElementById("new-password-toggle");
+  const strengthEl = document.getElementById("new-password-strength");
+  const submitBtn = document.getElementById("password-setup-submit");
+  const statusEl = document.getElementById("password-setup-status");
+  if (!form) return;
+
+  function showStatus(msg, isError = false) {
+    statusEl.textContent = msg;
+    statusEl.style.color = isError ? "var(--terracotta-500)" : "var(--leaf-500)";
+    statusEl.classList.remove("hidden");
+  }
+
+  if (passwordSetupWired) return; // listeners attached once; reg/regId read fresh via closures below
+  passwordSetupWired = true;
+
+  newPasswordInput?.addEventListener("input", () => {
+    const { label, color } = checkPasswordStrength(newPasswordInput.value);
+    strengthEl.textContent = newPasswordInput.value ? `Strength: ${label}` : "At least 8 characters, with a letter and a number.";
+    strengthEl.style.color = newPasswordInput.value ? color : "var(--moss-600)";
+  });
+
+  toggleBtn?.addEventListener("click", () => {
+    const showing = newPasswordInput.type === "text";
+    newPasswordInput.type = showing ? "password" : "text";
+    confirmInput.type = showing ? "password" : "text";
+    toggleBtn.textContent = showing ? "👁️" : "🙈";
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const session = getSession();
+    if (!session) return;
+
+    const password = newPasswordInput.value;
+    const confirm = confirmInput.value;
+
+    const check = validatePassword(password);
+    if (!check.ok) { showStatus(check.message, true); return; }
+    if (password !== confirm) { showStatus("Passwords do not match.", true); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving…";
+    showStatus("Setting up your password…");
+
+    try {
+      const authUser = await createPasswordAccount(session.email, password);
+      await updateDoc(doc(db, "registrations", session.regId), {
+        passwordSet: true,
+        authUid: authUser.uid
+      });
+
+      showStatus("✅ Password set! Next time, log in with your Student ID and password.");
+      form.reset();
+      form.classList.add("hidden");
+      document.getElementById("password-setup-banner")?.classList.add("hidden");
+      document.getElementById("password-enabled-note")?.classList.remove("hidden");
+    } catch (err) {
+      console.error("[Profile] password setup failed:", err);
+      showStatus(friendlyAuthError(err), true);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Set Password";
+    }
+  });
+}
+
+function wirePasswordResetButton(reg) {
+  const btn = document.getElementById("password-reset-btn");
+  const statusEl = document.getElementById("password-reset-status");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+
+  btn.addEventListener("click", async () => {
+    const session = getSession();
+    if (!session) return;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = "Sending…";
+    try {
+      await sendResetEmail(session.email);
+      statusEl.textContent = `✅ A password reset link was sent to ${session.email}.`;
+      statusEl.style.color = "var(--leaf-500)";
+      statusEl.classList.remove("hidden");
+    } catch (err) {
+      console.error("[Profile] password reset email failed:", err);
+      statusEl.textContent = friendlyAuthError(err);
+      statusEl.style.color = "var(--terracotta-500)";
+      statusEl.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
 }
 
 async function renderCredits(email, fullName) {
@@ -223,19 +359,15 @@ async function renderCredits(email, fullName) {
   }, access);
   maybeSendAccessReminder(access, { email, name: fullName });
 
-  // Figure out which kind of grant is currently active, so the scale bar
-  // reflects the right window size (24h/file, 6h/classroom code, 12h pending).
-  let scaleWindowMs = DAY_MS;
-  if (access.accessUntil) {
-    if (access.classroomAccessUntil === access.accessUntil) scaleWindowMs = ACCESS_PER_CLASSROOM_MS;
-    else if (access.pendingAccessUntil === access.accessUntil && access.approvedFileCount === 0) scaleWindowMs = PENDING_GRACE_MS;
-  }
+  // The scale bar shows how much of the MOST RECENTLY granted top-up is
+  // left (24h/file, 6h/code, 12h pending) — access.lastGrantMs already
+  // accounts for which kind of grant is currently the active one.
   renderAccessScale({
     wrapEl: document.getElementById("access-scale-wrap"),
     fillEl: document.getElementById("access-scale-fill"),
     remainingEl: document.getElementById("access-scale-remaining"),
     untilEl: document.getElementById("access-scale-until")
-  }, access, scaleWindowMs);
+  }, access, access.lastGrantMs);
 
   const accessDetail = document.getElementById("access-detail");
   const accessAlert = document.getElementById("resource-access-alert");

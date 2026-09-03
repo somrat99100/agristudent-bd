@@ -3,6 +3,25 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================
+    // ADMIN CHECK — the ONE place that defines what "admin" means.
+    //
+    // Students can now hold real Firebase Auth sessions too (the new
+    // Student ID + password login system, see js/password-auth.js).
+    // Because of that, plain `request.auth != null` NO LONGER means
+    // "this is the admin panel" — it now also matches any logged-in
+    // student. Every rule below that is meant to be admin-only uses
+    // isAdmin() instead, which additionally requires the `admin: true`
+    // custom claim set by scripts/set-admin-claim.mjs (Firebase Admin
+    // SDK, server-side only — a claim a student can never grant
+    // themselves). This is the fix for the privilege-escalation bug
+    // where adding student passwords would have let any logged-in
+    // student pass every "admin-only" check in this file.
+    // ============================================
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ============================================
     // REGISTRATIONS: Student signup + OTP verification
     // ============================================
     // Students are auto-approved once the email OTP is verified. Admin authentication
@@ -19,7 +38,17 @@ service cloud.firestore {
         request.resource.data.studentIdNumber.size() > 0 &&
         request.resource.data.studentIdNumber.size() < 50 &&
         request.resource.data.email is string &&
-        request.resource.data.email.size() > 0;
+        request.resource.data.email.size() > 0 &&
+        // Optional password-login fields, written together at signup
+        // time (js/registration.js) once the Firebase Auth account for
+        // this student has already been created. authUid must be the
+        // caller's OWN just-created Auth uid — never an arbitrary string
+        // pointing at someone else's account.
+        (!('authUid' in request.resource.data) || (
+          request.auth != null &&
+          request.resource.data.authUid == request.auth.uid &&
+          request.resource.data.passwordSet == true
+        ));
 
       allow list: if true;
 
@@ -31,20 +60,29 @@ service cloud.firestore {
       // list already exposes every field on every registration.
       allow get: if true;
 
-      // Admin panel only (js/admin.js approve/reject + generic edit modal),
-      // OR a student updating just their own profile photo. Students never
-      // hold a Firebase Auth session (same trust model as the rest of this
-      // file), so this can't verify "your own" doc beyond knowing its ID —
-      // consistent with the public-write-with-field-validation model used
-      // for blogPosts/resources elsewhere in this file. Scoped tightly so
-      // it can ONLY ever touch the avatarUrl field, and only to a real
-      // Cloudinary URL, never anything else on the record.
-      allow update: if request.auth != null || (
+      // Admin panel (js/admin.js approve/reject + generic edit modal) —
+      // OR a student updating just their own profile photo (no auth
+      // session required, matches the rest of this file's trust model) —
+      // OR a student who just created their OWN Firebase Auth password
+      // account linking it to THEIR OWN existing registration record
+      // (js/profile.js "Set Password" flow, for accounts registered
+      // before password login existed). That last branch requires a
+      // real Auth session whose uid matches the value being written,
+      // AND whose token email matches the email already on this exact
+      // record — a student can only ever attach a password account to
+      // the registration that already carries their own email.
+      allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl']) &&
         request.resource.data.avatarUrl is string &&
         request.resource.data.avatarUrl.matches('^https://res[.]cloudinary[.]com/.*')
+      ) || (
+        request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passwordSet', 'authUid']) &&
+        request.resource.data.passwordSet == true &&
+        request.resource.data.authUid == request.auth.uid &&
+        resource.data.email == request.auth.token.email
       );
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
 
     // ============================================
@@ -67,7 +105,7 @@ service cloud.firestore {
 
       allow get: if
         resource.data.status == "approved" ||
-        request.auth != null;
+        isAdmin();
 
       // "list: if true" — same reasoning as registrations above. Students
       // never sign in, so there is no request.auth.token.email to check
@@ -87,7 +125,7 @@ service cloud.firestore {
       allow list: if true;
 
       // Admin panel only (approve/reject/edit in js/admin.js)
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================
@@ -104,14 +142,14 @@ service cloud.firestore {
 
       allow get: if
         resource.data.status == "approved" ||
-        request.auth != null;
+        isAdmin();
 
       // See the matching comment on /resources/{id} above — same fix,
       // same reason (students' own pending/rejected contributions need
       // to be listable by uploaderEmail on their profile page).
       allow list: if true;
 
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================
@@ -128,7 +166,7 @@ service cloud.firestore {
         request.resource.data.keys().hasAll(['courseCode', 'courseName']) &&
         request.resource.data.courseCode is string &&
         request.resource.data.courseCode.size() > 0;
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================
@@ -136,7 +174,7 @@ service cloud.firestore {
     // ============================================
     match /timeline/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // ============================================
@@ -157,7 +195,7 @@ service cloud.firestore {
         (!('read' in request.resource.data) || request.resource.data.read == false);
 
       // Admin-only inbox (js/admin.js loadMessages)
-      allow read, update, delete: if request.auth != null;
+      allow read, update, delete: if isAdmin();
     }
 
     // ============================================
@@ -184,7 +222,7 @@ service cloud.firestore {
       allow list, get: if true;
 
       // Admin panel only (js/admin.js loadClassroomCodes / moderation).
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================
@@ -192,7 +230,7 @@ service cloud.firestore {
     // ============================================
     match /settings/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // ============================================
@@ -234,7 +272,7 @@ service cloud.firestore {
       // allowed as long as the write touches ONLY one counter field and
       // moves it by exactly +/-1 — never a moderation field (status),
       // never the content, and never an arbitrary jump in count.
-      allow update: if request.auth != null || (
+      allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
         (request.resource.data.likesCount == resource.data.likesCount + 1 ||
          request.resource.data.likesCount == resource.data.likesCount - 1)
@@ -253,7 +291,7 @@ service cloud.firestore {
       // Allow a student to edit their OWN post (title, content, images).
       // Students never hold a Firebase Auth session (same trust model as
       // the rest of this file — see registrations.avatarUrl above), so
-      // this can never require request.auth != null; the previous version
+      // this can never require isAdmin() (students never have that claim);
       // of this rule did, which meant every edit was silently denied by
       // Firestore and never actually saved. Ownership can't be verified
       // server-side without auth, so trust is instead placed in tight
@@ -292,7 +330,7 @@ service cloud.firestore {
       // still pending/pending_edit/rejected — i.e. not yet public-approved
       // — which covers the legitimate "student deletes their own draft"
       // case. Deleting an approved post now requires an admin session.
-      allow delete: if request.auth != null ||
+      allow delete: if isAdmin() ||
         resource.data.status in ["pending", "pending_edit", "rejected"];
     }
 
@@ -314,7 +352,7 @@ service cloud.firestore {
       // without auth) also decrement the post's commentsCount here; that
       // decrement happens client-side via the blogPosts/{id} counter
       // update rule above, in the same admin action.
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================

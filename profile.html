@@ -17,11 +17,24 @@
 <link rel="stylesheet" href="css/style.css">
 <style>
   .profile-card{
-    display:flex; gap:1.2rem; align-items:center; padding:1.4rem;
-    border:1px solid var(--line); border-radius:14px; background:#fff; margin-bottom:1.6rem;
+    display:flex; gap:1.2rem; align-items:center; padding:1.6rem;
+    border:1px solid var(--line); border-radius:20px; margin-bottom:1.6rem;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(214,171,74,.12), transparent 55%),
+      radial-gradient(circle at 0% 100%, rgba(107,155,94,.14), transparent 55%),
+      #fff;
+    box-shadow:0 10px 30px rgba(31,46,34,.07);
+    position:relative; overflow:hidden;
   }
-  .profile-avatar-wrap{ position:relative; flex-shrink:0; width:72px; height:72px; }
-  .profile-avatar{ width:72px; height:72px; border-radius:50%; object-fit:cover; flex-shrink:0; display:block; border:2px solid var(--line); }
+  .profile-avatar-wrap{ position:relative; flex-shrink:0; width:80px; height:80px; }
+  .profile-avatar{
+    width:80px; height:80px; border-radius:50%; object-fit:cover; flex-shrink:0; display:block;
+    border:3px solid #fff; box-shadow:0 4px 16px rgba(31,46,34,.18);
+  }
+  .profile-avatar-wrap.is-id-verified .profile-avatar{
+    border-color:var(--leaf-500);
+    box-shadow:0 0 0 3px rgba(107,155,94,.25), 0 4px 16px rgba(31,46,34,.18);
+  }
   .profile-avatar-edit-btn{
     position:absolute; bottom:-2px; right:-2px;
     width:28px; height:28px; border-radius:50%;
@@ -36,6 +49,15 @@
   .profile-avatar-wrap.is-uploading .profile-avatar{ opacity:.5; }
   .profile-avatar-status{ font-size:.72rem; color:var(--moss-600); margin-top:.3rem; min-height:1em; }
   .profile-avatar-status.is-error{ color:var(--terracotta-500); }
+  .profile-name-row{ display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+  .profile-id-verified-badge{
+    display:inline-flex; align-items:center; gap:.3rem;
+    font-size:.72rem; font-weight:700;
+    padding:.2rem .55rem; border-radius:999px;
+    background:linear-gradient(135deg, rgba(107,155,94,.22), rgba(63,91,61,.16));
+    color:var(--leaf-500);
+    box-shadow:0 1px 3px rgba(107,155,94,.25) inset;
+  }
   .profile-status-pill{
     display:inline-block; font-size:.75rem; font-weight:700; padding:.25rem .6rem;
     border-radius:999px; margin-top:.35rem;
@@ -47,13 +69,14 @@
     display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.8rem; margin-bottom:1.8rem;
   }
   .credit-stat{
-    text-align:center; padding:1rem .6rem; border:1px solid var(--line); border-radius:12px; background:#fff;
+    text-align:center; padding:1.1rem .6rem; border:1px solid var(--line); border-radius:14px;
+    background:#fff; box-shadow:0 3px 10px rgba(31,46,34,.05);
   }
   .credit-stat .num{ font-family:var(--font-mono); font-size:1.6rem; font-weight:700; color:var(--moss-700); }
   .credit-stat .label{ font-size:.78rem; color:var(--moss-600); margin-top:.2rem; }
   .upload-row{
     display:flex; justify-content:space-between; align-items:center; gap:.8rem;
-    padding:.8rem 1rem; border:1px solid var(--line); border-radius:10px; margin-bottom:.6rem; background:#fff;
+    padding:.8rem 1rem; border:1px solid var(--line); border-radius:12px; margin-bottom:.6rem; background:#fff;
   }
   .upload-row .status-tag{ font-size:.72rem; font-weight:700; padding:.2rem .55rem; border-radius:999px; white-space:nowrap; }
   .status-tag.approved{ background:rgba(107,155,94,.15); color:var(--leaf-500); }
@@ -81,7 +104,10 @@
           <input type="file" id="profile-avatar-input" accept="image/*" style="display:none;">
         </div>
         <div>
-          <div style="font-weight:700;font-size:1.2rem;" id="profile-name"></div>
+          <div class="profile-name-row">
+            <span style="font-weight:700;font-size:1.25rem;" id="profile-name"></span>
+            <span id="profile-id-verified-badge" class="profile-id-verified-badge hidden">🟢 ID Verified</span>
+          </div>
           <div style="font-size:.85rem;color:var(--moss-600);" id="profile-email"></div>
           <div style="font-size:.85rem;color:var(--moss-600);">Student ID: <strong id="profile-studentid"></strong></div>
           <span id="profile-status-pill" class="profile-status-pill"></span>
@@ -90,6 +116,42 @@
       </div>
 
       <div id="profile-status-note" class="uc-panel hidden" style="margin-bottom:1.8rem;"></div>
+
+      <!-- ACCOUNT SECURITY / PASSWORD SETUP -->
+      <div id="password-section" class="uc-panel hidden" style="margin-bottom:1.8rem;">
+        <h2 style="font-size:1.05rem;margin-bottom:.6rem;">🔐 Account Security</h2>
+
+        <div id="password-setup-banner" class="hidden" style="background:rgba(214,171,74,.15);color:var(--wheat-400,#a3791f);border-radius:8px;padding:.8rem 1rem;font-size:.88rem;margin-bottom:1rem;">
+          ⚠️ <strong>Set up a new password.</strong> From next time, you'll need to log in with your Student ID and password instead of your email.
+        </div>
+
+        <form id="password-setup-form" class="hidden" style="display:flex;flex-direction:column;gap:.9rem;max-width:420px;">
+          <div>
+            <label for="new-password" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">New Password *</label>
+            <div style="position:relative;">
+              <input type="password" id="new-password" required autocomplete="new-password" minlength="8"
+                     style="width:100%;padding:.65rem 2.6rem .65rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
+              <button type="button" id="new-password-toggle" aria-label="Show password"
+                      style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;">👁️</button>
+            </div>
+            <div id="new-password-strength" style="font-size:.78rem;margin-top:.3rem;color:var(--moss-600);">At least 8 characters, with a letter and a number.</div>
+          </div>
+          <div>
+            <label for="new-password-confirm" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">Confirm Password *</label>
+            <input type="password" id="new-password-confirm" required autocomplete="new-password"
+                   style="width:100%;padding:.65rem .8rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.92rem;">
+          </div>
+          <button type="submit" id="password-setup-submit" style="background:var(--moss-700);color:#fff;border:none;padding:.75rem;border-radius:8px;font-weight:600;font-size:.95rem;cursor:pointer;align-self:flex-start;padding-left:1.4rem;padding-right:1.4rem;">Set Password</button>
+          <div id="password-setup-status" class="hidden" style="font-size:.85rem;"></div>
+        </form>
+
+        <div id="password-enabled-note" class="hidden" style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
+          <span style="color:var(--leaf-500);font-weight:600;font-size:.9rem;">🔒 Password login is enabled — log in with your Student ID and password.</span>
+          <button type="button" id="password-reset-btn" style="background:none;border:1px solid var(--line);border-radius:6px;padding:.4rem .8rem;font-size:.82rem;cursor:pointer;">Change Password</button>
+          <div id="password-reset-status" class="hidden" style="font-size:.8rem;width:100%;"></div>
+        </div>
+      </div>
+
       <div id="resource-access-alert" class="uc-panel hidden" style="margin-bottom:1.8rem;border-color:var(--terracotta-500);background:rgba(196,90,63,.07);color:var(--terracotta-500);font-weight:600;"></div>
 
       <div class="uc-panel" style="margin-bottom:1.8rem;">
