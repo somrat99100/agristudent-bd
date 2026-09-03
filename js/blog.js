@@ -45,6 +45,52 @@ function sanitizeNode(node, out) {
   if (node.nodeType !== Node.ELEMENT_NODE) return;
 
   const tag = node.tagName;
+
+  // Word-doc import support: headings, links, and tables aren't part of
+  // the composer's own toolbar, so they're not in ALLOWED_TAGS — but a
+  // .docx pasted in via the 📎 importer produces them constantly, and
+  // dropping them down to bare unwrapped text (the generic fallback
+  // below) would flatten every heading and table into a run-on paragraph.
+  // These four tags get their own lightweight mapping onto the existing
+  // allowed set instead, so the imported formatting mostly survives.
+  if (/^H[1-6]$/.test(tag)) {
+    out.push("<p><strong>");
+    node.childNodes.forEach(child => sanitizeNode(child, out));
+    out.push("</strong></p>");
+    return;
+  }
+  if (tag === "A") {
+    const href = node.getAttribute("href") || "";
+    if (/^https?:\/\//i.test(href)) {
+      out.push(`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer nofollow">`);
+      node.childNodes.forEach(child => sanitizeNode(child, out));
+      out.push("</a>");
+    } else {
+      node.childNodes.forEach(child => sanitizeNode(child, out)); // unsafe/relative href — keep the text, drop the link
+    }
+    return;
+  }
+  if (tag === "TABLE" || tag === "TBODY" || tag === "THEAD") {
+    node.childNodes.forEach(child => sanitizeNode(child, out));
+    return;
+  }
+  if (tag === "TR") {
+    let cellIndex = 0;
+    node.childNodes.forEach(child => {
+      if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === "TD" || child.tagName === "TH")) {
+        if (cellIndex > 0) out.push(" &nbsp;|&nbsp; ");
+        cellIndex++;
+      }
+      sanitizeNode(child, out);
+    });
+    out.push("<br>");
+    return;
+  }
+  if (tag === "TD" || tag === "TH") {
+    node.childNodes.forEach(child => sanitizeNode(child, out));
+    return;
+  }
+
   if (!ALLOWED_TAGS.has(tag)) {
     node.childNodes.forEach(child => sanitizeNode(child, out));
     return;
@@ -193,6 +239,7 @@ const postBodyInput = document.getElementById("post-body-input");
 const postImageInput = document.getElementById("post-image-input");
 const postInlineImageInput = document.getElementById("post-inline-image-input");
 const postInlineImageLabel = document.getElementById("post-inline-image-label");
+const postDocxInput = document.getElementById("post-docx-input");
 const postUploadStatus = document.getElementById("post-upload-status");
 const postError = document.getElementById("post-error");
 const postSubmitBtn = document.getElementById("post-submit-btn");
@@ -499,6 +546,134 @@ postInlineImageInput?.addEventListener("change", async (e) => {
     postError.classList.add("hidden");
     await insertInlineImage(file);
     updateImageModeUI();
+  }
+});
+
+// ============================================
+// IMPORT FROM WORD DOC (.docx) — 📎 button
+// ============================================
+// Converts a .docx file straight into the composer body: headings,
+// bold/italic, lists, links and images all come through automatically via
+// mammoth.js (loaded lazily from CDN so pages that never use this feature
+// don't pay for it). Images embedded in the doc are uploaded to Cloudinary
+// the same way any other post image is, so the saved post never depends on
+// the original file. Only .docx (Word 2007+, a zip container) is supported —
+// mammoth can't read the old binary .doc format.
+const MAX_DOCX_SIZE = 20 * 1024 * 1024; // 20MB
+const MAMMOTH_CDN_URL = "https://cdn.jsdelivr.net/npm/mammoth@1.12.2/mammoth.browser.min.js";
+
+let mammothLoadPromise = null;
+function loadMammoth() {
+  if (window.mammoth) return Promise.resolve(window.mammoth);
+  if (mammothLoadPromise) return mammothLoadPromise;
+  mammothLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = MAMMOTH_CDN_URL;
+    script.onload = () => {
+      if (window.mammoth) resolve(window.mammoth);
+      else reject(new Error("Word-import library failed to load. Please try again."));
+    };
+    script.onerror = () => {
+      mammothLoadPromise = null; // allow a retry on the next attempt
+      reject(new Error("Couldn't load the Word-import library — check your connection and try again."));
+    };
+    document.head.appendChild(script);
+  });
+  return mammothLoadPromise;
+}
+
+function base64ToFile(base64, contentType, name) {
+  const byteChars = atob(base64);
+  const bytes = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+  return new File([bytes], name, { type: contentType || "image/png" });
+}
+
+postDocxInput?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  postDocxInput.value = "";
+  if (!file) return;
+
+  if (!/\.docx$/i.test(file.name)) {
+    postError.classList.remove("hidden");
+    postError.textContent = "Please upload a .docx file (Word 2007 or newer) — older .doc files aren't supported. Re-save it as .docx and try again.";
+    return;
+  }
+  if (file.size > MAX_DOCX_SIZE) {
+    postError.classList.remove("hidden");
+    postError.textContent = "That Word file is too large (max 20MB).";
+    return;
+  }
+
+  const hasExistingContent = postBodyInput.innerText.trim().length > 0 || postBodyInput.querySelector("img");
+  if (hasExistingContent && !confirm("Importing this Word document will replace everything currently in the post editor. Continue?")) {
+    return;
+  }
+
+  postError.classList.add("hidden");
+  postUploadStatus.textContent = "Reading document…";
+
+  try {
+    const mammoth = await loadMammoth();
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Capture each embedded image as base64 behind a placeholder src rather
+    // than letting mammoth inline it as a giant data: URI — the placeholder
+    // gets swapped for a real Cloudinary URL below, and a data: URI would be
+    // dropped anyway since the sanitizer only trusts our own uploaded images.
+    const docxImages = [];
+    let docxImageCounter = 0;
+    const result = await mammoth.convertToHtml({ arrayBuffer }, {
+      convertImage: mammoth.images.imgElement(async (image) => {
+        const id = `docx-img-${docxImageCounter++}`;
+        docxImages.push({ id, base64: await image.read("base64"), contentType: image.contentType });
+        return { src: `docx-import-placeholder:${id}` };
+      })
+    });
+
+    const template = document.createElement("template");
+    template.innerHTML = result.value;
+
+    // Use the doc's first heading as the post title, if the title field
+    // is still empty — otherwise leave whatever the author already typed.
+    if (!postTitleInput.value.trim()) {
+      const firstHeading = template.content.querySelector("h1, h2, h3");
+      if (firstHeading) {
+        postTitleInput.value = firstHeading.textContent.trim().slice(0, 200);
+        firstHeading.remove();
+      }
+    }
+
+    if (docxImages.length) {
+      postUploadStatus.textContent = `Uploading ${docxImages.length} image${docxImages.length === 1 ? "" : "s"} from the document…`;
+      for (const img of docxImages) {
+        const target = template.content.querySelector(`img[src="docx-import-placeholder:${img.id}"]`);
+        if (!target) continue;
+        try {
+          const ext = (img.contentType || "").split("/")[1] || "png";
+          const url = await uploadOneImage(base64ToFile(img.base64, img.contentType, `docx-image.${ext}`));
+          target.setAttribute("src", url);
+        } catch (err) {
+          console.error("[Blog] docx image upload failed:", err);
+          target.remove(); // drop it rather than leave a broken/untrusted src behind
+        }
+      }
+    }
+
+    postBodyInput.innerHTML = template.innerHTML;
+    updateImageModeUI();
+    postUploadStatus.textContent = "Imported from Word document — review the formatting below before posting.";
+    setTimeout(() => {
+      if (postUploadStatus.textContent.startsWith("Imported from Word")) postUploadStatus.textContent = "";
+    }, 5000);
+  } catch (err) {
+    console.error("[Blog] Word import failed:", err);
+    postUploadStatus.textContent = "";
+    postError.classList.remove("hidden");
+    const msg = String(err?.message || "");
+    postError.textContent = /central directory|not a valid zip|corrupt/i.test(msg)
+      ? "That file doesn't look like a valid .docx — please re-save it as Word (.docx) and try again."
+      : (msg || "Couldn't import that document. Please try again.");
   }
 });
 
