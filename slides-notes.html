@@ -5,7 +5,12 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com https://cdn.jsdelivr.net https://pagead2.googlesyndication.com https://www.googletagservices.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com https://*.googlesyndication.com https://*.doubleclick.net https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com; frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://pagead2.googlesyndication.com https://*.googlesyndication.com; object-src 'none'; base-uri 'self';">
+<!-- Google AdSense — TODO: replace ca-pub-XXXXXXXXXXXXXXXX with your real publisher id
+     (see the "UNLOCK BY WATCHING AN AD" section near the top of js/resources.js for the
+     matching ad-unit slot id). Required for the "Unlock by Watching an Ad" step below to
+     actually show an ad instead of an empty box. -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
@@ -65,7 +70,8 @@
             <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock Hand Notes</h2>
             <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1.4rem;line-height:1.6;">Choose how you'd like to unlock access.</p>
             <button type="button" id="hn-choose-notes" class="btn-primary" style="display:block;width:100%;padding:.8rem;margin-bottom:.7rem;">📤 Unlock with Notes <span style="font-weight:400;opacity:.85;">— upload a file, 24h on approval</span></button>
-            <button type="button" id="hn-choose-classroom" class="btn-primary" style="display:block;width:100%;padding:.8rem;background:var(--moss-600);">🏫 Unlock with Google Classroom <span style="font-weight:400;opacity:.85;">— send a code, 6h access</span></button>
+            <button type="button" id="hn-choose-classroom" class="btn-primary" style="display:block;width:100%;padding:.8rem;background:var(--moss-600);margin-bottom:.7rem;">🏫 Unlock with Google Classroom <span style="font-weight:400;opacity:.85;">— send a code, 6h access</span></button>
+            <button type="button" id="hn-choose-ad" class="btn-primary" style="display:block;width:100%;padding:.8rem;background:var(--wheat-500,#c8933a);">🎬 Unlock by Watching an Ad <span style="font-weight:400;opacity:.85;">— instant, 6h access</span></button>
           </div>
 
           <!-- STEP: UNLOCK WITH NOTES (existing upload form) -->
@@ -188,6 +194,41 @@
               <h3>Your code is with an admin now</h3>
               <p>This file unlocks for 6 hours as soon as an admin reviews and confirms your code — no need to keep this page open.</p>
               <button type="button" id="hn-classroom-success-close" class="btn-primary" style="margin-top:.8rem;">Back to Notes</button>
+            </div>
+          </div>
+
+          <!-- STEP: UNLOCK BY WATCHING AN AD (new) -->
+          <div id="hn-gate-step-ad" class="hidden">
+            <button type="button" id="hn-ad-back" class="modal-close" title="Back" style="position:static;float:right;">✕</button>
+            <div style="text-align:center;">
+              <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">🎬</div>
+              <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Watch an Ad to Unlock</h2>
+              <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;line-height:1.6;">Keep this ad on screen for <span id="hn-ad-seconds-total">15</span> seconds. Once it finishes, this file unlocks instantly for 6 hours — no admin review needed.</p>
+            </div>
+
+            <!-- Google AdSense unit renders here. Replace data-ad-client / data-ad-slot
+                 with your real AdSense publisher + ad unit ids (see js/resources.js
+                 AD_CLIENT_ID / AD_SLOT_ID near the top of the "UNLOCK BY WATCHING AN AD"
+                 section) before going live. -->
+            <div id="hn-ad-form-area">
+              <div id="hn-ad-slot-wrap" style="min-height:250px;background:var(--leaf-50,#eef5ee);border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:1rem;"></div>
+
+              <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;">
+                <div style="flex:1;height:8px;border-radius:999px;background:var(--line);overflow:hidden;">
+                  <div id="hn-ad-progress-bar" style="height:100%;width:0%;background:var(--leaf-500);transition:width .3s linear;"></div>
+                </div>
+                <span id="hn-ad-countdown" style="font-size:.85rem;color:var(--moss-700);min-width:4.5rem;text-align:right;">15s left</span>
+              </div>
+
+              <button type="button" id="hn-ad-claim" class="btn-primary" style="width:100%;padding:.85rem;" disabled>Watching ad… please wait</button>
+              <p id="hn-ad-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin-top:.6rem;"></p>
+            </div>
+
+            <div id="hn-ad-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);margin-top:1rem;">
+              <span class="badge" style="background:var(--leaf-500);">✅ Unlocked</span>
+              <h3>Your file is unlocked now!</h3>
+              <p>It's unlocked for 6 hours.</p>
+              <button type="button" id="hn-ad-success-close" class="btn-primary" style="margin-top:.8rem;">See the File</button>
             </div>
           </div>
 

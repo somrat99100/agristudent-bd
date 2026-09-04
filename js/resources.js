@@ -321,7 +321,14 @@ if (classroomCodeForm) {
         fromName: session?.fullName || session?.email || "",
         fromEmail: session?.email || "",
         status: "new",
-        submittedAt: serverTimestamp()
+        submittedAt: serverTimestamp(),
+        // This is the general "send us your code so we can pull in course
+        // materials" box — it is NOT an unlock request and must never grant
+        // resource access, even if an admin approves it. Without this flag
+        // it would look identical (in Firestore) to a targetFileId-less
+        // legacy unlock submission, which js/access.js grants toward every
+        // file. See computeResourceAccessStatus()'s classroom branch.
+        purpose: "materials_request"
       });
       classroomCodeForm.classList.add("hidden");
       classroomCodeSuccess.classList.remove("hidden");
@@ -751,7 +758,8 @@ if (handNotesGate && handNotesContent) {
   const hnStepChoice = document.getElementById("hn-gate-step-choice");
   const hnStepNotes = document.getElementById("hn-gate-step-notes");
   const hnStepClassroom = document.getElementById("hn-gate-step-classroom");
-  const hnAllSteps = [hnStepLogin, hnStepChoice, hnStepNotes, hnStepClassroom];
+  const hnStepAd = document.getElementById("hn-gate-step-ad");
+  const hnAllSteps = [hnStepLogin, hnStepChoice, hnStepNotes, hnStepClassroom, hnStepAd];
 
   function hnShowStep(step) {
     hnAllSteps.forEach(s => s?.classList.toggle("hidden", s !== step));
@@ -795,11 +803,18 @@ if (handNotesGate && handNotesContent) {
   hnGateBackBtn?.addEventListener("click", hnExitFormOnly);
   document.getElementById("hn-choose-notes")?.addEventListener("click", () => hnShowStep(hnStepNotes));
   document.getElementById("hn-choose-classroom")?.addEventListener("click", () => hnShowStep(hnStepClassroom));
+  document.getElementById("hn-choose-ad")?.addEventListener("click", () => {
+    const session = getSession();
+    if (!session) { hnShowStep(hnStepLogin); return; }
+    hnShowStep(hnStepAd);
+    hnStartAdWatch();
+  });
   document.getElementById("hn-notes-back")?.addEventListener("click", () => hnShowStep(hnStepChoice));
   document.getElementById("hn-classroom-back")?.addEventListener("click", () => hnShowStep(hnStepChoice));
+  document.getElementById("hn-ad-back")?.addEventListener("click", () => { hnCancelAdWatch(); hnShowStep(hnStepChoice); });
   document.getElementById("hn-notes-success-close")?.addEventListener("click", hnExitFormOnly);
   document.getElementById("hn-classroom-success-close")?.addEventListener("click", hnExitFormOnly);
-
+  document.getElementById("hn-ad-success-close")?.addEventListener("click", hnExitFormOnly);
   // ============================================
   // UNLOCK WITH GOOGLE CLASSROOM — same duplicate-code rule as the
   // resources.html "Send Us Classroom Code" form: a code already on file
@@ -875,6 +890,129 @@ if (handNotesGate && handNotesContent) {
     });
   }
 
+  // ============================================
+  // UNLOCK BY WATCHING AN AD — instant, no admin review. The student
+  // must keep a Google AdSense ad on screen for AD_WATCH_SECONDS; once
+  // that timer completes we write a doc to the "adUnlocks" collection
+  // (kind: "ad") scoped to the ONE file this gate was opened for, and
+  // js/access.js grants that file 6h of access immediately (see its
+  // `item?.kind === "ad"` branch) — same targetFileId scoping as the
+  // classroom-code flow, just without waiting on an admin.
+  //
+  // TODO — go live: replace AD_CLIENT_ID and AD_SLOT_ID below with your
+  // real Google AdSense publisher id and ad-unit slot id (and make sure
+  // the <script> tag in slides-notes.html's <head> also has your real
+  // ca-pub- client id). Until then this renders an empty placeholder box
+  // instead of a real ad, but the unlock timer/logic below still works
+  // end-to-end for testing.
+  // ============================================
+  const AD_CLIENT_ID = "ca-pub-XXXXXXXXXXXXXXXX"; // TODO: your AdSense publisher id
+  const AD_SLOT_ID = "XXXXXXXXXX";                 // TODO: your AdSense ad-unit slot id
+  const AD_WATCH_SECONDS = 15;
+
+  const hnAdSlotWrap = document.getElementById("hn-ad-slot-wrap");
+  const hnAdProgressBar = document.getElementById("hn-ad-progress-bar");
+  const hnAdCountdown = document.getElementById("hn-ad-countdown");
+  const hnAdSecondsTotal = document.getElementById("hn-ad-seconds-total");
+  const hnAdClaimBtn = document.getElementById("hn-ad-claim");
+  const hnAdError = document.getElementById("hn-ad-error");
+  const hnAdSuccess = document.getElementById("hn-ad-success");
+  if (hnAdSecondsTotal) hnAdSecondsTotal.textContent = String(AD_WATCH_SECONDS);
+
+  let hnAdTimer = null;
+  let hnAdSecondsLeft = AD_WATCH_SECONDS;
+
+  function hnRenderAdUnit() {
+    if (!hnAdSlotWrap) return;
+    hnAdSlotWrap.innerHTML = "";
+    // AdSense only ever fills a given <ins> once, so a fresh element is
+    // created (and pushed) every time this step is opened, rather than
+    // reusing one across multiple "watch an ad" attempts.
+    const ins = document.createElement("ins");
+    ins.className = "adsbygoogle";
+    ins.style.cssText = "display:block;width:100%;min-height:250px;";
+    ins.setAttribute("data-ad-client", AD_CLIENT_ID);
+    ins.setAttribute("data-ad-slot", AD_SLOT_ID);
+    ins.setAttribute("data-ad-format", "auto");
+    ins.setAttribute("data-full-width-responsive", "true");
+    hnAdSlotWrap.appendChild(ins);
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (err) {
+      console.error("[Hand Notes] AdSense push failed:", err);
+    }
+  }
+
+  function hnResetAdUi() {
+    hnAdSecondsLeft = AD_WATCH_SECONDS;
+    if (hnAdProgressBar) hnAdProgressBar.style.width = "0%";
+    if (hnAdCountdown) hnAdCountdown.textContent = `${AD_WATCH_SECONDS}s left`;
+    if (hnAdClaimBtn) {
+      hnAdClaimBtn.disabled = true;
+      hnAdClaimBtn.textContent = "Watching ad… please wait";
+    }
+    hnAdError?.classList.add("hidden");
+    hnAdSuccess?.classList.add("hidden");
+    document.getElementById("hn-ad-form-area")?.classList.remove("hidden");
+  }
+
+  function hnStartAdWatch() {
+    hnCancelAdWatch();
+    hnResetAdUi();
+    hnRenderAdUnit();
+    hnAdTimer = setInterval(() => {
+      hnAdSecondsLeft--;
+      const pct = Math.min(100, Math.round(((AD_WATCH_SECONDS - hnAdSecondsLeft) / AD_WATCH_SECONDS) * 100));
+      if (hnAdProgressBar) hnAdProgressBar.style.width = pct + "%";
+      if (hnAdCountdown) hnAdCountdown.textContent = hnAdSecondsLeft > 0 ? `${hnAdSecondsLeft}s left` : "Done!";
+      if (hnAdSecondsLeft <= 0) {
+        clearInterval(hnAdTimer);
+        hnAdTimer = null;
+        if (hnAdClaimBtn) {
+          hnAdClaimBtn.disabled = false;
+          hnAdClaimBtn.textContent = "✅ Unlock This File";
+        }
+      }
+    }, 1000);
+  }
+
+  function hnCancelAdWatch() {
+    if (hnAdTimer) { clearInterval(hnAdTimer); hnAdTimer = null; }
+  }
+
+  hnAdClaimBtn?.addEventListener("click", async () => {
+    const session = getSession();
+    if (!session) { hnShowStep(hnStepLogin); return; }
+
+    hnAdClaimBtn.disabled = true;
+    hnAdClaimBtn.textContent = "Unlocking…";
+    hnAdError?.classList.add("hidden");
+
+    try {
+      await addDoc(collection(db, "adUnlocks"), {
+        targetFileId: hnGateTargetId,
+        fromName: session.fullName || session.email || "",
+        fromEmail: normalizeEmail(session.email || ""),
+        kind: "ad",
+        watchedSeconds: AD_WATCH_SECONDS,
+        submittedAt: serverTimestamp(),
+        watchedAt: serverTimestamp()
+      });
+
+      document.getElementById("hn-ad-form-area")?.classList.add("hidden");
+      hnAdSuccess?.classList.remove("hidden");
+      hnRefreshAccess(normalizeEmail(session.email));
+    } catch (err) {
+      console.error("[Hand Notes] ad unlock failed:", err);
+      if (hnAdError) {
+        hnAdError.textContent = "Something went wrong unlocking this file. Please try again.";
+        hnAdError.classList.remove("hidden");
+      }
+      hnAdClaimBtn.disabled = false;
+      hnAdClaimBtn.textContent = "✅ Unlock This File";
+    }
+  });
+
   // Access is calculated from Firestore moderation records. Do not use a
   // browser-only countdown because it can be cleared or become stale.
   //
@@ -893,20 +1031,24 @@ if (handNotesGate && handNotesContent) {
       return computeResourceAccessStatus([]);
     }
 
-    const [resourcesSnap, classroomSnap] = await Promise.all([
+    const [resourcesSnap, classroomSnap, adSnap] = await Promise.all([
       getDocs(query(
         collection(db, "resources"),
         where("uploaderEmail", "==", normalizedEmail),
         where("resourceType", "==", "slides_notes")
       )),
-      getDocs(query(collection(db, "classroomCodes"), where("fromEmail", "==", normalizedEmail)))
+      getDocs(query(collection(db, "classroomCodes"), where("fromEmail", "==", normalizedEmail))),
+      getDocs(query(collection(db, "adUnlocks"), where("fromEmail", "==", normalizedEmail)))
     ]);
     const docs = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     // Classroom codes keep their real status ("new"/"contacted"/"approved")
     // from Firestore — js/access.js only grants access once that status is
     // "approved" by an admin.
     const classroomDocs = classroomSnap.docs.map(d => ({ id: d.id, kind: "classroom", ...d.data() }));
-    const items = [...docs, ...classroomDocs];
+    // Ad unlocks are already "kind: ad" in Firestore and grant access the
+    // instant they're written — see js/access.js's `item?.kind === "ad"` branch.
+    const adDocs = adSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const items = [...docs, ...classroomDocs, ...adDocs];
     window.__hnAccessItems = items;
     return computeResourceAccessStatus(items);
   }

@@ -35,6 +35,7 @@ import { sendReviewEmail } from "./email-config.js";
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACCESS_PER_FILE_MS = DAY_MS; // 24h per uploaded resource file
 export const ACCESS_PER_CLASSROOM_MS = 6 * 60 * 60 * 1000; // 6h per classroom code
+export const ACCESS_PER_AD_MS = 6 * 60 * 60 * 1000; // 6h per watched rewarded ad
 export const RESTRICTION_MS = 30 * DAY_MS;
 const REMINDER_WINDOW_DAYS = 1;
 
@@ -94,6 +95,14 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     }
 
     if (item?.kind === "classroom") {
+      // The "Send Us Your Classroom Code" box (resources.html) is a
+      // materials-sourcing request, not an unlock request — it must NEVER
+      // grant resource access, no matter what an admin sets its status to.
+      // It has no targetFileId, so without this check it would look
+      // identical to a legacy no-target unlock submission (see below) and
+      // incorrectly unlock every file once approved.
+      if (item?.purpose === "materials_request") continue;
+
       // Classroom codes don't grant access on submission — an admin must
       // review and confirm the code first. Anything not yet approved
       // ("new", "contacted", etc.) contributes no grant at all.
@@ -106,6 +115,21 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
         status: "approved",
         time: (approvedAt || submittedAt)?.getTime?.() || now,
         durationMs: ACCESS_PER_CLASSROOM_MS
+      });
+      continue;
+    }
+
+    // Watching a rewarded ad grants immediate 6h access to the ONE target
+    // file it was watched for — no admin review needed, same as an
+    // upload, but a fixed 6h window like a classroom code (see
+    // js/resources.js hnStepAd / "adUnlocks" collection).
+    if (item?.kind === "ad") {
+      grants.push({
+        item,
+        kind: "ad",
+        status: "granted",
+        time: eventTime(item, "watchedAt")?.getTime?.() || now,
+        durationMs: ACCESS_PER_AD_MS
       });
       continue;
     }

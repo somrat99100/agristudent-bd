@@ -2674,6 +2674,13 @@ body.viewer-layout {
   position:sticky;
   top:0;
   z-index:5;
+  display:flex;
+  align-items:center;
+  gap:1rem;
+}
+@keyframes adminNotifyIn{
+  from{ opacity:0; transform:translateY(-6px); }
+  to{ opacity:1; transform:translateY(0); }
 }
 .admin-topbar h1{
   font-family:var(--font-display);

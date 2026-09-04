@@ -79,6 +79,7 @@
       <button id="tab-registrations" class="admin-nav-item" data-label="Registrations"><span class="admin-nav-icon">📝</span><span>Registrations</span></button>
       <button id="tab-messages" class="admin-nav-item" data-label="Messages"><span class="admin-nav-icon">💬</span><span>Messages</span></button>
       <button id="tab-classroom-codes" class="admin-nav-item" data-label="Classroom Codes"><span class="admin-nav-icon">🔑</span><span>Classroom Codes</span></button>
+      <button id="tab-ad-unlocks" class="admin-nav-item" data-label="Ad Unlocks"><span class="admin-nav-icon">🎬</span><span>Ad Unlocks</span></button>
       <button id="tab-danger" class="admin-nav-item admin-nav-item--danger" data-label="Danger Zone"><span class="admin-nav-icon">⚠️</span><span>Danger Zone</span></button>
     </nav>
 
@@ -91,6 +92,7 @@
   <main class="admin-main">
     <header class="admin-topbar">
       <h1 id="admin-page-title">Resources</h1>
+      <button type="button" id="admin-notify-bell" style="margin-left:auto;background:none;border:1px solid var(--line,#ddd);border-radius:8px;padding:.45rem .8rem;font-size:.8rem;cursor:pointer;color:var(--moss-700);">🔔 Enable Notifications</button>
     </header>
 
     <div class="admin-content">
@@ -172,6 +174,12 @@
       <div id="classroom-codes-panel" class="admin-panel-card hidden">
         <h2 class="admin-panel-heading">Classroom Codes — Submitted by Students</h2>
         <div id="admin-classroom-codes-list"></div>
+      </div>
+
+      <div id="ad-unlocks-panel" class="admin-panel-card hidden">
+        <h2 class="admin-panel-heading">Ad Unlocks — Watch-an-Ad unlock log</h2>
+        <p style="color:var(--moss-600);font-size:.85rem;margin-top:-.5rem;margin-bottom:1rem;">Read-only log for abuse monitoring — these already granted 6h access instantly, so nothing here needs approval. Delete an entry to revoke that file's access early.</p>
+        <div id="admin-ad-unlocks-list"></div>
       </div>
 
       <div id="danger-panel" class="admin-panel-card hidden">

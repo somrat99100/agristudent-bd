@@ -188,6 +188,34 @@ service cloud.firestore {
     }
 
     // ============================================
+    // AD UNLOCKS: "Unlock by Watching an Ad" (slides-notes.html gate)
+    // ============================================
+    // Same public-write-with-validation trust model as classroomCodes
+    // above (students never sign in) — but unlike a classroom code, this
+    // grants access the instant it's created, no admin approval step, so
+    // the validation here is what stands between a student and a free
+    // unlock: it must look like a real completed-ad record (a target
+    // file, the "ad" kind, and a watchedSeconds count that isn't 0/negative).
+    match /adUnlocks/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['targetFileId', 'kind', 'watchedSeconds']) &&
+        request.resource.data.kind == "ad" &&
+        request.resource.data.targetFileId is string &&
+        request.resource.data.targetFileId.size() > 0 &&
+        request.resource.data.targetFileId.size() <= 200 &&
+        request.resource.data.watchedSeconds is number &&
+        request.resource.data.watchedSeconds >= 10;
+
+      // js/resources.js reads a student's own ad-unlock history (no
+      // Firebase Auth session, same trust model as classroomCodes/
+      // resources above) to compute their remaining per-file access time.
+      allow list, get: if true;
+
+      // Admin panel only — reviewing/deleting for abuse monitoring.
+      allow update, delete: if request.auth != null;
+    }
+
+    // ============================================
     // SETTINGS: Configuration (admin-only, unchanged)
     // ============================================
     match /settings/{id} {
