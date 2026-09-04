@@ -171,7 +171,7 @@
             <div style="text-align:center;">
               <div style="font-size:1.7rem;width:3.4rem;height:3.4rem;line-height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:linear-gradient(135deg, var(--moss-900), var(--moss-700));box-shadow:0 10px 22px rgba(31,46,34,.28);">🏫</div>
               <h2 style="font-size:1.35rem;margin-bottom:.3rem;">Unlock with Google Classroom</h2>
-              <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;line-height:1.6;">Share your Google Classroom code to get 6 hours of access. Each code can only be used once — a code that's already on file won't unlock access.</p>
+              <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;line-height:1.6;">Share your Google Classroom code — once an admin reviews and confirms it, this file unlocks for 6 hours. Each code can only be used once — a code that's already on file won't unlock access.</p>
               <p style="background:rgba(214,171,74,.15);color:var(--wheat-400,#a3791f);border-radius:8px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:1.2rem;text-align:left;">⚠️ Please share only a genuine classroom code for real academic/educational content. A false or misused code may result in your profile being restricted by an admin.</p>
             </div>
             <form id="hn-classroom-form">
@@ -181,13 +181,13 @@
                 <small style="display:block;margin-top:.3rem;color:var(--moss-600);font-size:.8rem;">6-7 letters/numbers, exactly as shown in your Google Classroom.</small>
               </div>
               <p id="hn-classroom-error" class="hidden" style="color:var(--terracotta-500);font-size:.85rem;margin:-.4rem 0 .8rem;"></p>
-              <button type="submit" id="hn-classroom-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send &amp; Unlock</button>
+              <button type="submit" id="hn-classroom-submit" class="btn-primary" style="width:100%;padding:.85rem;">Send for Review</button>
             </form>
             <div id="hn-classroom-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);margin-top:1rem;">
-              <span class="badge" style="background:var(--leaf-500);">🎉 Congratulations!</span>
-              <h3>You've got 6 hours of access</h3>
-              <p>Counting down from right now — check your Profile page for the remaining time.</p>
-              <button type="button" id="hn-classroom-success-close" class="btn-primary" style="margin-top:.8rem;">See the Notes</button>
+              <span class="badge" style="background:var(--leaf-500);">✅ Sent for review</span>
+              <h3>Your code is with an admin now</h3>
+              <p>This file unlocks for 6 hours as soon as an admin reviews and confirms your code — no need to keep this page open.</p>
+              <button type="button" id="hn-classroom-success-close" class="btn-primary" style="margin-top:.8rem;">Back to Notes</button>
             </div>
           </div>
 
@@ -245,8 +245,7 @@
       </div>
 
       <div id="resource-unlock-strip" class="uc-panel hidden" style="margin-top:1.2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
-        <span style="font-size:.88rem;color:var(--moss-600);">🔒 Folders are open to browse — unlock to open a file.</span>
-        <button type="button" class="btn-primary" onclick="window.hnOpenGate && window.hnOpenGate();">Unlock Access</button>
+        <span style="font-size:.88rem;color:var(--moss-600);">🔒 Folders are open to browse — each file unlocks separately. Click 🔒 Unlock on any file to unlock just that one.</span>
       </div>
 
     </div>

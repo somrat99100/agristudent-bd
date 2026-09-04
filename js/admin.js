@@ -1156,24 +1156,48 @@ async function loadClassroomCodes() {
     classroomCodesList.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
+      const isApproved = item.status === "approved";
       const isContacted = item.status === "contacted";
+      const statusLabel = isApproved ? "Approved & Unlocked" : isContacted ? "Contacted" : "New";
+      const statusStyle = isApproved
+        ? "background:#E4F2E7;color:var(--leaf-600,#2D4A35);"
+        : isContacted
+          ? "background:#EAEAEA;color:#555;"
+          : "background:#FDF3D9;color:#8A6A1A;";
       const row = document.createElement("div");
       row.className = "resource-row";
       row.innerHTML = `
         <div>
           <span style="display:inline-block;font-family:monospace;font-size:1.05rem;font-weight:700;background:var(--leaf-50,#eef5ee);border:1px solid var(--line);border-radius:6px;padding:.2rem .6rem;">${esc(item.classroomCode)}</span>
-          <span style="margin-left:.5rem;font-size:.75rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;${isContacted ? "background:#E4F2E7;color:var(--leaf-600,#2D4A35);" : "background:#FDF3D9;color:#8A6A1A;"}">${isContacted ? "Contacted" : "New"}</span>
+          <span style="margin-left:.5rem;font-size:.75rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;${statusStyle}">${statusLabel}</span>
           <div style="font-size:.85rem;color:var(--moss-700);margin-top:.35rem;">
             ${item.fromName ? esc(item.fromName) : "Anonymous"}${item.fromEmail ? ` — ${esc(item.fromEmail)}` : ""}
+            ${item.targetFileId ? `<div style="font-size:.78rem;color:var(--moss-500,#7a8f7d);margin-top:.15rem;">Unlocking one specific file</div>` : ""}
           </div>
         </div>
-        <div style="display:flex;gap:.5rem;">
-          ${isContacted ? "" : `<button type="button" class="mark-contacted-btn" data-id="${d.id}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Mark Contacted</button>`}
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          ${isApproved ? "" : `<button type="button" class="confirm-classroom-code-btn" data-id="${d.id}" style="background:var(--leaf-500);color:#fff;border:none;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Confirm &amp; Unlock</button>`}
+          ${isApproved || isContacted ? "" : `<button type="button" class="mark-contacted-btn" data-id="${d.id}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">Mark Contacted</button>`}
           <button type="button" class="btn-danger delete-classroom-code-btn" data-id="${d.id}" style="padding:.35rem .7rem;font-size:.78rem;">🗑 Delete</button>
         </div>`;
       classroomCodesList.appendChild(row);
     });
 
+    // Reviewing and confirming a code is what actually unlocks its target
+    // file for the student — see js/access.js, which only grants a
+    // classroom-code submission access once status is "approved".
+    classroomCodesList.querySelectorAll(".confirm-classroom-code-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await updateDoc(doc(db, "classroomCodes", btn.dataset.id), { status: "approved", approvedAt: serverTimestamp() });
+          loadClassroomCodes();
+        } catch (err) {
+          console.error("[AgriAdmin] Failed to confirm classroom code:", err);
+          btn.disabled = false;
+        }
+      });
+    });
     classroomCodesList.querySelectorAll(".mark-contacted-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         btn.disabled = true;

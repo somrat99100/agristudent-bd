@@ -5,7 +5,7 @@ import {
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { getSession } from "./session.js";
 import { initEmailNotifications } from "./email-config.js";
-import { computeResourceAccessStatus, formatDate, formatRemaining, normalizeClassroomCode, isAuthenticClassroomCode } from "./access.js";
+import { computeResourceAccessStatus, computeFileAccessStatus, formatDate, formatRemaining, normalizeClassroomCode, isAuthenticClassroomCode } from "./access.js";
 
 initEmailNotifications();
 
@@ -771,7 +771,16 @@ if (handNotesGate && handNotesContent) {
     handNotesContent.classList.remove("form-only");
   }
 
-  window.hnOpenGate = function () {
+  // The id of the ONE file the gate is currently unlocking — set every
+  // time a locked file's badge is clicked (see the file-row click
+  // handlers below), and stamped onto whatever gets submitted (upload or
+  // classroom code) as `targetFileId`. This is what makes unlocking one
+  // file no longer unlock any other file: js/access.js only counts a
+  // submission toward the file id it was stamped with.
+  let hnGateTargetId = null;
+
+  window.hnOpenGate = function (fileId) {
+    hnGateTargetId = fileId || null;
     handNotesGate.classList.remove("hidden");
     hnEnterFormOnly(true);
     hnShowStep(getSession() ? hnStepChoice : hnStepLogin);
@@ -794,7 +803,10 @@ if (handNotesGate && handNotesContent) {
   // ============================================
   // UNLOCK WITH GOOGLE CLASSROOM — same duplicate-code rule as the
   // resources.html "Send Us Classroom Code" form: a code already on file
-  // can't be reused, and a fresh one grants 6 hours of access immediately.
+  // can't be reused. Unlike an upload, a classroom code grants NO access
+  // until an admin reviews and confirms it in the admin panel (see
+  // js/access.js) — then it unlocks the ONE file this gate was opened
+  // for, for 6 hours from the moment it's approved.
   // ============================================
   const hnClassroomForm = document.getElementById("hn-classroom-form");
   const hnClassroomInput = document.getElementById("hn-classroom-code-input");
@@ -821,7 +833,7 @@ if (handNotesGate && handNotesContent) {
           hnClassroomError.textContent = "That doesn't look like a genuine Google Classroom code. Please enter the exact code your teacher shared (6-8 letters/numbers, e.g. a1b2c3d).";
           hnClassroomError.classList.remove("hidden");
           hnClassroomSubmit.disabled = false;
-          hnClassroomSubmit.textContent = "Send & Unlock";
+          hnClassroomSubmit.textContent = "Send for Review";
           return;
         }
 
@@ -832,40 +844,54 @@ if (handNotesGate && handNotesContent) {
           hnClassroomError.textContent = "This classroom code has already been used. Please provide a new, unused code.";
           hnClassroomError.classList.remove("hidden");
           hnClassroomSubmit.disabled = false;
-          hnClassroomSubmit.textContent = "Send & Unlock";
+          hnClassroomSubmit.textContent = "Send for Review";
           return;
         }
 
-        hnClassroomSubmit.textContent = "Unlocking…";
+        hnClassroomSubmit.textContent = "Sending…";
         await addDoc(collection(db, "classroomCodes"), {
           classroomCode: code,
           normalizedCode: normalized,
           fromName: session.fullName || session.email || "",
           fromEmail: normalizeEmail(session.email || ""),
+          targetFileId: hnGateTargetId,
           status: "new",
           submittedAt: serverTimestamp()
         });
 
+        // No immediate access grant here — a classroom code only unlocks
+        // its target file once an admin reviews and confirms it (see
+        // js/access.js and the admin panel's Classroom Codes tab).
         hnClassroomForm.classList.add("hidden");
         hnClassroomSuccess.classList.remove("hidden");
-        window.__hnAccessActive = true;
-        (window.__onResourceAccessGranted || []).forEach(fn => fn());
         hnRefreshAccess(normalizeEmail(session.email));
       } catch (err) {
         console.error("[Hand Notes] classroom unlock failed:", err);
         hnClassroomError.textContent = "Something went wrong. Please try again.";
         hnClassroomError.classList.remove("hidden");
         hnClassroomSubmit.disabled = false;
-        hnClassroomSubmit.textContent = "Send & Unlock";
+        hnClassroomSubmit.textContent = "Send for Review";
       }
     });
   }
 
   // Access is calculated from Firestore moderation records. Do not use a
   // browser-only countdown because it can be cleared or become stale.
+  //
+  // Every item here may carry its own `targetFileId` (the specific file
+  // it unlocks). This function keeps the full, unfiltered list around on
+  // window.__hnAccessItems so each file row can work out ITS OWN access
+  // via computeFileAccessStatus() at render time — see
+  // window.__hnIsFileUnlocked below — instead of one blanket flag for
+  // every file. The aggregate `computeResourceAccessStatus` result
+  // returned here is only used for account-wide concerns that really are
+  // global: the 30-day upload restriction, and the summary banner.
   async function getResourceAccessState(userEmail) {
     const normalizedEmail = normalizeEmail(userEmail);
-    if (!normalizedEmail) return computeResourceAccessStatus([]);
+    if (!normalizedEmail) {
+      window.__hnAccessItems = [];
+      return computeResourceAccessStatus([]);
+    }
 
     const [resourcesSnap, classroomSnap] = await Promise.all([
       getDocs(query(
@@ -876,13 +902,23 @@ if (handNotesGate && handNotesContent) {
       getDocs(query(collection(db, "classroomCodes"), where("fromEmail", "==", normalizedEmail)))
     ]);
     const docs = resourcesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Classroom-code unlocks aren't reviewed uploads (no admin approval
-    // step) — they grant access the moment they're submitted, so they're
-    // always treated as "approved" for the access calculation, same as
-    // js/profile.js does.
-    const classroomDocs = classroomSnap.docs.map(d => ({ id: d.id, kind: "classroom", status: "approved", ...d.data() }));
-    return computeResourceAccessStatus([...docs, ...classroomDocs]);
+    // Classroom codes keep their real status ("new"/"contacted"/"approved")
+    // from Firestore — js/access.js only grants access once that status is
+    // "approved" by an admin.
+    const classroomDocs = classroomSnap.docs.map(d => ({ id: d.id, kind: "classroom", ...d.data() }));
+    const items = [...docs, ...classroomDocs];
+    window.__hnAccessItems = items;
+    return computeResourceAccessStatus(items);
   }
+
+  // Whether ONE specific file is currently unlocked for this student.
+  // Returns null while the very first access check hasn't resolved yet
+  // (see window.__hnAccessKnown), so callers can show a neutral
+  // "checking…" state instead of a false 🔒.
+  window.__hnIsFileUnlocked = function (fileId) {
+    if (!window.__hnAccessKnown) return null;
+    return computeFileAccessStatus(window.__hnAccessItems || [], fileId).active;
+  };
 
   const unlockStrip = document.getElementById("resource-unlock-strip");
 
@@ -949,16 +985,37 @@ if (handNotesGate && handNotesContent) {
 
     resourceUploadBlockedUntil = 0;
 
-    if (state.active) {
-      handNotesGate.classList.add("hidden");
-      handNotesContent.classList.remove("locked", "form-only");
-      unlockStrip?.classList.add("hidden");
-      document.getElementById("open-another-upload")?.classList.remove("hidden");
+    // Access is per-file now, so this banner no longer claims one blanket
+    // "active" state for everything — it summarizes how many of the
+    // student's own unlock submissions are currently active vs. still
+    // waiting on admin review, for files that were unlocked individually.
+    const items = window.__hnAccessItems || [];
+    const byFile = new Map();
+    for (const it of items) {
+      const key = it.targetFileId || "__general__";
+      if (!byFile.has(key)) byFile.set(key, []);
+      byFile.get(key).push(it);
+    }
+    let unlockedFileCount = 0;
+    let pendingClassroomCount = 0;
+    for (const group of byFile.values()) {
+      if (computeResourceAccessStatus(group).active) unlockedFileCount++;
+    }
+    for (const it of items) {
+      if (it.kind === "classroom" && it.status !== "approved") pendingClassroomCount++;
+    }
+
+    handNotesGate.classList.add("hidden");
+    handNotesContent.classList.remove("locked", "form-only");
+    unlockStrip?.classList.remove("hidden");
+    document.getElementById("open-another-upload")?.classList.remove("hidden");
+
+    if (unlockedFileCount > 0) {
       accessStatusBar.classList.add("approved");
       content.innerHTML = `
-        <strong>🔓 RESOURCE ACCESS ACTIVE — ${formatRemaining(state.msRemaining)} remaining</strong>
-        <div class="file-info">Access expires on <strong>${formatDate(state.accessUntil)}</strong>.</div>
-        <div class="file-info">Every file you upload adds <strong>24 hours</strong> · every classroom code adds <strong>6 hours</strong> — access starts the moment you upload, no need to wait for review, and new unlocks top up whatever time you have left.</div>
+        <strong>🔓 ${unlockedFileCount} FILE${unlockedFileCount === 1 ? "" : "S"} UNLOCKED</strong>
+        <div class="file-info">Each file you unlock (by uploading, or a classroom code once an admin confirms it) stays open on its own — it doesn't unlock any other file.</div>
+        ${pendingClassroomCount > 0 ? `<div class="file-info">⏳ ${pendingClassroomCount} classroom code${pendingClassroomCount === 1 ? "" : "s"} awaiting admin review.</div>` : ""}
         <div class="file-info">Files counted: <strong>${count}</strong></div>
       `;
       // Don't also call loadThreeCardLayoutIfAvailable() here — the
@@ -969,17 +1026,13 @@ if (handNotesGate && handNotesContent) {
 
     // Not active, not restricted: folders stay browsable (no forced gate/
     // form-only) — the gate only opens when the person clicks a locked
-    // file or the "Unlock Access" strip.
-    handNotesGate.classList.add("hidden");
-    handNotesContent.classList.add("locked");
-    handNotesContent.classList.remove("form-only");
-    unlockStrip?.classList.remove("hidden");
-    document.getElementById("open-another-upload")?.classList.add("hidden");
+    // file.
     accessStatusBar.classList.add("pending");
     content.innerHTML = `
-      <strong>🔒 NO ACTIVE ACCESS</strong>
-      <div class="file-info">Browse folders freely — unlock to open a file.</div>
-      <div class="file-info">Uploading a file gives <strong>24 hours</strong> of access starting right away, a classroom code gives <strong>6 hours</strong> — no review wait.</div>
+      <strong>🔒 NO FILES UNLOCKED YET</strong>
+      <div class="file-info">Browse folders freely — click 🔒 Unlock on any file to unlock just that one.</div>
+      <div class="file-info">Uploading a file gives that file <strong>24 hours</strong> of access right away. A classroom code gives that file <strong>6 hours</strong> — but only once an admin has reviewed and confirmed it.</div>
+      ${pendingClassroomCount > 0 ? `<div class="file-info">⏳ ${pendingClassroomCount} classroom code${pendingClassroomCount === 1 ? "" : "s"} awaiting admin review.</div>` : ""}
     `;
     loadThreeCardLayoutIfAvailable();
     return false;
@@ -1191,6 +1244,7 @@ if (handNotesGate && handNotesContent) {
         const hnDocData = {
           courseCode, courseName: finalCourseName, facultyName,
           resourceType: "slides_notes", uploaderEmail, fileUrls, fileType: currentFileType, noteType: hnNoteType,
+          targetFileId: hnGateTargetId,
           status: "pending", submittedAt: serverTimestamp(), uploadedAt: Date.now()
         };
         const hnUploaderStudentId = await lookupStudentIdByEmail(uploaderEmail);
@@ -1204,8 +1258,8 @@ if (handNotesGate && handNotesContent) {
           const successBoxEl = document.getElementById("hn-notes-success");
           const titleEl = document.getElementById("hn-notes-success-title");
           const detailEl = document.getElementById("hn-notes-success-detail");
-          if (titleEl) titleEl.textContent = "You've got 24 hours of access";
-          if (detailEl) detailEl.textContent = "Access started the moment you uploaded — no need to wait for admin review. Your file is still pending review in the background.";
+          if (titleEl) titleEl.textContent = "You've got 24 hours of access to this file";
+          if (detailEl) detailEl.textContent = "Access to this file started the moment you uploaded — no need to wait for admin review. Your file is still pending review in the background, and unlocking it doesn't unlock any other file.";
           successBoxEl?.classList.remove("hidden");
         }, 700);
       } catch (err) {
@@ -1386,12 +1440,17 @@ if (pdfList || imageGrid) {
     // so a student with genuinely active access never sees files marked
     // locked just because the check hasn't finished yet.
     const checking = !window.__hnAccessKnown;
-    const locked = !checking && !window.__hnAccessActive;
     const fileRows = [];
     facultyItems.forEach(item => {
-      (item.fileUrls || []).forEach(file => {
+      (item.fileUrls || []).forEach((file, idx) => {
+        // Each file gets its OWN id (a submission doc can bundle several
+        // files, so the doc id alone isn't unique per file) and is
+        // unlocked independently of every other file — see hnOpenGate.
+        const fileId = `${item.id}::${idx}`;
+        const unlocked = checking ? false : (window.__hnIsFileUnlocked && window.__hnIsFileUnlocked(fileId));
+        const locked = !checking && !unlocked;
         fileRows.push(`
-          <div class="file-item${locked ? " file-locked" : ""}${checking ? " file-checking" : ""}" ${locked ? 'data-locked-file="1"' : ""}>
+          <div class="file-item${locked ? " file-locked" : ""}${checking ? " file-checking" : ""}" ${locked ? `data-locked-file="1" data-file-id="${esc(fileId)}"` : ""}>
             <span class="file-status">${docIcon(item)}</span>
             <span class="file-name">${esc(fileDisplayName(file))} <span class="note-type-tag">${esc(noteTypeLabel(item))}</span></span>
             ${checking
@@ -1418,11 +1477,9 @@ if (pdfList || imageGrid) {
       renderPdfFolder(container, items, state, opts);
     });
 
-    if (locked) {
-      container.querySelectorAll("[data-locked-file]").forEach(el => {
-        el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
-      });
-    }
+    container.querySelectorAll("[data-locked-file]").forEach(el => {
+      el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate(el.dataset.fileId));
+    });
   }
 
   let pdfSearchWired = false;
@@ -1546,13 +1603,14 @@ if (pdfList || imageGrid) {
     }
 
     const checking = !window.__hnAccessKnown;
-    const locked = !checking && !window.__hnAccessActive;
     imageGrid.innerHTML = images.map(img => {
       const file = img.fileUrls[0];
       const viewHref = buildViewHref(file, img);
+      const unlocked = checking ? false : (window.__hnIsFileUnlocked && window.__hnIsFileUnlocked(img.id));
+      const locked = !checking && !unlocked;
       const tag = locked ? "div" : "a";
       return `
-      <${tag} class="image-item${locked ? " image-locked" : ""}${checking ? " image-checking" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
+      <${tag} class="image-item${locked ? " image-locked" : ""}${checking ? " image-checking" : ""}"${locked ? ` data-locked-image="1" data-file-id="${esc(img.id)}"` : ` href="${viewHref}"`} style="text-decoration:none;">
         <div class="image-item-thumb">
           <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
           <div class="status-badge">✓</div>
@@ -1567,11 +1625,9 @@ if (pdfList || imageGrid) {
       </${tag}>`;
     }).join("");
 
-    if (locked) {
-      imageGrid.querySelectorAll("[data-locked-image]").forEach(el => {
-        el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
-      });
-    }
+    imageGrid.querySelectorAll("[data-locked-image]").forEach(el => {
+      el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate(el.dataset.fileId));
+    });
   }
 
   window.__onResourceAccessGranted = window.__onResourceAccessGranted || [];
@@ -1683,17 +1739,19 @@ if (pdfList || imageGrid) {
         grid.innerHTML = `<p style="color:var(--moss-600);font-size:.9rem;text-align:center;padding:1rem;grid-column:1/-1;">No matching images found.</p>`;
         return;
       }
-      const locked = !window.__hnAccessActive;
+      const checking = !window.__hnAccessKnown;
       grid.innerHTML = items.map(img => {
         const file = img.fileUrls[0];
         const viewHref = buildViewHref(file, img);
+        const unlocked = checking ? false : (window.__hnIsFileUnlocked && window.__hnIsFileUnlocked(img.id));
+        const locked = !checking && !unlocked;
         const tag = locked ? "div" : "a";
         return `
-        <${tag} class="image-item${locked ? " image-locked" : ""}"${locked ? ' data-locked-image="1"' : ` href="${viewHref}"`} style="text-decoration:none;">
+        <${tag} class="image-item${locked ? " image-locked" : ""}${checking ? " image-checking" : ""}"${locked ? ` data-locked-image="1" data-file-id="${esc(img.id)}"` : ` href="${viewHref}"`} style="text-decoration:none;">
           <div class="image-item-thumb">
             <img src="${encodeURI(file.url)}" alt="${esc(file.title || img.courseName)}" loading="lazy">
             <div class="status-badge">✓</div>
-            <div class="view-overlay"><button type="button">${locked ? "🔒" : "View"}</button></div>
+            <div class="view-overlay"><button type="button">${checking ? "⏳" : locked ? "🔒" : "View"}</button></div>
           </div>
           <div class="image-item-caption">
             <span class="image-item-code">${esc(img.courseCode)}</span>
@@ -1701,11 +1759,9 @@ if (pdfList || imageGrid) {
           </div>
         </${tag}>`;
       }).join("");
-      if (locked) {
-        grid.querySelectorAll("[data-locked-image]").forEach(el => {
-          el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate());
-        });
-      }
+      grid.querySelectorAll("[data-locked-image]").forEach(el => {
+        el.addEventListener("click", () => window.hnOpenGate && window.hnOpenGate(el.dataset.fileId));
+      });
     }
   });
 }

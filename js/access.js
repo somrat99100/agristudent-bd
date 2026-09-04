@@ -18,6 +18,17 @@
 //    upload timestamp), not a browser-only timer, so refreshing the page
 //    or switching devices never resets or loses the access window — only
 //    running out of time does.
+//  • A classroom code grants NO access until an admin reviews and
+//    confirms it (item.status becomes "approved") — unlike a resource
+//    upload, which grants access immediately.
+//  • PER-FILE ACCESS: a submission can be tied to one specific file via
+//    `targetFileId`, set the moment a student clicks "Unlock" on that
+//    exact file (see js/resources.js `hnOpenGate`). Use
+//    computeFileAccessStatus() below for a single file's status — a
+//    grant with a targetFileId only counts toward that file, so
+//    unlocking one file never unlocks another. Submissions with no
+//    targetFileId (made before this existed) count toward every file, so
+//    nobody who already had access loses it.
 // ============================================
 import { sendReviewEmail } from "./email-config.js";
 
@@ -83,11 +94,17 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     }
 
     if (item?.kind === "classroom") {
+      // Classroom codes don't grant access on submission — an admin must
+      // review and confirm the code first. Anything not yet approved
+      // ("new", "contacted", etc.) contributes no grant at all.
+      if (status !== "approved") continue;
+      const approvedAt = eventTime(item, "approvedAt");
+      const submittedAt = eventTime(item, "submittedAt");
       grants.push({
         item,
         kind: "classroom",
         status: "approved",
-        time: eventTime(item, "submittedAt")?.getTime?.() || now,
+        time: (approvedAt || submittedAt)?.getTime?.() || now,
         durationMs: ACCESS_PER_CLASSROOM_MS
       });
       continue;
@@ -164,6 +181,20 @@ export function computeResourceAccessStatus(items, now = Date.now()) {
     hoursRemaining,
     msRemaining
   };
+}
+
+/**
+ * Access for ONE specific file. A grant with a `targetFileId` only
+ * counts toward the matching file; a grant with no targetFileId (made
+ * through a general "unlock" with no specific file in mind, or made
+ * before per-file unlocking existed) counts toward every file. Clicking
+ * "Unlock" on a specific file always attaches that file's id, so from
+ * then on that submission only ever unlocks that one file.
+ */
+export function computeFileAccessStatus(items, fileId, now = Date.now()) {
+  const list = Array.isArray(items) ? items : [];
+  const relevant = list.filter(i => !i?.targetFileId || i.targetFileId === fileId);
+  return computeResourceAccessStatus(relevant, now);
 }
 
 export async function maybeSendAccessReminder(access, { email, name }) {

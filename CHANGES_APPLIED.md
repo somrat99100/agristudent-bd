@@ -74,3 +74,44 @@ upload form and the new owner badge look native to the rest of the site.
 validates a fixed set of *required* keys but doesn't forbid extra ones, so
 the new `uploaderStudentId` / `fileType` fields pass through the existing
 rules as-is.
+
+## 8. Mobile: page-turn controls getting cut off
+
+`.book-controls` (Prev / page number / Next in the document viewer) had no
+`flex-wrap`, so on narrow phones the row didn't all fit on one line. Flex
+items shrink but text/inputs have a minimum content width, so the row
+overflowed past `.viewer-book`'s edge — and `.viewer-book` clips overflow
+(needed elsewhere for its rounded corners), cutting off part of the bar.
+Added `flex-wrap: wrap` as a safety net plus tighter sizing at 700px and a
+new 400px breakpoint, so it reliably fits on one line on common phones and
+never gets clipped on the narrowest ones.
+
+## 9. Per-file unlocking + admin-reviewed classroom codes
+
+Previously, unlocking ANY file (by uploading a file or submitting a
+classroom code) granted one shared, account-wide time window that
+unlocked every file at once. Two changes:
+
+- **Per-file unlock.** Clicking 🔒 Unlock on a specific file now tags
+  whatever gets submitted (upload or classroom code) with that file's id
+  (`targetFileId` — `js/resources.js` `hnOpenGate(fileId)`). `js/access.js`
+  now has `computeFileAccessStatus(items, fileId)`, which only counts a
+  submission toward the file it was tagged for. Submissions made before
+  this existed (no `targetFileId`) still count toward every file, so no
+  one loses access they already had. The old blanket "Unlock Access"
+  button (with no specific file in mind) was removed from
+  `slides-notes.html` since it no longer has a file to target.
+- **Classroom codes require admin approval.** A submitted code no longer
+  grants access on its own — `js/access.js` only creates a grant once the
+  code's Firestore status is `"approved"`. The admin panel's Classroom
+  Codes tab (`js/admin.js`) has a new "✅ Confirm & Unlock" button that
+  sets `status: "approved"` (this is what actually unlocks the file for
+  the student). Resource-file uploads are unchanged — they still grant
+  access immediately, same as before.
+
+No `firestore.rules` changes needed here either — `targetFileId` is an
+extra field the existing `hasAll(...)` create rules for `resources` and
+`classroomCodes` don't forbid, and admin approval already required
+`request.auth != null` for updates to `classroomCodes`, same as the
+existing "Mark Contacted" action.
+
