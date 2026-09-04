@@ -787,18 +787,41 @@ if (handNotesGate && handNotesContent) {
   // submission toward the file id it was stamped with.
   let hnGateTargetId = null;
 
+  // BUG FIX — "unlocking one file unlocked ALL files": when a logged-out
+  // student clicked "Unlock" on a specific file, hnGateTargetId was set
+  // correctly in memory, but the login/register step then sent them to a
+  // real login.html/register.html page load — which wipes all JS state,
+  // including hnGateTargetId. The old return link was a hardcoded
+  // "...#unlock" with no file id in it, so after logging back in,
+  // hnOpenGate() re-ran with NO argument, hnGateTargetId became null, and
+  // whatever they submitted next got `targetFileId: null` — which
+  // access.js (by design, for pre-existing submissions made before
+  // per-file unlocking existed) counts toward EVERY file. The fix: carry
+  // the target file id through the redirect itself, in the return hash
+  // (`#unlock=<fileId>`), and restore it below before reopening the gate.
+  const hnLoginLink = document.getElementById("hn-gate-login-link");
+  const hnRegisterLink = document.getElementById("hn-gate-register-link");
+
   window.hnOpenGate = function (fileId) {
     hnGateTargetId = fileId || null;
+    const returnHash = hnGateTargetId ? `unlock=${encodeURIComponent(hnGateTargetId)}` : "unlock";
+    if (hnLoginLink) hnLoginLink.href = `login.html?return=${encodeURIComponent(`slides-notes.html#${returnHash}`)}`;
+    if (hnRegisterLink) hnRegisterLink.href = `register.html?return=${encodeURIComponent(`slides-notes.html#${returnHash}`)}`;
     handNotesGate.classList.remove("hidden");
     hnEnterFormOnly(true);
     hnShowStep(getSession() ? hnStepChoice : hnStepLogin);
     handNotesGate.scrollIntoView({ behavior: "smooth" });
   };
 
-  // If we were sent back here after login/registration (?return=...#unlock),
-  // pick straight back up at the unlock flow instead of making the person
-  // click "Unlock Access" again.
-  if (window.location.hash === "#unlock") window.hnOpenGate();
+  // If we were sent back here after login/registration (?return=...#unlock
+  // or ...#unlock=<fileId>), pick straight back up at the unlock flow
+  // instead of making the person click "Unlock Access" again — and, if a
+  // file id rode along in the hash, restore it so the submission they're
+  // about to make only unlocks that one file.
+  if (window.location.hash.startsWith("#unlock")) {
+    const [, encodedFileId] = window.location.hash.split("=");
+    window.hnOpenGate(encodedFileId ? decodeURIComponent(encodedFileId) : null);
+  }
 
   hnGateBackBtn?.addEventListener("click", hnExitFormOnly);
   document.getElementById("hn-choose-notes")?.addEventListener("click", () => hnShowStep(hnStepNotes));
