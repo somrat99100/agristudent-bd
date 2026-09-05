@@ -537,6 +537,21 @@ async function renderMyBlogPosts(email) {
 // failed top-level import would (a failed static import stops the whole
 // module before init() ever runs, which looks like the page being stuck
 // on "Loading your profile…" forever).
+// Compact relative-time label for the inbox ("Just now", "2h ago", "3d ago"),
+// falling back to the DD/MM/YYYY format once a message is more than a week old.
+function inboxTimeAgo(date) {
+  if (!date || Number.isNaN(date.getTime?.())) return "";
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatDate(date);
+}
+
 async function renderInbox(regId) {
   const listEl = document.getElementById("inbox-list");
   const emptyEl = document.getElementById("inbox-empty");
@@ -584,15 +599,24 @@ async function renderInbox(regId) {
   emptyEl.classList.add("hidden");
 
   function renderList() {
-    listEl.innerHTML = items.map(item => {
-      const date = item.sentAt?.toDate?.() ? formatDate(item.sentAt.toDate()) : "";
+    // Newest first — a premium inbox reads top-down like a real message center.
+    const sorted = items.slice().sort((a, b) => (b.sentAt?.toDate?.() || 0) - (a.sentAt?.toDate?.() || 0));
+
+    listEl.innerHTML = sorted.map(item => {
+      const sentDate = item.sentAt?.toDate?.() ? item.sentAt.toDate() : null;
+      const timeLabel = sentDate ? inboxTimeAgo(sentDate) : "";
+      const readState = item.read ? "is-read" : "is-unread";
       return `
-        <div class="inbox-item ${item.read ? "" : "is-unread"}" data-id="${esc(item.id)}">
-          <div class="inbox-item-head">
-            <span>📨 Admin</span>
-            <span>${date}${item.read ? "" : " · 🆕"}</span>
+        <div class="inbox-item ${readState}" data-id="${esc(item.id)}">
+          <div class="inbox-item-icon">${item.read ? "📨" : "✉️"}</div>
+          <div class="inbox-item-main">
+            <div class="inbox-item-head">
+              <span class="inbox-item-sender">Admin</span>
+              <span class="inbox-item-time">${esc(timeLabel)}</span>
+            </div>
+            <div class="inbox-item-body">${esc(item.message)}</div>
           </div>
-          <div class="inbox-item-body">${esc(item.message)}</div>
+          <span class="inbox-item-dot" aria-hidden="true"></span>
         </div>`;
     }).join("");
 
@@ -601,6 +625,9 @@ async function renderInbox(regId) {
         const item = items.find(n => n.id === el.dataset.id);
         if (!item || item.read) return;
         el.classList.remove("is-unread");
+        el.classList.add("is-read");
+        const iconEl = el.querySelector(".inbox-item-icon");
+        if (iconEl) iconEl.textContent = "📨";
         item.read = true;
         updateUnreadBadge();
         try {
