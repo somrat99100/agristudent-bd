@@ -354,12 +354,9 @@ service cloud.firestore {
     }
 
     // ============================================
-    // BLOG LIKES: one doc per (post, student) pair, doc id = `${postId}_${normalizedEmail}`
+    // BLOG LIKES: one doc per (post, student) pair (DEPRECATED - kept for compatibility)
     // ============================================
-    // Existence of the doc IS the "liked" state, so create = like and
-    // delete = unlike. There's no auth to prove the caller owns the
-    // email baked into the doc id, but that's the same trade-off the
-    // rest of this file already makes for every unauthenticated write.
+    // Kept for backward compatibility. New reactions use blogReactions instead.
     match /blogLikes/{id} {
       allow create: if
         request.resource.data.keys().hasAll(['postId', 'email']) &&
@@ -370,6 +367,58 @@ service cloud.firestore {
       allow read: if true;
       allow delete: if true;
       allow update: if false;
+    }
+
+    // ============================================
+    // BLOG REACTIONS: Facebook-style multi-reactions
+    // One doc per (post, student) pair, doc id = `${postId}_${normalizedEmail}`
+    // Supports: like, love, haha, wow, sad, angry
+    // ============================================
+    match /blogReactions/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['postId', 'email', 'reactionType']) &&
+        request.resource.data.postId is string && request.resource.data.postId.size() > 0 &&
+        request.resource.data.email is string && request.resource.data.email.size() > 0 &&
+        request.resource.data.reactionType in ['like', 'love', 'haha', 'wow', 'sad', 'angry'] &&
+        id == (request.resource.data.postId + '_' + request.resource.data.email);
+
+      allow read: if true;
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    // ============================================
+    // BLOG POSTS: Updated for multi-reaction counts
+    // ============================================
+    // NOTE: This extends the blogPosts rule above. The update rule now also
+    // allows incrementing/decrementing individual reaction count fields:
+    // likeCount, loveCount, hahaCount, wowCount, sadCount, angryCount
+    match /blogPosts/{id} {
+      allow update: if request.auth != null || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']) &&
+        (request.resource.data.likeCount == resource.data.likeCount + 1 ||
+         request.resource.data.likeCount == resource.data.likeCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['loveCount']) &&
+        (request.resource.data.loveCount == resource.data.loveCount + 1 ||
+         request.resource.data.loveCount == resource.data.loveCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hahaCount']) &&
+        (request.resource.data.hahaCount == resource.data.hahaCount + 1 ||
+         request.resource.data.hahaCount == resource.data.hahaCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wowCount']) &&
+        (request.resource.data.wowCount == resource.data.wowCount + 1 ||
+         request.resource.data.wowCount == resource.data.wowCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sadCount']) &&
+        (request.resource.data.sadCount == resource.data.sadCount + 1 ||
+         request.resource.data.sadCount == resource.data.sadCount - 1)
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['angryCount']) &&
+        (request.resource.data.angryCount == resource.data.angryCount + 1 ||
+         request.resource.data.angryCount == resource.data.angryCount - 1)
+      );
     }
   }
 }
