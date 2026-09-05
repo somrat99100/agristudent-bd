@@ -43,12 +43,21 @@
 
   .section-page{ padding-bottom:calc(2.5rem + env(safe-area-inset-bottom)); }
 
-  /* ---------- Hero header ---------- */
+  /* ---------- Hero header ----------
+     Two distinct rounded cards, cleanly separated by a gap — NOT fused
+     together. (An earlier version tried to butt them flush with a
+     flat-bottom/round-top pairing; because the header renders even
+     before the profile card exists in the DOM — during the loading
+     state — any radius mismatch between the two showed up as a broken
+     "notch" seam where they met. A real gap sidesteps that entirely
+     and reads as two intentional cards, which is the safer and more
+     robust pattern here.) */
   .profile-page-head{
-    padding:1.5rem 1.4rem 0;
-    margin-bottom:0;
-    border-radius:26px 26px 0 0;
+    padding:1.5rem 1.4rem;
+    margin-bottom:1.1rem;
+    border-radius:26px;
     position:relative; overflow:hidden; isolation:isolate;
+    box-shadow:var(--pf-shadow-pop);
     background:
       radial-gradient(circle at 12% 10%, rgba(214,171,74,.32), transparent 55%),
       radial-gradient(circle at 90% 90%, rgba(107,155,94,.40), transparent 55%),
@@ -58,8 +67,6 @@
   .profile-page-head .crumb a{ color:rgba(255,255,255,.9); }
   .profile-page-head h1{ color:#fff; margin:0; font-size:1.4rem; }
 
-  /* Hero card sits visually fused to the gradient head, like an app's
-     profile screen — dark header bleeding into a light content sheet. */
   .profile-hero{
     border-radius:26px;
     overflow:hidden;
@@ -68,7 +75,7 @@
     background:#fff;
   }
   .profile-card{
-    display:flex; gap:1.1rem; align-items:center; padding:0 1.4rem 1.5rem;
+    display:flex; gap:1.1rem; align-items:center; padding:1.6rem 1.4rem 1.5rem;
     background:
       radial-gradient(circle at 12% 10%, rgba(214,171,74,.32), transparent 55%),
       radial-gradient(circle at 90% 20%, rgba(107,155,94,.40), transparent 55%),
@@ -284,9 +291,9 @@
 
   @media (max-width:560px){
     .container{ padding-left:.9rem; padding-right:.9rem; }
-    .profile-page-head{ padding:1.2rem 1.1rem 0; border-radius:20px 20px 0 0; }
+    .profile-page-head{ padding:1.2rem 1.1rem; border-radius:20px; margin-bottom:1rem; }
     .profile-page-head h1{ font-size:1.2rem; }
-    .profile-card{ flex-direction:column; text-align:center; padding:0 1.1rem 1.3rem; }
+    .profile-card{ flex-direction:column; text-align:center; padding:1.3rem 1.1rem; }
     .profile-name-row{ justify-content:center; }
     .profile-hero{ border-radius:20px; }
     .profile-tabs{ margin-bottom:1.1rem; }

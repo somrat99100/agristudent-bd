@@ -2459,29 +2459,30 @@ body.viewer-layout {
 .atl-status.is-expired{ background:rgba(214,171,74,.15); color:var(--wheat-400); }
 
 /* ============================================
-   ADMIN PAGE — Login Screen
+   ADMIN PAGE — Login Screen (premium glass card)
    ============================================ */
 .admin-login-screen{
   min-height:100vh;
+  min-height:100dvh;
   display:flex;
   align-items:center;
   justify-content:center;
   padding:1.5rem;
   background:
-    radial-gradient(circle at 15% 15%, rgba(107,155,94,.28), transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(212,162,76,.22), transparent 50%),
+    radial-gradient(circle at 15% 15%, rgba(107,155,94,.30), transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(212,162,76,.24), transparent 50%),
     linear-gradient(160deg, var(--moss-900), var(--moss-700) 60%, var(--moss-600));
 }
 .admin-login-card{
   width:100%;
-  max-width:380px;
-  background:rgba(255,255,255,.92);
-  backdrop-filter:blur(18px) saturate(180%);
-  -webkit-backdrop-filter:blur(18px) saturate(180%);
+  max-width:400px;
+  background:rgba(255,255,255,.94);
+  backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
   border:1px solid rgba(255,255,255,.6);
-  border-radius:20px;
-  padding:2.2rem 2rem 2rem;
-  box-shadow:0 30px 64px rgba(15,25,17,.35), 0 4px 16px rgba(15,25,17,.18);
+  border-radius:24px;
+  padding:2.4rem 2.1rem 2.1rem;
+  box-shadow:0 34px 70px rgba(15,25,17,.38), 0 6px 18px rgba(15,25,17,.2);
   position:relative;
   overflow:hidden;
   animation:modalBoxIn .35s cubic-bezier(.22,1,.36,1);
@@ -2497,14 +2498,14 @@ body.viewer-layout {
   font-size:.85rem;
   letter-spacing:.02em;
   color:var(--moss-600);
-  margin-bottom:1.3rem;
+  margin-bottom:1.4rem;
   display:flex;
   align-items:center;
   gap:.4rem;
 }
 .admin-login-title{
   font-family:var(--font-display);
-  font-size:1.6rem;
+  font-size:1.65rem;
   font-weight:600;
   color:var(--moss-900);
   margin:0 0 .35rem;
@@ -2532,7 +2533,7 @@ body.viewer-layout {
   transition:color .15s ease;
 }
 .admin-link-btn:hover{ color:var(--moss-700); text-decoration:underline; }
-.admin-login-submit{ width:100%; }
+.admin-login-submit{ width:100%; border-radius:12px !important; padding:.85rem 1rem !important; font-size:1rem !important; }
 .admin-form-msg{
   margin-top:1rem;
   text-align:center;
@@ -2541,7 +2542,7 @@ body.viewer-layout {
   color:var(--leaf-500);
   background:rgba(107,155,94,.1);
   border:1px solid rgba(107,155,94,.3);
-  border-radius:8px;
+  border-radius:10px;
   padding:.6rem .8rem;
 }
 .admin-form-msg.is-error{
@@ -2550,67 +2551,86 @@ body.viewer-layout {
   border-color:rgba(181,101,29,.3);
 }
 
+@media (max-width:420px){
+  .admin-login-card{ padding:2rem 1.4rem 1.7rem; border-radius:20px; }
+  .admin-login-title{ font-size:1.4rem; }
+}
+
 /* ============================================
-   ADMIN PAGE — Shell (sidebar + main)
-   ============================================ */
+   ADMIN PAGE — Shell (sidebar + main), premium redesign
+   ============================================
+   Desktop: a tall gradient sidebar with pill nav items, mirroring the
+   moss/leaf/terracotta language used on the student profile page.
+   Mobile (<=900px): the sidebar collapses into a sticky, scrollable
+   segmented pill bar — the same "app tab strip" pattern as the
+   profile page's tabs — so admins get a touch-friendly, thumb-width
+   nav instead of a cramped desktop sidebar squeezed into a phone. */
 .admin-shell{
   display:flex;
   min-height:100vh;
+  min-height:100dvh;
   background:var(--paper-50);
 }
 .admin-sidebar{
-  width:230px;
+  width:240px;
   flex-shrink:0;
-  background:linear-gradient(180deg, var(--moss-900), var(--moss-700));
+  background:
+    radial-gradient(circle at 15% 0%, rgba(214,171,74,.18), transparent 50%),
+    linear-gradient(180deg, var(--moss-900), var(--moss-700));
   color:#fff;
   display:flex;
   flex-direction:column;
-  padding:1.4rem 1rem;
+  padding:1.5rem 1.1rem;
   position:sticky;
   top:0;
   height:100vh;
+  height:100dvh;
+  box-shadow:4px 0 24px rgba(31,46,34,.12);
+  z-index:20;
 }
 .admin-sidebar-top{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:.5rem;
-  margin-bottom:1.6rem;
+  margin-bottom:1.8rem;
   padding:0 .3rem;
 }
 .admin-sidebar-brand{
   display:flex;
   align-items:center;
-  gap:.4rem;
+  gap:.45rem;
   color:#fff;
   text-decoration:none;
   font-family:var(--font-display);
   font-weight:600;
-  font-size:1.02rem;
+  font-size:1.05rem;
 }
 .admin-sidebar-brand em{ font-style:normal; color:var(--wheat-400); }
 .admin-badge{
   font-family:var(--font-mono);
-  font-size:.68rem;
+  font-size:.66rem;
   font-weight:700;
-  letter-spacing:.04em;
-  background:rgba(255,255,255,.14);
-  border:1px solid rgba(255,255,255,.22);
-  padding:.2rem .5rem;
+  letter-spacing:.05em;
+  background:linear-gradient(135deg, rgba(214,171,74,.35), rgba(107,155,94,.3));
+  border:1px solid rgba(255,255,255,.28);
+  color:#fff;
+  padding:.22rem .55rem;
   border-radius:999px;
   text-transform:uppercase;
+  box-shadow:0 2px 6px rgba(0,0,0,.2);
 }
 .admin-nav{
   display:flex;
   flex-direction:column;
-  gap:.3rem;
+  gap:.35rem;
   flex:1;
   overflow-y:auto;
 }
 .admin-nav-item{
   display:flex;
   align-items:center;
-  gap:.7rem;
+  gap:.75rem;
   width:100%;
   text-align:left;
   background:none;
@@ -2620,27 +2640,37 @@ body.viewer-layout {
   font-weight:600;
   font-size:.9rem;
   padding:.65rem .8rem;
-  border-radius:10px;
+  border-radius:12px;
   cursor:pointer;
-  transition:background .15s ease, color .15s ease;
+  transition:background .16s ease, color .16s ease, transform .1s ease;
 }
-.admin-nav-icon{ font-size:1rem; line-height:1; }
+.admin-nav-item:active{ transform:scale(.98); }
+.admin-nav-icon{
+  font-size:.95rem; line-height:1; flex-shrink:0;
+  width:28px; height:28px; border-radius:9px;
+  background:rgba(255,255,255,.08);
+  display:flex; align-items:center; justify-content:center;
+  transition:background .16s ease;
+}
 .admin-nav-item:hover{ background:rgba(255,255,255,.08); color:#fff; }
+.admin-nav-item:hover .admin-nav-icon{ background:rgba(255,255,255,.14); }
 .admin-nav-item.is-active{
-  background:rgba(255,255,255,.16);
+  background:linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.08));
   color:#fff;
-  box-shadow:inset 3px 0 0 var(--leaf-400);
+  box-shadow:inset 3px 0 0 var(--leaf-400), 0 4px 12px rgba(0,0,0,.15);
 }
+.admin-nav-item.is-active .admin-nav-icon{ background:var(--leaf-500); }
 .admin-nav-item--danger{ color:rgba(224,150,110,.85); }
 .admin-nav-item--danger:hover{ background:rgba(181,101,29,.18); color:#F3C9A9; }
 .admin-nav-item--danger.is-active{
   background:rgba(181,101,29,.22);
   color:#F3C9A9;
-  box-shadow:inset 3px 0 0 var(--terracotta-400);
+  box-shadow:inset 3px 0 0 var(--terracotta-400), 0 4px 12px rgba(0,0,0,.15);
 }
+.admin-nav-item--danger.is-active .admin-nav-icon{ background:var(--terracotta-500); }
 .admin-sidebar-bottom{
   border-top:1px solid rgba(255,255,255,.14);
-  padding-top:1rem;
+  padding-top:1.1rem;
   margin-top:1rem;
   display:flex;
   flex-direction:column;
@@ -2656,14 +2686,15 @@ body.viewer-layout {
   background:rgba(181,101,29,.85);
   color:#fff;
   border:none;
-  padding:.6rem .8rem;
-  border-radius:10px;
+  padding:.65rem .8rem;
+  border-radius:12px;
   font-weight:600;
   font-size:.85rem;
   cursor:pointer;
   transition:background .15s ease, transform .15s ease;
 }
 .admin-logout-btn:hover{ background:var(--terracotta-500); transform:translateY(-1px); }
+.admin-logout-btn:active{ transform:scale(.96); }
 
 .admin-main{
   flex:1;
@@ -2672,15 +2703,18 @@ body.viewer-layout {
   flex-direction:column;
 }
 .admin-topbar{
-  background:#fff;
+  background:rgba(255,255,255,.85);
+  backdrop-filter:blur(10px) saturate(160%);
+  -webkit-backdrop-filter:blur(10px) saturate(160%);
   border-bottom:1px solid var(--line);
   padding:1.1rem 1.8rem;
   position:sticky;
   top:0;
-  z-index:5;
+  z-index:15;
   display:flex;
   align-items:center;
   gap:1rem;
+  box-shadow:0 4px 16px rgba(31,46,34,.04);
 }
 @keyframes adminNotifyIn{
   from{ opacity:0; transform:translateY(-6px); }
@@ -2694,16 +2728,16 @@ body.viewer-layout {
   margin:0;
 }
 .admin-content{
-  padding:1.6rem 1.8rem 3rem;
+  padding:1.7rem 1.8rem 3rem;
   max-width:1000px;
   width:100%;
 }
 .admin-panel-card{
   background:#fff;
   border:1px solid var(--line);
-  border-radius:14px;
-  padding:1.4rem 1.5rem 1.6rem;
-  box-shadow:0 2px 10px rgba(31,46,34,.04);
+  border-radius:18px;
+  padding:1.5rem 1.6rem 1.7rem;
+  box-shadow:0 10px 28px rgba(31,46,34,.06);
 }
 .admin-panel-heading{
   font-size:1.05rem;
@@ -2714,36 +2748,74 @@ body.viewer-layout {
   border-bottom:1px solid var(--line);
 }
 
+/* ---------- Tablet / phone (<=900px) ----------
+   Sidebar becomes a sticky, horizontally-scrollable pill strip — same
+   visual language as the segmented tabs on the student profile page. */
 @media (max-width:900px){
   .admin-shell{ flex-direction:column; }
   .admin-sidebar{
     width:100%;
     height:auto;
-    position:static;
+    position:sticky;
+    top:0;
+    z-index:30;
     flex-direction:row;
     align-items:center;
-    padding:.8rem 1rem;
-    gap:.8rem;
+    padding:.7rem .9rem;
+    gap:.7rem;
+    box-shadow:0 4px 16px rgba(31,46,34,.18);
   }
-  .admin-sidebar-top{ margin-bottom:0; }
+  .admin-sidebar-top{ margin-bottom:0; flex-shrink:0; }
+  .admin-sidebar-brand span{ display:none; }
   .admin-nav{
     flex-direction:row;
     flex-wrap:nowrap;
     overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
     flex:1;
+    gap:.3rem;
+    padding:.15rem;
+    background:rgba(0,0,0,.14);
+    border-radius:999px;
   }
-  .admin-nav-item{ white-space:nowrap; }
+  .admin-nav::-webkit-scrollbar{ display:none; }
+  .admin-nav-item{
+    white-space:nowrap;
+    flex:0 0 auto;
+    border-radius:999px;
+    padding:.5rem .7rem;
+  }
+  .admin-nav-item .admin-nav-icon{ width:24px; height:24px; background:none; }
+  .admin-nav-item.is-active{ box-shadow:none; }
+  .admin-nav-item.is-active .admin-nav-icon{ background:rgba(255,255,255,.16); }
+  .admin-nav-item--danger.is-active{ box-shadow:none; }
   .admin-nav-item span:not(.admin-nav-icon){ display:none; }
   .admin-sidebar-bottom{
     border-top:none;
-    border-left:1px solid rgba(255,255,255,.14);
+    border-left:1px solid rgba(255,255,255,.18);
     padding-top:0;
-    padding-left:1rem;
+    padding-left:.8rem;
     margin-top:0;
     flex-direction:row;
     align-items:center;
+    flex-shrink:0;
   }
   .admin-user-chip{ display:none; }
-  .admin-content{ padding:1.2rem 1rem 2.5rem; }
-  .admin-topbar{ padding:1rem 1.2rem; }
+  .admin-logout-btn{ padding:.5rem .65rem; font-size:1.05rem; }
+  .admin-content{ padding:1.2rem 1rem calc(2.5rem + env(safe-area-inset-bottom)); }
+  /* The pill nav strip above is already sticky at top:0 — stacking a
+     second sticky bar under it without offsetting "top" would make
+     them overlap once the page scrolls past the nav strip's height.
+     Simplest fix on mobile: let the topbar scroll normally. */
+  .admin-topbar{ position:static; padding:.9rem 1.1rem; }
+  .admin-topbar h1{ font-size:1.15rem; }
+  .admin-panel-card{ padding:1.2rem 1.1rem 1.4rem; border-radius:16px; }
+}
+
+@media (max-width:480px){
+  .admin-sidebar-brand{ font-size:.95rem; }
+  .admin-badge{ display:none; }
+  #admin-notify-bell{ font-size:.72rem !important; padding:.4rem .6rem !important; }
+  .admin-topbar h1{ font-size:1.05rem; }
 }
