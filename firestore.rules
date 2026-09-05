@@ -269,9 +269,13 @@ service cloud.firestore {
       // anonymous-but-registered visitors with no auth token, so they're
       // allowed as long as the write touches ONLY one counter field and
       // moves it by exactly +/-1 — never a moderation field (status),
-      // never the content, and never an arbitrary jump in count.
+      // never the content, and never an arbitrary jump in count. The
+      // likesCount branch also floors at 0 — an unlike can never push it
+      // negative, even from a client bug, so a bad "unlike" caps out at
+      // 0 instead of quietly going negative forever.
       allow update: if request.auth != null || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
+        request.resource.data.likesCount >= 0 &&
         (request.resource.data.likesCount == resource.data.likesCount + 1 ||
          request.resource.data.likesCount == resource.data.likesCount - 1)
       ) || (

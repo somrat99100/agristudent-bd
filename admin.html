@@ -107,6 +107,14 @@
         <p style="font-size:.82rem;color:var(--moss-600);margin-top:-.8rem;margin-bottom:1.2rem;">
           Every post is live on the public timeline the moment it's submitted (watermarked "Not verified"). Approving it just swaps the watermark for an "Approved" badge; rejecting it hides it from the public timeline. Deleting removes it everywhere, including its likes and comments.
         </p>
+        <div style="border:1px solid #e2b8b8;background:#fff5f5;border-radius:8px;padding:.9rem 1rem;margin-bottom:1.2rem;">
+          <strong style="font-size:.85rem;color:#8a3b3b;">⚠️ Reset all Love reactions</strong>
+          <p style="font-size:.78rem;color:#8a3b3b;margin:.35rem 0 .7rem;">
+            Clears every like a student has ever given (deletes all blogLikes records) and sets every post's like count back to 0, site-wide. Use this once to wipe out counts left over from a past bug — it cannot be undone.
+          </p>
+          <button type="button" id="reset-blog-reactions-btn" style="background:#c0392b;color:#fff;border:none;border-radius:6px;padding:.5rem .9rem;font-size:.8rem;font-weight:600;cursor:pointer;">Reset all reactions to 0</button>
+          <span id="reset-blog-reactions-status" style="font-size:.78rem;color:#8a3b3b;margin-left:.6rem;"></span>
+        </div>
         <div id="admin-blog-list"></div>
       </div>
 

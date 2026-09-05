@@ -629,6 +629,60 @@ function buildBlogRowHTML(id, item) {
     </div>`;
 }
 
+// ============================================
+// RESET ALL BLOG REACTIONS
+// ------------------------------------------------------------------
+// A past bug let an "unlike" fire for a like a student never actually
+// made (deleting nothing, but still decrementing likesCount), which
+// could leave counts wrong — including negative — for posts that were
+// affected before the underlying bug was fixed. There's no way to tell,
+// after the fact, which of the existing blogLikes docs are genuine and
+// which are left over from that bug, so the only clean way to guarantee
+// every count is trustworthy again is a full one-time wipe: delete
+// every blogLikes doc and zero out likesCount on every post. Going
+// forward, real reactions build the count back up correctly.
+// ============================================
+const resetReactionsBtn = document.getElementById("reset-blog-reactions-btn");
+const resetReactionsStatus = document.getElementById("reset-blog-reactions-status");
+
+resetReactionsBtn?.addEventListener("click", async () => {
+  if (!confirm("This deletes EVERY like on EVERY blog post and resets all like counts to 0. This cannot be undone. Continue?")) return;
+  resetReactionsBtn.disabled = true;
+  resetReactionsStatus.textContent = "Resetting…";
+  try {
+    const [likesSnap, postsSnap] = await Promise.all([
+      getDocs(collection(db, "blogLikes")),
+      getDocs(collection(db, "blogPosts"))
+    ]);
+
+    // Firestore batches cap out at 500 writes, so chunk both deletes and
+    // the likesCount resets into batches of 400 to stay well under that.
+    const allRefs = [
+      ...likesSnap.docs.map(d => ({ ref: d.ref, type: "delete" })),
+      ...postsSnap.docs
+        .filter(d => (d.data().likesCount || 0) !== 0)
+        .map(d => ({ ref: d.ref, type: "zero" }))
+    ];
+
+    for (let i = 0; i < allRefs.length; i += 400) {
+      const batch = writeBatch(db);
+      allRefs.slice(i, i + 400).forEach(({ ref, type }) => {
+        if (type === "delete") batch.delete(ref);
+        else batch.update(ref, { likesCount: 0 });
+      });
+      await batch.commit();
+    }
+
+    resetReactionsStatus.textContent = `Done — cleared ${likesSnap.size} like${likesSnap.size === 1 ? "" : "s"} across ${postsSnap.size} post${postsSnap.size === 1 ? "" : "s"}.`;
+    loadBlogPosts();
+  } catch (err) {
+    console.error("[AgriAdmin] reset all reactions failed:", err);
+    resetReactionsStatus.textContent = "Something went wrong — please try again.";
+  } finally {
+    resetReactionsBtn.disabled = false;
+  }
+});
+
 async function loadBlogPosts() {
   blogList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
   try {

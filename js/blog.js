@@ -255,7 +255,9 @@ function stopAllStatsListening() {
 function applyLiveStats(id, data) {
   document.querySelectorAll(`.blog-post-card[data-id="${id}"]`).forEach(card => {
     const stats = card.querySelector(".blog-post-stats");
-    if (stats && stats.children[0]) stats.children[0].textContent = `👁️ ${data.views || 0} views`;
+    // Views is intentionally NOT live-synced here (see bumpView below) —
+    // the number a visitor sees should stay put for their whole visit
+    // and only reflect the new total the next time they open the post.
     const likeCountEl = card.querySelector(".blog-like-count");
     if (likeCountEl) likeCountEl.textContent = `❤️ ${data.likesCount || 0}`;
     const commentCountEl = card.querySelector(".blog-comment-count");
@@ -1585,15 +1587,16 @@ function renderPostCard(id, item) {
   // teardown path (view counted, resetFeed, post deleted) removes the
   // post's entry so a genuinely fresh render can track it again.
   // ============================================
+  // Deliberately silent: this only writes the new total to Firestore.
+  // It does NOT touch the on-screen number — the visitor keeps seeing
+  // the count that was there when the page loaded, with no live
+  // "0 → 1" jump while they're reading. The new total shows up the
+  // next time this post is opened (a fresh page load re-reads views
+  // from Firestore), which is exactly where the increment should be
+  // visible, not mid-read.
   async function bumpView() {
     try {
       await updateDoc(doc(db, "blogPosts", id), { views: increment(1) });
-      // Update every rendered copy of this post's counter (pinned + feed
-      // can both be showing it at once), not just the one that triggered it.
-      document.querySelectorAll(`.blog-post-card[data-id="${id}"] .blog-post-stats span:first-child`).forEach(el => {
-        const currentViews = parseInt(el.textContent) || 0;
-        el.textContent = `👁️ ${currentViews + 1} views`;
-      });
     } catch (err) {
       // A permission-denied error here almost always means the
       // firestore.rules views-increment rule hasn't been published to
