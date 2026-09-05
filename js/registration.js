@@ -1,10 +1,9 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
-import { initEmailNotifications, sendOtpEmail, sendCredentialsEmail } from "./email-config.js";
+import { initEmailNotifications, sendOtpEmail } from "./email-config.js";
 import { startOtp, verifyOtp, resendCooldownRemaining, clearOtp } from "./otp.js";
 import { saveSession } from "./session.js";
-import { hashPassword, isPasswordValid } from "./password.js";
 
 initEmailNotifications();
 
@@ -24,17 +23,6 @@ const otpVerifyBtn = document.getElementById("otp-verify-btn");
 const otpStatus = document.getElementById("otp-status");
 const otpBackBtn = document.getElementById("otp-back-btn");
 const otpResendBtn = document.getElementById("otp-resend-btn");
-
-const passwordPanel = document.getElementById("password-panel");
-const newPasswordInput = document.getElementById("new-password");
-const newPasswordConfirmInput = document.getElementById("new-password-confirm");
-const passwordSubmitBtn = document.getElementById("password-submit-btn");
-const passwordStatus = document.getElementById("password-status");
-
-const credentialsPanel = document.getElementById("credentials-panel");
-const credentialsIdEl = document.getElementById("credentials-id");
-const credentialsPassEl = document.getElementById("credentials-pass");
-const credentialsRedirectMsg = document.getElementById("credentials-redirect-msg");
 
 // Holds the validated form data (and file) between "send code" and
 // "verify code" — nothing is written to Firestore/Cloudinary until the
@@ -67,20 +55,6 @@ function showStatus(message, isError = false) {
 function showOtpStatus(message, isError = false) {
   otpStatus.textContent = message;
   otpStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-}
-
-function showPasswordStatus(message, isError = false) {
-  passwordStatus.textContent = message;
-  passwordStatus.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
-}
-
-function showPasswordStep() {
-  otpPanel.classList.add("hidden");
-  passwordPanel.classList.remove("hidden");
-  newPasswordInput.value = "";
-  newPasswordConfirmInput.value = "";
-  showPasswordStatus("");
-  newPasswordInput.focus();
 }
 
 function uploadToCloudinary(file, onProgress) {
@@ -257,49 +231,18 @@ otpVerifyBtn.addEventListener("click", async () => {
   }
 
   otpVerifyBtn.disabled = true;
-  otpVerifyBtn.textContent = "Uploading…";
+  otpVerifyBtn.textContent = "Creating account…";
+  showOtpStatus("Verified! Creating your account…");
 
   try {
-    if (pending.idFile && !pending.studentIdUrl) {
+    const { fullName, email, gender, studentIdNumber, idFile } = pending;
+
+    let studentIdUrl = null;
+    if (idFile) {
       showOtpStatus("Uploading Student ID photo…");
-      pending.studentIdUrl = await uploadToCloudinary(pending.idFile, () => {});
+      studentIdUrl = await uploadToCloudinary(idFile, () => {});
     }
-    clearOtp();
-    showPasswordStep();
-  } catch (err) {
-    console.error(err);
-    showOtpStatus("Something went wrong uploading your ID photo. (" + err.message + ")", true);
-  } finally {
-    otpVerifyBtn.disabled = false;
-    otpVerifyBtn.textContent = "Verify & Create Account";
-  }
-});
-
-// ============================================
-// STEP 3 — set a password, create the account + auto-login
-// ============================================
-passwordSubmitBtn.addEventListener("click", async () => {
-  if (!pending) { showFormStep(); return; }
-
-  const password = newPasswordInput.value;
-  const confirm = newPasswordConfirmInput.value;
-
-  if (!isPasswordValid(password)) {
-    showPasswordStatus("Password must be at least 6 characters.", true);
-    return;
-  }
-  if (password !== confirm) {
-    showPasswordStatus("Passwords don't match.", true);
-    return;
-  }
-
-  passwordSubmitBtn.disabled = true;
-  passwordSubmitBtn.textContent = "Creating account…";
-  showPasswordStatus("Saving your registration…");
-
-  try {
-    const { fullName, email, gender, studentIdNumber, studentIdUrl } = pending;
-    const passwordHash = await hashPassword(password, email);
+    showOtpStatus("Saving your registration…");
 
     const docData = {
       fullName,
@@ -309,12 +252,12 @@ passwordSubmitBtn.addEventListener("click", async () => {
       studentIdNumber,
       status: "verified", // OTP verification is the only registration approval step now
       emailVerified: true,
-      passwordHash,
       submittedAt: serverTimestamp()
     };
     if (studentIdUrl) docData.studentIdUrl = studentIdUrl;
 
     const docRef = await addDoc(collection(db, "registrations"), docData);
+    clearOtp();
 
     // Auto-login: the email is confirmed, so start the session right away
     // instead of sending the student to log in manually.
@@ -328,26 +271,20 @@ passwordSubmitBtn.addEventListener("click", async () => {
       status: docData.status
     });
 
-    // Fire-and-forget — the student sees the same ID + password on screen
-    // below either way, so a slow/failed email never blocks anything here.
-    sendCredentialsEmail({ toEmail: email, toName: fullName, studentId: studentIdNumber, password });
-
-    passwordPanel.classList.add("hidden");
-    credentialsPanel.classList.remove("hidden");
-    credentialsIdEl.textContent = studentIdNumber;
-    credentialsPassEl.textContent = password;
-    credentialsRedirectMsg.textContent = "Taking you to your profile…";
+    otpPanel.classList.add("hidden");
+    successBox.classList.remove("hidden");
+    document.getElementById("form-success-msg").textContent = "Email verified — logging you in…";
 
     setTimeout(() => {
       const returnTo = new URLSearchParams(window.location.search).get("return");
       window.location.href = (returnTo && !returnTo.includes("://")) ? returnTo : "profile.html";
-    }, 4000);
+    }, 900);
   } catch (err) {
     console.error(err);
-    showPasswordStatus("Something went wrong creating your account. (" + err.message + ")", true);
+    showOtpStatus("Something went wrong creating your account. (" + err.message + ")", true);
   } finally {
-    passwordSubmitBtn.disabled = false;
-    passwordSubmitBtn.textContent = "Save Password & Finish";
+    otpVerifyBtn.disabled = false;
+    otpVerifyBtn.textContent = "Verify & Create Account";
   }
 });
 
