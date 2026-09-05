@@ -5,7 +5,7 @@
 import { db, CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./firebase-config.js";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
-  query, orderBy, limit, startAfter, getDocs, where, serverTimestamp, increment
+  query, orderBy, limit, startAfter, getDocs, where, serverTimestamp, increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession } from "./session.js";
@@ -241,6 +241,64 @@ function stopAllViewTracking() {
     if (tracker.observer) tracker.observer.disconnect();
   });
   activeViewTrackers.clear();
+}
+
+// ============================================
+// LIVE STATS SYNC (views / likes / comments / shares)
+// ------------------------------------------------------------------
+// FIX — reactions looked "stuck": the feed only ever fetched each post's
+// counters ONCE, the moment the page loaded (a plain getDocs call, not a
+// live listener). So if you kept a tab open and watched it while a
+// DIFFERENT, genuinely distinct student reacted from their own device,
+// your screen never found out — the write went through and Firestore's
+// number really did go up, you just weren't subscribed to hear about it.
+// Two people testing on two screens at once will always look "capped at
+// N" under a one-time-fetch model, no matter how high N actually is.
+//
+// Fix: each rendered post subscribes to a live onSnapshot() listener on
+// its OWN blogPosts/{id} document (one listener per unique post id on
+// screen, not per DOM node — a post can be rendered twice at once, as a
+// pinned deep link + its normal feed slot). Every time ANY user's
+// like/view/comment/share write lands, every open browser with that
+// post visible updates its numbers immediately, and every rendered copy
+// of that same post (pinned + feed) is kept in sync together — matching
+// the same "update every copy" approach bumpView already used for views.
+// ============================================
+const activeStatsListeners = new Map();
+
+function stopStatsListening(id) {
+  const unsub = activeStatsListeners.get(id);
+  if (!unsub) return;
+  unsub();
+  activeStatsListeners.delete(id);
+}
+
+function stopAllStatsListening() {
+  activeStatsListeners.forEach(unsub => unsub());
+  activeStatsListeners.clear();
+}
+
+function applyLiveStats(id, data) {
+  document.querySelectorAll(`.blog-post-card[data-id="${id}"]`).forEach(card => {
+    const stats = card.querySelector(".blog-post-stats");
+    if (stats && stats.children[0]) stats.children[0].textContent = `👁️ ${data.views || 0} views`;
+    const likeCountEl = card.querySelector(".blog-like-count");
+    if (likeCountEl) likeCountEl.textContent = `❤️ ${data.likesCount || 0}`;
+    const commentCountEl = card.querySelector(".blog-comment-count");
+    if (commentCountEl) commentCountEl.textContent = `💬 ${data.commentsCount || 0}`;
+    if (stats && stats.children[3]) stats.children[3].textContent = `↗️ ${data.sharesCount || 0}`;
+  });
+}
+
+function subscribeToLiveStats(id) {
+  if (activeStatsListeners.has(id)) return; // already listening for this post — every DOM copy is updated by applyLiveStats anyway
+  const unsub = onSnapshot(doc(db, "blogPosts", id), (snap) => {
+    if (!snap.exists()) return;
+    applyLiveStats(id, snap.data());
+  }, (err) => {
+    console.error("[Blog] live stats listener failed:", err);
+  });
+  activeStatsListeners.set(id, unsub);
 }
 
 // ============================================
@@ -1479,6 +1537,7 @@ function renderPostCard(id, item) {
 
   wirePostCard(article, id, item);
   wireSeeMore(article.querySelector(".blog-post-body"), item);
+  subscribeToLiveStats(id);
 
   // ============================================
   // VIEW TRACKING
@@ -1598,6 +1657,7 @@ function wirePostCard(article, id, item) {
     }
     deleteDoc(doc(db, "blogPosts", id)).then(() => {
       stopViewTracking(id);
+      stopStatsListening(id);
       article.remove();
       // Show success message
       alert("Post deleted successfully");
@@ -1768,6 +1828,7 @@ function resetFeed() {
   // they're watching — otherwise their setTimeout callbacks still fire
   // later against detached elements and can double-count a view.
   stopAllViewTracking();
+  stopAllStatsListening();
   blogFeed.innerHTML = "";
   lastDoc = null;
   feedDone = false;
