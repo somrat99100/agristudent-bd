@@ -273,7 +273,7 @@ function renderPasswordSection(regId, reg) {
 
       newPasswordInput.value = "";
       confirmInput.value = "";
-      showPwStatus("✅ Password saved. From now on, log in with your Student ID + this password (your email will no longer work for login).");
+      showPwStatus("✅ Password saved. Use your Student ID + this password next time you log in.");
       noPasswordBlock.classList.add("hidden");
       hasPasswordBlock.classList.remove("hidden");
     } catch (err) {

@@ -119,6 +119,36 @@
       </div>
     </div>
 
+    <div id="password-panel" class="uc-panel hidden" style="border-color:var(--moss-600);">
+      <h3 style="margin-bottom:.4rem;">🔑 Set up a password</h3>
+      <p style="color:var(--moss-600);font-size:.92rem;margin-bottom:1rem;">
+        Your email is verified! Set a password now so you can log in next time with your Student ID and password.
+      </p>
+
+      <label for="new-password" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">Password (min. 6 characters)</label>
+      <input type="password" id="new-password" autocomplete="new-password" minlength="6"
+        style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;margin-bottom:.9rem;">
+
+      <label for="new-password-confirm" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">Confirm password</label>
+      <input type="password" id="new-password-confirm" autocomplete="new-password" minlength="6"
+        style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;margin-bottom:1rem;">
+
+      <button type="button" id="password-submit-btn" style="width:100%;background:var(--moss-700);color:#fff;border:none;padding:.85rem;border-radius:8px;font-weight:600;font-size:1rem;cursor:pointer;">Save Password &amp; Finish</button>
+
+      <div id="password-status" style="margin-top:.8rem;font-size:.9rem;min-height:1.2em;"></div>
+    </div>
+
+    <div id="credentials-panel" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
+      <span class="badge" style="background:var(--leaf-500);">✅ Account Created</span>
+      <h3>Save your login details</h3>
+      <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;">Use these to log in next time. We've also emailed a copy to you.</p>
+      <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:1rem;font-family:var(--font-mono,monospace);font-size:.92rem;line-height:1.9;">
+        Your ID: <strong id="credentials-id"></strong><br>
+        Your pass: <strong id="credentials-pass"></strong>
+      </div>
+      <p id="credentials-redirect-msg" style="margin-top:1rem;color:var(--moss-600);font-size:.88rem;"></p>
+    </div>
+
     <div id="form-success" class="uc-panel hidden" style="border-color:var(--leaf-500);background:rgba(107,155,94,.06);">
       <span class="badge" style="background:var(--leaf-500);">✅ Verified</span>
       <h3>You're in!</h3>
