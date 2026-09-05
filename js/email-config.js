@@ -52,6 +52,22 @@ export const EMAILJS_PUBLIC_KEY  = "led7de4ijLLGq675b";
 export const EMAILJS_SERVICE_ID  = "service_6ys3bsi";
 export const EMAILJS_TEMPLATE_ID = "template_5eytdmh";
 export const EMAILJS_OTP_TEMPLATE_ID = "template_1lbd1pu";
+// ------------------------------------------------------------------
+// LOGIN CREDENTIALS EMAIL (new account, or a password set/reset)
+// ------------------------------------------------------------------
+// Same service, its own template (~2 minutes to set up):
+//   1. Email Templates → Create New Template. Use these variables:
+//        {{to_email}}    — recipient address
+//        {{to_name}}     — student's name
+//        {{student_id}}  — their Student ID (used to log in)
+//        {{password}}    — the password they just set, in plain text
+//        {{site_name}}   — "Agri Core"
+//      Set "To email" to {{to_email}}.
+//   2. Copy that template's "Template ID" and paste it below.
+// Until this is filled in, the credentials email is silently skipped —
+// account creation / password setup still succeeds either way, since the
+// student is also shown their ID + password on screen.
+export const EMAILJS_CREDENTIALS_TEMPLATE_ID = "YOUR_CREDENTIALS_TEMPLATE_ID";
 // NOTE: "Send Us Classroom Code" (resources.html) no longer emails anything —
 // it saves straight to Firestore's "classroomCodes" collection and shows up
 // in the admin panel's "Classroom Codes" tab (see js/resources.js + js/admin.js).
@@ -165,6 +181,20 @@ export function isOtpEmailReady() {
   return emailjsReady && !!EMAILJS_OTP_TEMPLATE_ID && !EMAILJS_OTP_TEMPLATE_ID.startsWith("YOUR_");
 }
 
+// EmailJS rejects its send() promise with a plain {status, text} object,
+// NOT a real Error — it has no .message property at all. Every caller
+// that did `err.message` on that rejection got `undefined`, which is
+// exactly why registration used to show "Couldn't send the verification
+// code. (undefined)" on every real failure instead of a useful reason.
+// This pulls the actual reason out of whichever shape the failure is in.
+function describeEmailError(err) {
+  if (!err) return "Unknown email error";
+  if (typeof err === "string") return err;
+  if (err.text) return err.text;       // EmailJS's real error shape
+  if (err.message) return err.message; // a genuine Error (e.g. thrown above)
+  try { return JSON.stringify(err); } catch { return "Unknown email error"; }
+}
+
 /**
  * Sends the registration OTP code. Unlike sendReviewEmail, this THROWS on
  * failure — registration.js relies on that to stop the flow and show the
@@ -174,10 +204,41 @@ export async function sendOtpEmail({ toEmail, toName, otpCode }) {
   if (!isOtpEmailReady()) {
     throw new Error("Email verification isn't set up yet. Please contact the site admin.");
   }
-  await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
-    to_email: toEmail,
-    to_name: toName || "",
-    otp_code: otpCode,
-    site_name: "Agri Core"
-  });
+  try {
+    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
+      to_email: toEmail,
+      to_name: toName || "",
+      otp_code: otpCode,
+      site_name: "Agri Core"
+    });
+  } catch (err) {
+    throw new Error(describeEmailError(err));
+  }
+}
+
+/** Whether the login-credentials email template has been configured. */
+export function isCredentialsEmailReady() {
+  return emailjsReady && !!EMAILJS_CREDENTIALS_TEMPLATE_ID && !EMAILJS_CREDENTIALS_TEMPLATE_ID.startsWith("YOUR_");
+}
+
+/**
+ * Emails a student their Student ID + the password they just set (new
+ * registration, or setting/resetting a password on an existing account).
+ * Fire-and-forget, like sendReviewEmail: a missing/failed credentials
+ * email must never block account creation or password setup, since the
+ * student is also shown the same ID + password on screen either way.
+ */
+export async function sendCredentialsEmail({ toEmail, toName, studentId, password }) {
+  if (!isCredentialsEmailReady() || !toEmail) return;
+  try {
+    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CREDENTIALS_TEMPLATE_ID, {
+      to_email: toEmail,
+      to_name: toName || "",
+      student_id: studentId || "",
+      password: password || "",
+      site_name: "Agri Core"
+    });
+  } catch (err) {
+    console.error("[Email] Failed to send credentials email:", describeEmailError(err));
+  }
 }

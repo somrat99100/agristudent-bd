@@ -1788,16 +1788,19 @@ footer{
 /* ============================================
    DOCUMENT VIEWER (Premium Editorial & 3D Book)
    ============================================ */
-/* NOTE on height: every dvh usage below is preceded by a vh fallback.
-   Some Android WebViews (older in-app browsers, budget-phone browsers)
-   don't support dvh — an unsupported value is dropped entirely, so the
-   vh line just before it keeps applying. Without this fallback those
-   browsers get an unconstrained/zero-height viewer and the bottom
-   controls (prev/next) can end up squashed out of view. */
+/* NOTE on height: every dvh usage below is preceded by a vh fallback, and
+   followed by --agri-vh (set by the inline script in view.html from the
+   real window.innerHeight — the only value that's reliably correct across
+   mobile browsers/in-app webviews, including ones that get 100vh/100dvh
+   wrong). Declaration order matters: vh first (universal baseline), dvh
+   second (better on browsers that support it), --agri-vh last so it wins
+   everywhere JS has run — without this last one, the bottom controls
+   (prev/next/page) can end up pushed off-screen or squashed out of view. */
 body.viewer-layout {
   margin: 0; padding: 0;
   height: 100vh;
   height: 100dvh;
+  height: calc(var(--agri-vh, 1vh) * 100);
   overflow: hidden;
   background: var(--moss-900);
   -webkit-touch-callout: none;
@@ -1869,6 +1872,7 @@ body.viewer-layout {
 .viewer-bg {
   height: calc(100vh - 60px);
   height: calc(100dvh - 60px);
+  height: calc((var(--agri-vh, 1vh) * 100) - 60px);
   min-height: 0;
   background:
     radial-gradient(circle at 50% 0%, rgba(107,155,94,0.06), transparent 60%),
@@ -2067,7 +2071,7 @@ body.viewer-layout {
 
 /* --- Mobile Polish --- */
 @media (max-width: 700px) {
-  .viewer-bg { padding: 0.5rem; height: calc(100vh - 54px); height: calc(100dvh - 54px); }
+  .viewer-bg { padding: 0.5rem; height: calc(100vh - 54px); height: calc(100dvh - 54px); height: calc((var(--agri-vh, 1vh) * 100) - 54px); }
   .viewer-bar { height: 54px; padding: 0 0.8rem; gap: 0.4rem; }
   .viewer-bar .title { display: none; }
   .viewer-controls { padding: 0.25rem 0.4rem; gap: 0.25rem; }

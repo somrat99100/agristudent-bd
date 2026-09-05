@@ -6,6 +6,30 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob: https://www.gstatic.com https://cdnjs.cloudflare.com https://www.googletagmanager.com; worker-src blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://res.cloudinary.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://api.cloudinary.com https://res.cloudinary.com; frame-src https://view.officeapps.live.com; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<script>
+// ROBUST MOBILE VIEWPORT HEIGHT FIX
+// 100vh and 100dvh are both unreliable across the mobile browsers/in-app
+// webviews (Facebook, WhatsApp, budget-phone browsers) students actually
+// open shared links in: 100vh is often the LARGEST possible height (as if
+// the address bar were already hidden), and 100dvh is silently ignored on
+// older WebViews. Either way the page renders taller than what's actually
+// visible, so the bottom of the viewer (Prev/Next/page controls) gets
+// pushed off-screen. This computes the REAL visible height from
+// window.innerHeight (which every browser reports correctly) and exposes
+// it as a CSS variable that css/style.css uses instead, kept in sync on
+// resize/orientation change/on-screen-keyboard and address-bar show/hide.
+(function () {
+  function setViewerVH() {
+    document.documentElement.style.setProperty("--agri-vh", (window.innerHeight * 0.01) + "px");
+  }
+  setViewerVH();
+  window.addEventListener("resize", setViewerVH);
+  window.addEventListener("orientationchange", setViewerVH);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", setViewerVH);
+  }
+})();
+</script>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="manifest" href="manifest.json">
 <title>Viewing Resource — Agri Core</title>

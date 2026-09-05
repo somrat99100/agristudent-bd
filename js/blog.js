@@ -219,6 +219,30 @@ function markViewed(id) {
   }
 }
 
+// Page-wide registry of the ONE active dwell-timer/observer pair per post
+// id (see the long comment inside renderPostCard for why this exists —
+// short version: prevents a single real view from bumping the Firestore
+// counter more than once when the same post is rendered in more than one
+// place, or a feed reset leaves an old tracker running against a
+// now-removed DOM node).
+const activeViewTrackers = new Map();
+
+function stopViewTracking(id) {
+  const tracker = activeViewTrackers.get(id);
+  if (!tracker) return;
+  if (tracker.timer) clearTimeout(tracker.timer);
+  if (tracker.observer) tracker.observer.disconnect();
+  activeViewTrackers.delete(id);
+}
+
+function stopAllViewTracking() {
+  activeViewTrackers.forEach((tracker) => {
+    if (tracker.timer) clearTimeout(tracker.timer);
+    if (tracker.observer) tracker.observer.disconnect();
+  });
+  activeViewTrackers.clear();
+}
+
 // ============================================
 // PENDING IMAGES ARRAY (for composer preview)
 // ============================================
@@ -1420,17 +1444,31 @@ function renderPostCard(id, item) {
   // (localStorage, so it survives a refresh) — but only for 24 hours.
   // Coming back to the same post after 24 hours counts as a fresh view
   // again, same as a brand-new visitor.
+  //
+  // FIX — double counting: the same post can be rendered in more than one
+  // DOM node at once (a "📌 Shared post" pinned copy from a ?post=ID deep
+  // link, sitting right above that same post's normal spot in the feed
+  // below it — see loadDeepLinkedPost()), or a stale copy can be left
+  // running after resetFeed() wipes the feed and reloads it. Each render
+  // used to start its own independent 5s timer + IntersectionObserver, so
+  // one real visit could bump the Firestore counter two or more times.
+  // activeViewTrackers is a page-wide registry (module scope, shared by
+  // every renderPostCard call) that guarantees at most ONE dwell timer /
+  // observer is ever running for a given post id at a time — like a
+  // singleton effect keyed by id instead of by DOM node, the way a
+  // well-behaved React effect keyed on post id would dedupe this. Every
+  // teardown path (view counted, resetFeed, post deleted) removes the
+  // post's entry so a genuinely fresh render can track it again.
   // ============================================
-  let dwellTimer = null;
-
   async function bumpView() {
     try {
       await updateDoc(doc(db, "blogPosts", id), { views: increment(1) });
-      const el = article.querySelector(".blog-post-stats span");
-      if (el) {
+      // Update every rendered copy of this post's counter (pinned + feed
+      // can both be showing it at once), not just the one that triggered it.
+      document.querySelectorAll(`.blog-post-card[data-id="${id}"] .blog-post-stats span:first-child`).forEach(el => {
         const currentViews = parseInt(el.textContent) || 0;
         el.textContent = `👁️ ${currentViews + 1} views`;
-      }
+      });
     } catch (err) {
       // A permission-denied error here almost always means the
       // firestore.rules views-increment rule hasn't been published to
@@ -1440,30 +1478,37 @@ function renderPostCard(id, item) {
     }
   }
 
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (hasRecentView(id)) {
-        io.disconnect(); // already counted from this browser within the last 24h
-        return;
-      }
-      if (entry.isIntersecting) {
-        if (dwellTimer) return; // already counting down for this viewing session
-        dwellTimer = setTimeout(() => {
-          dwellTimer = null;
-          markViewed(id);
-          bumpView();
-          io.disconnect();
-        }, 5000);
-      } else if (dwellTimer) {
-        // Left the post before 5s of continuous viewing — doesn't count;
-        // timer restarts fresh if it comes back into view.
-        clearTimeout(dwellTimer);
-        dwellTimer = null;
-      }
-    });
-  }, { threshold: 0.5 });
+  if (!hasRecentView(id)) {
+    stopViewTracking(id); // tear down any earlier tracker for this same post id
 
-  io.observe(article);
+    const tracker = { timer: null, observer: null };
+    activeViewTrackers.set(id, tracker);
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (hasRecentView(id)) {
+          stopViewTracking(id); // already counted from this browser within the last 24h
+          return;
+        }
+        if (entry.isIntersecting) {
+          if (tracker.timer) return; // already counting down for this viewing session
+          tracker.timer = setTimeout(() => {
+            markViewed(id);
+            bumpView();
+            stopViewTracking(id);
+          }, 5000);
+        } else if (tracker.timer) {
+          // Left the post before 5s of continuous viewing — doesn't count;
+          // timer restarts fresh if it comes back into view.
+          clearTimeout(tracker.timer);
+          tracker.timer = null;
+        }
+      });
+    }, { threshold: 0.5 });
+
+    tracker.observer = io;
+    io.observe(article);
+  }
 
   return article;
 }
@@ -1506,6 +1551,7 @@ function wirePostCard(article, id, item) {
       return;
     }
     deleteDoc(doc(db, "blogPosts", id)).then(() => {
+      stopViewTracking(id);
       article.remove();
       // Show success message
       alert("Post deleted successfully");
@@ -1672,6 +1718,10 @@ let lastDoc = null;
 let feedDone = false;
 
 function resetFeed() {
+  // Tear down every in-flight view tracker before wiping the DOM nodes
+  // they're watching — otherwise their setTimeout callbacks still fire
+  // later against detached elements and can double-count a view.
+  stopAllViewTracking();
   blogFeed.innerHTML = "";
   lastDoc = null;
   feedDone = false;

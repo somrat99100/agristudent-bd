@@ -220,6 +220,26 @@
         </div>
       </div>
 
+      <div class="profile-section">
+        <div class="profile-section-head"><h2>🔑 Login Password</h2></div>
+        <div id="password-section-no-password" class="hidden">
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;">You don't have a password set up yet — set one now so you can log in next time with your Student ID and password.</p>
+        </div>
+        <div id="password-section-has-password" class="hidden">
+          <p style="color:var(--moss-600);font-size:.9rem;margin-bottom:1rem;">Change the password you use to log in.</p>
+        </div>
+        <div style="max-width:360px;">
+          <label for="profile-new-password" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">New password (min. 6 characters)</label>
+          <input type="password" id="profile-new-password" autocomplete="new-password" minlength="6"
+            style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;margin-bottom:.9rem;">
+          <label for="profile-new-password-confirm" style="display:block;font-weight:600;margin-bottom:.3rem;font-size:.9rem;">Confirm new password</label>
+          <input type="password" id="profile-new-password-confirm" autocomplete="new-password" minlength="6"
+            style="width:100%;padding:.7rem .9rem;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:.95rem;margin-bottom:1rem;">
+          <button type="button" id="profile-password-submit-btn" style="background:var(--moss-700);color:#fff;border:none;padding:.7rem 1.4rem;border-radius:8px;font-weight:600;font-size:.95rem;cursor:pointer;">Save Password</button>
+          <div id="profile-password-status" style="margin-top:.8rem;font-size:.9rem;min-height:1.2em;"></div>
+        </div>
+      </div>
+
       <button type="button" id="profile-logout-btn" style="margin-top:2rem;background:none;border:1px solid var(--line);color:var(--terracotta-500);padding:.7rem 1.4rem;border-radius:8px;font-weight:600;cursor:pointer;">Log Out</button>
     </div>
 

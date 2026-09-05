@@ -4,7 +4,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeEmail } from "./identity.js";
 import { getSession, saveSession, clearSession } from "./session.js";
-import { initEmailNotifications } from "./email-config.js";
+import { initEmailNotifications, sendCredentialsEmail } from "./email-config.js";
+import { hashPassword, isPasswordValid } from "./password.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
 
 initEmailNotifications();
@@ -156,6 +157,7 @@ async function init() {
     });
 
     renderIdentity(reg);
+    renderPasswordSection(session.regId, reg);
 
     // Each section loads independently — a failure in one (e.g. a blocked
     // Firestore query for blog posts) no longer blanks out the whole page.
@@ -215,6 +217,73 @@ function renderIdentity(reg) {
   } else {
     note.classList.add("hidden");
   }
+}
+
+// ============================================
+// LOGIN PASSWORD SECTION
+// Shows a "set up a password" prompt for legacy accounts that were
+// created before password login existed (no passwordHash yet), or a
+// plain "change password" form for accounts that already have one.
+// ============================================
+function renderPasswordSection(regId, reg) {
+  const noPasswordBlock = document.getElementById("password-section-no-password");
+  const hasPasswordBlock = document.getElementById("password-section-has-password");
+  const hasPassword = !!reg.passwordHash;
+  noPasswordBlock.classList.toggle("hidden", hasPassword);
+  hasPasswordBlock.classList.toggle("hidden", !hasPassword);
+
+  const submitBtn = document.getElementById("profile-password-submit-btn");
+  const statusEl = document.getElementById("profile-password-status");
+  const newPasswordInput = document.getElementById("profile-new-password");
+  const confirmInput = document.getElementById("profile-new-password-confirm");
+
+  function showPwStatus(msg, isError = false) {
+    statusEl.textContent = msg;
+    statusEl.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  }
+
+  // Cloned to strip any listener left over from a previous init() call
+  // (e.g. the retry button re-running init()) so clicks never double-fire.
+  const freshBtn = submitBtn.cloneNode(true);
+  submitBtn.replaceWith(freshBtn);
+
+  freshBtn.addEventListener("click", async () => {
+    const password = newPasswordInput.value;
+    const confirm = confirmInput.value;
+
+    if (!isPasswordValid(password)) {
+      showPwStatus("Password must be at least 6 characters.", true);
+      return;
+    }
+    if (password !== confirm) {
+      showPwStatus("Passwords don't match.", true);
+      return;
+    }
+
+    freshBtn.disabled = true;
+    freshBtn.textContent = "Saving…";
+    showPwStatus("Saving your password…");
+
+    try {
+      const passwordHash = await hashPassword(password, reg.email);
+      await updateDoc(doc(db, "registrations", regId), { passwordHash });
+      reg.passwordHash = passwordHash;
+
+      sendCredentialsEmail({ toEmail: reg.email, toName: reg.fullName, studentId: reg.studentIdNumber, password });
+
+      newPasswordInput.value = "";
+      confirmInput.value = "";
+      showPwStatus("✅ Password saved. Use your Student ID + this password next time you log in.");
+      noPasswordBlock.classList.add("hidden");
+      hasPasswordBlock.classList.remove("hidden");
+    } catch (err) {
+      console.error("[Profile] failed to save password:", err);
+      showPwStatus("Something went wrong saving your password. (" + err.message + ")", true);
+    } finally {
+      freshBtn.disabled = false;
+      freshBtn.textContent = "Save Password";
+    }
+  });
 }
 
 async function renderCredits(email, fullName) {

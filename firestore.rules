@@ -32,17 +32,25 @@ service cloud.firestore {
       allow get: if true;
 
       // Admin panel only (js/admin.js approve/reject + generic edit modal),
-      // OR a student updating just their own profile photo. Students never
-      // hold a Firebase Auth session (same trust model as the rest of this
-      // file), so this can't verify "your own" doc beyond knowing its ID —
-      // consistent with the public-write-with-field-validation model used
-      // for blogPosts/resources elsewhere in this file. Scoped tightly so
-      // it can ONLY ever touch the avatarUrl field, and only to a real
-      // Cloudinary URL, never anything else on the record.
+      // OR a student updating just their own profile photo, OR a student
+      // setting/resetting their own login password (js/login.js reset flow,
+      // js/profile.js password section). Students never hold a Firebase
+      // Auth session (same trust model as the rest of this file), so this
+      // can't verify "your own" doc beyond knowing its ID — consistent
+      // with the public-write-with-field-validation model used for
+      // blogPosts/resources elsewhere in this file. Each branch is scoped
+      // tightly so it can ONLY ever touch its one field, with the shape
+      // that field must have (a real Cloudinary URL, or a 64-character
+      // SHA-256 hex hash — never the plaintext password itself, which
+      // never travels to Firestore at all).
       allow update: if request.auth != null || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatarUrl']) &&
         request.resource.data.avatarUrl is string &&
         request.resource.data.avatarUrl.matches('^https://res[.]cloudinary[.]com/.*')
+      ) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passwordHash']) &&
+        request.resource.data.passwordHash is string &&
+        request.resource.data.passwordHash.size() == 64
       );
       allow delete: if request.auth != null;
     }
