@@ -627,6 +627,8 @@ async function renderInbox(regId) {
     }
   };
 }
+
+const logoutBtn = document.getElementById("profile-logout-btn");
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
     clearSession();
