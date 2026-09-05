@@ -9,6 +9,7 @@ import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { computeResourceAccessStatus } from "./access.js";
 import { initAdminNotifications, stopAdminNotifications, initAdminNotifyBell, clearAdminNotifyBadge } from "./admin-notify.js";
+import { sendNotificationToStudent, fetchNotificationHistory } from "./notifications.js";
 
 initEmailNotifications();
 
@@ -131,6 +132,7 @@ async function deleteUserFully(regId, email) {
     deleteDocsByField("terms", "uploaderEmail", normalized),
     deleteDocsByField("blogPosts", "authorEmail", normalized),
     deleteDocsByField("classroomCodes", "fromEmail", normalized),
+    deleteDocsByField("coffeeUnlocks", "fromEmail", normalized),
     deleteDocsByField("messages", "fromEmail", normalized)
   ]);
   await deleteDoc(doc(db, "registrations", regId));
@@ -288,8 +290,10 @@ const timelineList = document.getElementById("admin-timeline-list");
 const regList = document.getElementById("admin-registrations-list");
 const msgList = document.getElementById("admin-messages-list");
 const classroomCodesList = document.getElementById("admin-classroom-codes-list");
+const coffeeUnlocksList = document.getElementById("admin-coffee-unlocks-list");
 const adUnlocksList = document.getElementById("admin-ad-unlocks-list");
 const blogList = document.getElementById("admin-blog-list");
+const notificationsList = document.getElementById("admin-notifications-list");
 
 // Caches of last-loaded docs, keyed by id — used to populate the "Edit any content" modal
 // without a second round-trip to Firestore.
@@ -306,7 +310,9 @@ const tabs = {
   timeline: { btn: document.getElementById("tab-timeline"), panel: document.getElementById("timeline-panel"), load: loadTimeline },
   registrations: { btn: document.getElementById("tab-registrations"), panel: document.getElementById("registrations-panel"), load: loadRegistrations },
   messages: { btn: document.getElementById("tab-messages"), panel: document.getElementById("messages-panel"), load: loadMessages },
+  notify: { btn: document.getElementById("tab-notify"), panel: document.getElementById("notify-panel"), load: loadNotifyTab },
   classroomCodes: { btn: document.getElementById("tab-classroom-codes"), panel: document.getElementById("classroom-codes-panel"), load: loadClassroomCodes },
+  coffeeUnlocks: { btn: document.getElementById("tab-coffee-unlocks"), panel: document.getElementById("coffee-unlocks-panel"), load: loadCoffeeUnlocks },
   adUnlocks: { btn: document.getElementById("tab-ad-unlocks"), panel: document.getElementById("ad-unlocks-panel"), load: loadAdUnlocks },
   danger: { btn: document.getElementById("tab-danger"), panel: document.getElementById("danger-panel"), load: () => {} }
 };
@@ -1208,6 +1214,153 @@ async function loadMessages() {
 }
 
 // ============================================
+// NOTIFY USER — send a custom message to one student's Profile inbox
+// ============================================
+const notifyStudentSearch = document.getElementById("notify-student-search");
+const notifyStudentResults = document.getElementById("notify-student-results");
+const notifySelectedStudent = document.getElementById("notify-selected-student");
+const notifySelectedName = document.getElementById("notify-selected-name");
+const notifySelectedMeta = document.getElementById("notify-selected-meta");
+const notifySelectedClear = document.getElementById("notify-selected-clear");
+const notifyMessageTextarea = document.getElementById("notify-message-textarea");
+const notifySendBtn = document.getElementById("notify-send-btn");
+const notifySendStatus = document.getElementById("notify-send-status");
+
+let notifySelectedRegId = null;
+
+function clearNotifySelection() {
+  notifySelectedRegId = null;
+  notifySelectedStudent.classList.add("hidden");
+  notifyStudentSearch.value = "";
+  notifyStudentSearch.disabled = false;
+  notifyStudentResults.classList.add("hidden");
+  notifyStudentResults.innerHTML = "";
+}
+
+function selectNotifyStudent(regId, item) {
+  notifySelectedRegId = regId;
+  notifySelectedName.textContent = item.fullName || item.email || "Unnamed student";
+  notifySelectedMeta.textContent = ` · ${item.email || ""}${item.studentIdNumber ? " · ID# " + item.studentIdNumber : ""}`;
+  notifySelectedStudent.classList.remove("hidden");
+  notifyStudentSearch.disabled = true;
+  notifyStudentResults.classList.add("hidden");
+  notifyStudentResults.innerHTML = "";
+}
+
+notifySelectedClear?.addEventListener("click", clearNotifySelection);
+
+notifyStudentSearch?.addEventListener("input", () => {
+  const term = notifyStudentSearch.value.trim().toLowerCase();
+  if (!term) { notifyStudentResults.classList.add("hidden"); notifyStudentResults.innerHTML = ""; return; }
+
+  const matches = Object.entries(registrationsCache).filter(([, item]) => {
+    return (item.fullName || "").toLowerCase().includes(term) ||
+           (item.email || "").toLowerCase().includes(term) ||
+           (item.studentIdNumber || "").toLowerCase().includes(term);
+  }).slice(0, 8);
+
+  if (matches.length === 0) {
+    notifyStudentResults.innerHTML = `<div style="padding:.7rem .9rem;font-size:.82rem;color:var(--moss-600);">No matching students.</div>`;
+    notifyStudentResults.classList.remove("hidden");
+    return;
+  }
+
+  notifyStudentResults.innerHTML = matches.map(([id, item]) => `
+    <button type="button" class="notify-result-row" data-id="${esc(id)}"
+      style="display:block;width:100%;text-align:left;padding:.6rem .9rem;border:none;border-bottom:1px solid var(--line);background:#fff;cursor:pointer;font-size:.85rem;">
+      <strong>${esc(item.fullName) || "Unnamed"}</strong>
+      <div style="font-size:.78rem;color:var(--moss-600);">${esc(item.email) || "—"}${item.studentIdNumber ? " · ID# " + esc(item.studentIdNumber) : ""}</div>
+    </button>`).join("");
+  notifyStudentResults.classList.remove("hidden");
+
+  notifyStudentResults.querySelectorAll(".notify-result-row").forEach(btn => {
+    btn.addEventListener("click", () => selectNotifyStudent(btn.dataset.id, registrationsCache[btn.dataset.id]));
+  });
+});
+
+notifySendBtn?.addEventListener("click", async () => {
+  notifySendStatus.textContent = "";
+  notifySendStatus.style.color = "";
+
+  if (!notifySelectedRegId) {
+    notifySendStatus.textContent = "Pick a student first.";
+    notifySendStatus.style.color = "var(--terracotta-500)";
+    return;
+  }
+  const message = notifyMessageTextarea.value.trim();
+  if (!message) {
+    notifySendStatus.textContent = "Write a message first.";
+    notifySendStatus.style.color = "var(--terracotta-500)";
+    return;
+  }
+
+  const item = registrationsCache[notifySelectedRegId] || {};
+  notifySendBtn.disabled = true;
+  notifySendBtn.textContent = "Sending…";
+  try {
+    await sendNotificationToStudent({
+      targetRegId: notifySelectedRegId,
+      targetName: item.fullName || item.email || "",
+      targetStudentIdNumber: item.studentIdNumber || "",
+      message
+    });
+    notifyMessageTextarea.value = "";
+    clearNotifySelection();
+    notifySendStatus.textContent = "✅ Sent — it'll show up in their Profile inbox.";
+    notifySendStatus.style.color = "var(--leaf-500)";
+    loadNotificationHistory();
+  } catch (err) {
+    console.error("[AgriAdmin] failed to send notification:", err);
+    notifySendStatus.textContent = "Something went wrong sending that. Please try again.";
+    notifySendStatus.style.color = "var(--terracotta-500)";
+  } finally {
+    notifySendBtn.disabled = false;
+    notifySendBtn.textContent = "🔔 Send Message";
+  }
+});
+
+// Runs every time the "Notify User" tab is opened. Registrations are
+// loaded (and cached) here if they haven't been already, so the search
+// box has data even if the admin never visited the Registrations tab.
+async function loadNotifyTab() {
+  if (Object.keys(registrationsCache).length === 0) {
+    await loadRegistrations();
+  }
+  await loadNotificationHistory();
+}
+
+async function loadNotificationHistory() {
+  notificationsList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
+  try {
+    const items = await fetchNotificationHistory(100);
+    if (items.length === 0) {
+      notificationsList.innerHTML = `<p style="color:var(--moss-600);">No messages sent yet.</p>`;
+      return;
+    }
+    notificationsList.innerHTML = "";
+    items.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "resource-row";
+      row.innerHTML = `
+        <div>
+          <strong>${esc(item.targetName) || "Unnamed student"}</strong>
+          ${item.targetStudentIdNumber ? `<span style="font-size:.78rem;color:var(--moss-600);"> · ID# ${esc(item.targetStudentIdNumber)}</span>` : ""}
+          <div style="font-size:.85rem;color:var(--moss-700);margin-top:.3rem;max-width:480px;white-space:pre-wrap;">${esc(item.message)}</div>
+          <div style="font-size:.75rem;color:var(--moss-600);margin-top:.3rem;">${esc(fmtAdminDate(item.sentAt))}</div>
+        </div>
+        <div>
+          ${item.read
+            ? `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(63,91,61,.10);color:var(--moss-700);font-size:.78rem;font-weight:600;">✅ Read</span>`
+            : `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(214,171,74,.15);color:var(--wheat-400);font-size:.78rem;font-weight:600;">🕓 Unread</span>`}
+        </div>`;
+      notificationsList.appendChild(row);
+    });
+  } catch (err) {
+    showLoadError(notificationsList, "notifications", err);
+  }
+}
+
+// ============================================
 // CLASSROOM CODES ("Send Us Classroom Code" submissions, resources.html)
 // ============================================
 async function loadClassroomCodes() {
@@ -1301,6 +1454,82 @@ async function loadClassroomCodes() {
     });
   } catch (err) {
     showLoadError(classroomCodesList, "classroom codes", err);
+  }
+}
+
+// ============================================
+// COFFEE (bKash) UNLOCKS ("Buy Me a Coffee", slides-notes.html gate)
+// ============================================
+async function loadCoffeeUnlocks() {
+  if (!coffeeUnlocksList) return;
+  coffeeUnlocksList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
+  try {
+    const q = query(collection(db, "coffeeUnlocks"), orderBy("submittedAt", "desc"));
+    const snap = await getDocs(q);
+
+    if (snap.empty) { coffeeUnlocksList.innerHTML = `<p style="color:var(--moss-600);">No coffee (bKash) payments submitted yet.</p>`; return; }
+
+    coffeeUnlocksList.innerHTML = "";
+    snap.forEach(d => {
+      const item = d.data();
+      const isApproved = item.status === "approved";
+      const statusLabel = isApproved ? "Approved & Unlocked" : "New";
+      const statusStyle = isApproved
+        ? "background:#E4F2E7;color:var(--leaf-600,#2D4A35);"
+        : "background:#FDF3D9;color:#8A6A1A;";
+      const row = document.createElement("div");
+      row.className = "resource-row";
+      row.innerHTML = `
+        <div>
+          <span style="display:inline-block;font-family:monospace;font-size:1.05rem;font-weight:700;background:var(--leaf-50,#eef5ee);border:1px solid var(--line);border-radius:6px;padding:.2rem .6rem;">${esc(item.bkashNumber)}</span>
+          <span style="margin-left:.5rem;font-family:monospace;font-size:.85rem;color:var(--moss-700);">TXN: ${esc(item.transactionId)}</span>
+          <span style="margin-left:.5rem;font-size:.75rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;${statusStyle}">${statusLabel}</span>
+          <div style="font-size:.85rem;color:var(--moss-700);margin-top:.35rem;">
+            ${item.fromName ? esc(item.fromName) : "Anonymous"}${item.fromEmail ? ` — ${esc(item.fromEmail)}` : ""}
+            ${item.targetFileId
+              ? `<div style="font-size:.78rem;color:var(--moss-500,#7a8f7d);margin-top:.15rem;">Unlocking one specific file</div>`
+              : `<div style="font-size:.78rem;color:var(--moss-500,#7a8f7d);margin-top:.15rem;">⚠️ No specific file — unlocks every file for this student</div>`}
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          ${isApproved ? "" : `<button type="button" class="confirm-coffee-unlock-btn" data-id="${d.id}" style="background:var(--leaf-500);color:#fff;border:none;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Confirm &amp; Unlock</button>`}
+          <button type="button" class="btn-danger delete-coffee-unlock-btn" data-id="${d.id}" style="padding:.35rem .7rem;font-size:.78rem;">🗑 Delete</button>
+        </div>`;
+      coffeeUnlocksList.appendChild(row);
+    });
+
+    // Confirming is what actually unlocks the target file for the
+    // student — see js/access.js, which only grants a coffee (bKash)
+    // submission access once status is "approved". Check the bKash
+    // number + transaction id against your own bKash account before
+    // confirming.
+    coffeeUnlocksList.querySelectorAll(".confirm-coffee-unlock-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          await updateDoc(doc(db, "coffeeUnlocks", btn.dataset.id), { status: "approved", approvedAt: serverTimestamp() });
+          loadCoffeeUnlocks();
+        } catch (err) {
+          console.error("[AgriAdmin] Failed to confirm coffee unlock:", err);
+          btn.disabled = false;
+        }
+      });
+    });
+    coffeeUnlocksList.querySelectorAll(".delete-coffee-unlock-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Delete this coffee (bKash) submission?")) return;
+        btn.disabled = true;
+        try {
+          await deleteDoc(doc(db, "coffeeUnlocks", btn.dataset.id));
+          loadCoffeeUnlocks();
+        } catch (err) {
+          console.error("[AgriAdmin] Failed to delete coffee unlock:", err);
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    showLoadError(coffeeUnlocksList, "coffee (bKash) unlocks", err);
   }
 }
 
@@ -1406,6 +1635,7 @@ document.querySelectorAll(".danger-delete-btn").forEach(btn => {
       if (collectionName === "timeline") loadTimeline();
       if (collectionName === "messages") loadMessages();
       if (collectionName === "classroomCodes") loadClassroomCodes();
+      if (collectionName === "coffeeUnlocks") loadCoffeeUnlocks();
       if (collectionName === "blogPosts") loadBlogPosts();
     } catch (err) {
       console.error("[AgriAdmin] bulk delete failed:", err);

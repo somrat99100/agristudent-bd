@@ -7,6 +7,7 @@ import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications, sendCredentialsEmail } from "./email-config.js";
 import { hashPassword, isPasswordValid } from "./password.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
+import { fetchStudentNotifications, markNotificationRead } from "./notifications.js";
 
 initEmailNotifications();
 
@@ -177,6 +178,12 @@ async function init() {
       await renderMyBlogPosts(normalizeEmail(reg.email));
     } catch (err) {
       console.error("[Profile] failed to load blog posts:", err);
+    }
+
+    try {
+      await renderInbox(session.regId);
+    } catch (err) {
+      console.error("[Profile] failed to load inbox:", err);
     }
   } catch (err) {
     console.error("[Profile] failed to load:", err);
@@ -522,7 +529,91 @@ async function renderMyBlogPosts(email) {
   });
 }
 
-const logoutBtn = document.getElementById("profile-logout-btn");
+// ============================================
+// INBOX — admin-sent notifications (js/notifications.js)
+// ============================================
+async function renderInbox(regId) {
+  const listEl = document.getElementById("inbox-list");
+  const emptyEl = document.getElementById("inbox-empty");
+  const badgeEl = document.getElementById("inbox-unread-badge");
+  const markAllBtn = document.getElementById("inbox-mark-all-read-btn");
+  if (!listEl) return;
+
+  let items;
+  try {
+    items = await fetchStudentNotifications(regId);
+  } catch (err) {
+    console.error("[Profile] failed to load inbox:", err);
+    return;
+  }
+
+  function updateUnreadBadge() {
+    const unreadCount = items.filter(n => !n.read).length;
+    if (unreadCount > 0) {
+      badgeEl.textContent = unreadCount;
+      badgeEl.classList.remove("hidden");
+      markAllBtn.classList.remove("hidden");
+    } else {
+      badgeEl.classList.add("hidden");
+      markAllBtn.classList.add("hidden");
+    }
+  }
+
+  if (items.length === 0) {
+    listEl.innerHTML = "";
+    emptyEl.classList.remove("hidden");
+    updateUnreadBadge();
+    return;
+  }
+  emptyEl.classList.add("hidden");
+
+  function renderList() {
+    listEl.innerHTML = items.map(item => {
+      const date = item.sentAt?.toDate?.() ? formatDate(item.sentAt.toDate()) : "";
+      return `
+        <div class="inbox-item ${item.read ? "" : "is-unread"}" data-id="${esc(item.id)}">
+          <div class="inbox-item-head">
+            <span>📨 Admin</span>
+            <span>${date}${item.read ? "" : " · 🆕"}</span>
+          </div>
+          <div class="inbox-item-body">${esc(item.message)}</div>
+        </div>`;
+    }).join("");
+
+    listEl.querySelectorAll(".inbox-item").forEach(el => {
+      el.addEventListener("click", async () => {
+        const item = items.find(n => n.id === el.dataset.id);
+        if (!item || item.read) return;
+        el.classList.remove("is-unread");
+        item.read = true;
+        updateUnreadBadge();
+        try {
+          await markNotificationRead(item.id);
+        } catch (err) {
+          console.error("[Profile] failed to mark notification read:", err);
+        }
+      });
+    });
+  }
+
+  renderList();
+  updateUnreadBadge();
+
+  markAllBtn.onclick = async () => {
+    const unread = items.filter(n => !n.read);
+    if (unread.length === 0) return;
+    markAllBtn.disabled = true;
+    try {
+      await Promise.all(unread.map(n => markNotificationRead(n.id).then(() => { n.read = true; })));
+      renderList();
+      updateUnreadBadge();
+    } catch (err) {
+      console.error("[Profile] failed to mark all notifications read:", err);
+    } finally {
+      markAllBtn.disabled = false;
+    }
+  };
+}
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
     clearSession();

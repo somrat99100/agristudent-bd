@@ -124,6 +124,21 @@
   }
   .profile-section-head h2{ font-size:1.05rem; margin:0; }
 
+  .inbox-unread-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:1.3rem; height:1.3rem; padding:0 .35rem; border-radius:999px;
+    background:var(--terracotta-500); color:#fff; font-size:.7rem; font-weight:700;
+    vertical-align:middle; margin-left:.3rem;
+  }
+  .inbox-item{
+    border:1px solid var(--line); border-radius:10px; padding:.8rem 1rem; margin-bottom:.7rem;
+    background:#fff; cursor:pointer; transition:box-shadow .16s ease;
+  }
+  .inbox-item:hover{ box-shadow:0 4px 14px rgba(31,46,34,.08); }
+  .inbox-item.is-unread{ border-left:4px solid var(--terracotta-500); background:rgba(196,90,63,.04); }
+  .inbox-item-head{ display:flex; justify-content:space-between; align-items:baseline; gap:.6rem; font-size:.78rem; color:var(--moss-600); margin-bottom:.4rem; }
+  .inbox-item-body{ font-size:.9rem; color:var(--moss-700); white-space:pre-wrap; }
+
   .credit-stat{ transition:transform .16s ease, box-shadow .16s ease; }
   .credit-stat:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(31,46,34,.09); }
   .upload-row{ transition:box-shadow .16s ease; }
@@ -209,6 +224,17 @@
         <div id="uploads-list"></div>
         <div id="uploads-empty" class="uc-panel hidden">
           <p>You haven't uploaded anything yet. Contributions to Resources or the Knowledge Hub will show up here.</p>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-head">
+          <h2>📬 Inbox <span id="inbox-unread-badge" class="inbox-unread-badge hidden">0</span></h2>
+          <button type="button" id="inbox-mark-all-read-btn" class="hidden" style="background:none;border:none;color:var(--leaf-500);font-weight:600;font-size:.8rem;cursor:pointer;">Mark all read</button>
+        </div>
+        <div id="inbox-list"></div>
+        <div id="inbox-empty" class="uc-panel hidden">
+          <p>No messages yet. Anything the admin sends you will show up here.</p>
         </div>
       </div>
 
