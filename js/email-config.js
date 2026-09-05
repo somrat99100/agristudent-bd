@@ -44,25 +44,44 @@
 // corrupted") because EmailJS's merge engine doesn't strip HTML
 // comments before scanning for {{...}} tokens — so leftover
 // documentation text mentioning "{{#if}}" was itself parsed as a real,
-// unmatched conditional. To make that class of bug impossible, the
-// template now contains ZERO conditional logic: every {{variable}} is
-// a plain substitution, and the one part that differs between the OTP
-// email and the credentials email (the heading + the code/credentials
-// box) is built as a plain HTML string here in JavaScript
-// (otpContentBlock / credentialsContentBlock below) and passed in as
-// a single {{{content_block}}} variable (triple braces = insert as
-// raw HTML, unescaped).
+// unmatched conditional.
 //
-// Template variables used (see email-templates/otp-and-credentials-template.html):
-//   {{to_email}}         — recipient address ("To email" field)
-//   {{to_name}}          — student's name
-//   {{heading_eyebrow}}  — small text above the card, e.g. "— Account Verification —"
-//   {{heading_tagline}}  — small text in the header, e.g. "Account Verification"
-//   {{intro_text}}       — the intro sentence under "Dear {{to_name}},"
-//   {{{content_block}}}  — the OTP code box or credentials box, as raw HTML
-//   {{footer_note}}      — the "Didn't request this?" line
-//   {{subject_line}}     — set the template's Subject field to {{subject_line}}
-//   {{site_name}}        — "Agri Core"
+// The next attempt swapped the #if blocks for a single {{{content_block}}}
+// (triple-brace, "insert as raw HTML") variable built in JavaScript. That
+// ALSO produced the same "corrupted variables" error — including on
+// EmailJS's own dashboard "Test It" button, which sends straight to
+// EmailJS's servers with no browser JS involved. That ruled out anything
+// on the JS/browser side and pointed at the template itself: EmailJS's
+// merge engine only supports plain, single-brace {{variable}} substitution
+// — it doesn't support Handlebars-style triple braces at all.
+//
+// The template after that used four plain variables (a label, a value, a
+// second label, a second value) so the OTP email and the credentials
+// email could share one template. That worked, but left the OTP email
+// with an empty, unused second row.
+//
+// This version drops the second pair entirely. The credentials email's
+// two lines (Student ID, then Password) are sent as ONE string with a
+// real line-break character in it, and the template's content box has a
+// white-space rule that turns that line break into a visible second
+// line. The OTP email just sends a single-line string with no line
+// break. One variable, no unused leftovers either way.
+//
+// Template variables used (see the current template pasted into EmailJS —
+// keep a saved reference copy in email-templates/ if you want one):
+//   to_email       — recipient address ("To email" field)
+//   to_name        — student's name
+//   heading_tagline — small text in the header banner
+//   intro_text     — the intro sentence under "Hi <name>,"
+//   content_label  — e.g. "Your Verification Code" / "Your Login Details"
+//   content_value  — the code, or "Student ID: ...\nPassword: ..." with
+//                    a real newline between the two lines
+//   footer_note    — the "Didn't request this?" line
+//   subject_line   — the template's Subject field must be set to this
+//                    variable in the EmailJS dashboard; pasting the body
+//                    HTML never touches the Subject field, so this has to
+//                    be set there by hand once
+//   site_name      — "Agri Core"
 // ------------------------------------------------------------------
 export const EMAILJS_PUBLIC_KEY  = "led7de4ijLLGq675b";
 export const EMAILJS_SERVICE_ID  = "service_6ys3bsi";
@@ -193,57 +212,6 @@ function describeEmailError(err) {
 }
 
 /**
- * Builds the raw HTML for the code box shown in the OTP email. Kept as a
- * plain string (not a template {{#if}} block) so EmailJS only ever has
- * to do straightforward variable substitution — no conditional-block
- * parsing that could go wrong.
- */
-function otpContentBlock(otpCode) {
-  return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr>
-        <td align="center" bgcolor="#F7F4EC" style="background-color:#F7F4EC;border:1px solid #E7E0CD;border-top:3px solid #C79A3B;border-radius:16px;padding:30px 18px 22px 18px;">
-          <div style="color:#8A9A83;font-size:10.5px;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">
-            Your Verification Code
-          </div>
-          <div style="font-family:'Courier New',monospace;font-size:40px;font-weight:700;letter-spacing:11px;color:#223528;white-space:nowrap;">
-            ${otpCode}
-          </div>
-          <div style="display:inline-block;margin-top:18px;background-color:#1F3A28;color:#F7F4EC;font-size:11px;font-weight:600;letter-spacing:.4px;padding:6px 16px;border-radius:999px;border:1px solid rgba(199,154,59,0.5);">
-            Expires in 10 minutes
-          </div>
-        </td>
-      </tr>
-    </table>`;
-}
-
-/** Builds the raw HTML for the Student ID + password box shown in the
- * credentials email. Same reasoning as otpContentBlock() above. */
-function credentialsContentBlock(studentId, password) {
-  return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr>
-        <td align="center" bgcolor="#F7F4EC" style="background-color:#F7F4EC;border:1px solid #E7E0CD;border-top:3px solid #C79A3B;border-radius:16px;padding:26px 18px 22px 18px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td style="padding-bottom:16px;">
-                <div style="color:#8A9A83;font-size:10.5px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Student ID</div>
-                <div style="font-family:'Courier New',monospace;font-size:22px;font-weight:700;color:#223528;">${studentId}</div>
-              </td>
-            </tr>
-            <tr>
-              <td style="border-top:1px dashed #E7E0CD;padding-top:16px;">
-                <div style="color:#8A9A83;font-size:10.5px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Password</div>
-                <div style="font-family:'Courier New',monospace;font-size:22px;font-weight:700;color:#223528;">${password}</div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>`;
-}
-
-/**
  * Sends the registration OTP code. Unlike sendReviewEmail, this THROWS on
  * failure — registration.js relies on that to stop the flow and show the
  * student a real error instead of pretending a code went out.
@@ -256,11 +224,11 @@ export async function sendOtpEmail({ toEmail, toName, otpCode }) {
     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
       to_email: toEmail,
       to_name: toName || "",
-      heading_eyebrow: "— Account Verification —",
       heading_tagline: "Account Verification",
       intro_text: "Use the verification code below to finish creating your Agri Core account.",
-      content_block: otpContentBlock(otpCode),
-      footer_note: "Didn't request this? You can safely ignore this email — no account will be created without this code.",
+      content_label: "Your Verification Code",
+      content_value: otpCode,
+      footer_note: "This code expires in 10 minutes. Didn't request this? You can safely ignore this email — no account will be created without this code.",
       subject_line: "Your Agri Core verification code",
       site_name: "Agri Core"
     });
@@ -291,10 +259,10 @@ export async function sendCredentialsEmail({ toEmail, toName, studentId, passwor
     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
       to_email: toEmail,
       to_name: toName || "",
-      heading_eyebrow: "— Your Login Details —",
       heading_tagline: "Login Details",
       intro_text: "Here are your login details for Agri Core — keep them somewhere safe.",
-      content_block: credentialsContentBlock(studentId || "", password || ""),
+      content_label: "Your Login Details",
+      content_value: `Student ID: ${studentId || ""}\nPassword: ${password || ""}`,
       footer_note: "Didn't request this? Please contact us right away so we can secure your account.",
       subject_line: "Your Agri Core login details",
       site_name: "Agri Core"
