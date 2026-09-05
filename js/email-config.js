@@ -29,48 +29,58 @@
 // normally either way.
 //
 // ------------------------------------------------------------------
-// REGISTRATION OTP (separate template, ~2 minutes extra setup)
+// REGISTRATION OTP + LOGIN CREDENTIALS — one shared template, no
+// conditional logic inside it
 // ------------------------------------------------------------------
-// Registration now verifies the student actually owns the email address
-// they typed, via a 6-digit code sent through EmailJS. This uses the SAME
-// service (EMAILJS_SERVICE_ID above) but a DIFFERENT template, because the
-// content is different (a code, not a review status).
-//   1. Email Templates → Create New Template. Use these variables:
-//        {{to_email}}   — recipient address
-//        {{to_name}}    — student's name
-//        {{otp_code}}   — the 6-digit code (make this big/bold in the body)
-//        {{site_name}}  — "Agri Core"
-//      Mention the code expires in 10 minutes. Set "To email" to {{to_email}}.
-//   2. Copy that template's "Template ID" and paste it below.
+// Registration verifies the student actually owns the email address
+// they typed, via a 6-digit code sent through EmailJS. The same
+// template is reused to email a student their Student ID + password
+// whenever they set or reset one — EmailJS's free plan only allows 2
+// templates, and both slots are already used (review-status + this one).
 //
-// Unlike the review-status email above, OTP sending is NOT fire-and-forget:
-// registration cannot proceed without it, so if these values are missing or
-// sending fails, the student sees a clear error instead of silently getting
-// stuck.
-// ============================================
+// Earlier this was done with {{#if otp_code}} / {{#if password}}
+// conditional blocks inside the EmailJS template body. That broke
+// intermittently ("Template: One or more dynamic variables are
+// corrupted") because EmailJS's merge engine doesn't strip HTML
+// comments before scanning for {{...}} tokens — so leftover
+// documentation text mentioning "{{#if}}" was itself parsed as a real,
+// unmatched conditional.
+//
+// The next attempt swapped the #if blocks for a single {{{content_block}}}
+// (triple-brace, "insert as raw HTML") variable built in JavaScript. That
+// ALSO produced the same "corrupted variables" error — including on
+// EmailJS's own dashboard "Test It" button, which sends straight to
+// EmailJS's servers with no browser JS involved. That ruled out anything
+// on the JS/browser side and pointed at the template itself: EmailJS's
+// merge engine only supports plain, single-brace {{variable}} substitution
+// — it doesn't support Handlebars-style triple braces at all, so the
+// extra { and } were themselves read as corrupted syntax.
+//
+// The template now uses ONLY plain {{variable}} tokens, no exceptions.
+// The one part that differs between the OTP email and the credentials
+// email (a one-value box vs. a two-value box) is handled with four plain
+// string variables — content_label / content_value / content_label2 /
+// content_value2 — instead of a block of HTML. For the OTP email,
+// content_label2 and content_value2 are just sent as empty strings.
+//
+// Template variables used (see email-templates/otp-and-credentials-template.html):
+//   {{to_email}}         — recipient address ("To email" field)
+//   {{to_name}}          — student's name
+//   {{heading_eyebrow}}  — small text above the card, e.g. "— Account Verification —"
+//   {{heading_tagline}}  — small text in the header, e.g. "Account Verification"
+//   {{intro_text}}       — the intro sentence under "Dear {{to_name}},"
+//   {{content_label}}    — e.g. "Your Verification Code" / "Student ID"
+//   {{content_value}}    — e.g. the OTP code / the student ID
+//   {{content_label2}}   — e.g. "" / "Password" (blank for the OTP email)
+//   {{content_value2}}   — e.g. "" / the password (blank for the OTP email)
+//   {{footer_note}}      — the "Didn't request this?" line
+//   {{subject_line}}     — set the template's Subject field to {{subject_line}}
+//   {{site_name}}        — "Agri Core"
+// ------------------------------------------------------------------
 export const EMAILJS_PUBLIC_KEY  = "led7de4ijLLGq675b";
 export const EMAILJS_SERVICE_ID  = "service_6ys3bsi";
 export const EMAILJS_TEMPLATE_ID = "template_5eytdmh";
 export const EMAILJS_OTP_TEMPLATE_ID = "template_1lbd1pu";
-// ------------------------------------------------------------------
-// LOGIN CREDENTIALS EMAIL (new account, or a password set/reset)
-// ------------------------------------------------------------------
-// Same service, its own template (~2 minutes to set up):
-//   1. Email Templates → Create New Template. Use these variables:
-//        {{to_email}}    — recipient address
-//        {{to_name}}     — student's name
-//        {{student_id}}  — their Student ID (used to log in)
-//        {{password}}    — the password they just set, in plain text
-//        {{site_name}}   — "Agri Core"
-//      Set "To email" to {{to_email}}.
-//   2. Copy that template's "Template ID" and paste it below.
-// Until this is filled in, the credentials email is silently skipped —
-// account creation / password setup still succeeds either way, since the
-// student is also shown their ID + password on screen.
-export const EMAILJS_CREDENTIALS_TEMPLATE_ID = "YOUR_CREDENTIALS_TEMPLATE_ID";
-// NOTE: "Send Us Classroom Code" (resources.html) no longer emails anything —
-// it saves straight to Firestore's "classroomCodes" collection and shows up
-// in the admin panel's "Classroom Codes" tab (see js/resources.js + js/admin.js).
 
 let emailjsReady = false;
 
@@ -208,7 +218,15 @@ export async function sendOtpEmail({ toEmail, toName, otpCode }) {
     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
       to_email: toEmail,
       to_name: toName || "",
-      otp_code: otpCode,
+      heading_eyebrow: "— Account Verification —",
+      heading_tagline: "Account Verification",
+      intro_text: "Use the verification code below to finish creating your Agri Core account.",
+      content_label: "Your Verification Code",
+      content_value: otpCode,
+      content_label2: "",
+      content_value2: "",
+      footer_note: "This code expires in 10 minutes. Didn't request this? You can safely ignore this email — no account will be created without this code.",
+      subject_line: "Your Agri Core verification code",
       site_name: "Agri Core"
     });
   } catch (err) {
@@ -216,26 +234,37 @@ export async function sendOtpEmail({ toEmail, toName, otpCode }) {
   }
 }
 
-/** Whether the login-credentials email template has been configured. */
+/** The credentials email now shares the OTP template, so it's ready
+ * whenever the OTP template is ready — no separate config needed. */
 export function isCredentialsEmailReady() {
-  return emailjsReady && !!EMAILJS_CREDENTIALS_TEMPLATE_ID && !EMAILJS_CREDENTIALS_TEMPLATE_ID.startsWith("YOUR_");
+  return isOtpEmailReady();
 }
 
 /**
  * Emails a student their Student ID + the password they just set (new
  * registration, or setting/resetting a password on an existing account).
- * Fire-and-forget, like sendReviewEmail: a missing/failed credentials
- * email must never block account creation or password setup, since the
- * student is also shown the same ID + password on screen either way.
+ * Reuses EMAILJS_OTP_TEMPLATE_ID (see js/email-config.js's comments
+ * near EMAILJS_OTP_TEMPLATE_ID) instead of a 3rd template, since
+ * EmailJS's free plan only allows 2. Fire-and-forget, like
+ * sendReviewEmail: a missing/failed credentials email must never block
+ * account creation or password setup, since the student is also shown
+ * the same ID + password on screen either way.
  */
 export async function sendCredentialsEmail({ toEmail, toName, studentId, password }) {
   if (!isCredentialsEmailReady() || !toEmail) return;
   try {
-    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CREDENTIALS_TEMPLATE_ID, {
+    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_OTP_TEMPLATE_ID, {
       to_email: toEmail,
       to_name: toName || "",
-      student_id: studentId || "",
-      password: password || "",
+      heading_eyebrow: "— Your Login Details —",
+      heading_tagline: "Login Details",
+      intro_text: "Here are your login details for Agri Core — keep them somewhere safe.",
+      content_label: "Student ID",
+      content_value: studentId || "",
+      content_label2: "Password",
+      content_value2: password || "",
+      footer_note: "Didn't request this? Please contact us right away so we can secure your account.",
+      subject_line: "Your Agri Core login details",
       site_name: "Agri Core"
     });
   } catch (err) {
