@@ -557,6 +557,9 @@ async function renderInbox(regId) {
     items = await fetchStudentNotifications(regId);
   } catch (err) {
     console.error("[Profile] failed to load inbox:", err);
+    emptyEl.classList.add("hidden");
+    listEl.innerHTML = `<p style="color:var(--terracotta-500);font-size:.85rem;">Couldn't load your inbox right now. <button type="button" id="retry-inbox" style="background:none;border:none;color:var(--leaf-500);font-weight:600;cursor:pointer;text-decoration:underline;">Retry</button></p>`;
+    document.getElementById("retry-inbox")?.addEventListener("click", () => renderInbox(regId).catch(e => console.error(e)));
     return;
   }
 

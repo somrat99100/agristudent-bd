@@ -43,16 +43,28 @@ export async function sendNotificationToStudent({ targetRegId, targetName, targe
 /**
  * Student: fetch every notification ever sent to this registration id,
  * newest first. Called from the Profile page inbox.
+ *
+ * NOTE: this intentionally does NOT combine `where("targetRegId", ...)`
+ * with a Firestore-side `orderBy("sentAt", ...)`. A where + orderBy on
+ * two different fields needs a composite index — this project has none
+ * defined (see firestore.indexes.json, which is empty on purpose, same
+ * as every other query in this codebase), so that combination throws
+ * "FAILED_PRECONDITION: The query requires an index" at read time.
+ * That's exactly what was silently breaking the inbox: the promise
+ * rejected, profile.js's try/catch swallowed it, and the box just sat
+ * empty forever with a message logged to the console.
+ * Sorting client-side avoids needing an index at all.
  */
 export async function fetchStudentNotifications(regId) {
   if (!regId) return [];
   const q = query(
     collection(db, "notifications"),
-    where("targetRegId", "==", regId),
-    orderBy("sentAt", "desc")
+    where("targetRegId", "==", regId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  items.sort((a, b) => (b.sentAt?.toMillis?.() || 0) - (a.sentAt?.toMillis?.() || 0));
+  return items;
 }
 
 /** Student: mark one notification as read (only flips read/readAt). */
