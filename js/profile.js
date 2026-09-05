@@ -205,15 +205,33 @@ function renderIdentity(reg) {
 
   const idBadge = document.getElementById("profile-id-verified-badge");
   const avatarWrapEl = document.getElementById("profile-avatar-wrap");
-  idBadge?.classList.toggle("hidden", !reg.idVerified);
-  avatarWrapEl?.classList.toggle("is-id-verified", !!reg.idVerified);
-
   const status = reg.status || "unverified";
   const pill = document.getElementById("profile-status-pill");
   const note = document.getElementById("profile-status-note");
-  const labels = { verified: "✅ Email Verified", unverified: "🕓 Unverified", rejected: "❌ Rejected" };
-  pill.textContent = labels[status] || status;
-  pill.className = "profile-status-pill " + status;
+
+  avatarWrapEl?.classList.toggle("is-id-verified", !!reg.idVerified);
+
+  // When BOTH the student ID and the email/registration are verified,
+  // showing two separate "verified" badges is redundant — collapse them
+  // into a single combined badge instead of stacking two pills.
+  const bothVerified = !!reg.idVerified && status === "verified";
+
+  if (bothVerified) {
+    if (idBadge) {
+      idBadge.textContent = "✅ Verified";
+      idBadge.classList.remove("hidden");
+    }
+    pill.classList.add("hidden");
+  } else {
+    if (idBadge) {
+      idBadge.textContent = "🟢 ID Verified";
+      idBadge.classList.toggle("hidden", !reg.idVerified);
+    }
+    const labels = { verified: "✅ Email Verified", unverified: "🕓 Unverified", rejected: "❌ Rejected" };
+    pill.textContent = labels[status] || status;
+    pill.className = "profile-status-pill " + status;
+    pill.classList.remove("hidden");
+  }
 
   if (status !== "verified") {
     note.classList.remove("hidden");
