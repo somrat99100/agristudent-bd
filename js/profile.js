@@ -7,7 +7,6 @@ import { getSession, saveSession, clearSession } from "./session.js";
 import { initEmailNotifications, sendCredentialsEmail } from "./email-config.js";
 import { hashPassword, isPasswordValid } from "./password.js";
 import { computeResourceAccessStatus, maybeSendAccessReminder, renderAccessBadge, renderAccessScale, formatDate, formatRemaining } from "./access.js";
-import { fetchStudentNotifications, markNotificationRead } from "./notifications.js";
 
 initEmailNotifications();
 
@@ -532,12 +531,26 @@ async function renderMyBlogPosts(email) {
 // ============================================
 // INBOX — admin-sent notifications (js/notifications.js)
 // ============================================
+// Loaded dynamically (not as a top-level import) on purpose: if this one
+// file is ever missing/broken on the server, only the Inbox section fails
+// quietly — it can no longer take down the entire Profile page the way a
+// failed top-level import would (a failed static import stops the whole
+// module before init() ever runs, which looks like the page being stuck
+// on "Loading your profile…" forever).
 async function renderInbox(regId) {
   const listEl = document.getElementById("inbox-list");
   const emptyEl = document.getElementById("inbox-empty");
   const badgeEl = document.getElementById("inbox-unread-badge");
   const markAllBtn = document.getElementById("inbox-mark-all-read-btn");
   if (!listEl) return;
+
+  let fetchStudentNotifications, markNotificationRead;
+  try {
+    ({ fetchStudentNotifications, markNotificationRead } = await import("./notifications.js"));
+  } catch (err) {
+    console.error("[Profile] notifications.js failed to load — inbox unavailable:", err);
+    return;
+  }
 
   let items;
   try {

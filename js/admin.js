@@ -9,7 +9,6 @@ import { initEmailNotifications, sendReviewEmail } from "./email-config.js";
 import { normalizeEmail, normalizeStudentId } from "./identity.js";
 import { computeResourceAccessStatus } from "./access.js";
 import { initAdminNotifications, stopAdminNotifications, initAdminNotifyBell, clearAdminNotifyBadge } from "./admin-notify.js";
-import { sendNotificationToStudent, fetchNotificationHistory } from "./notifications.js";
 
 initEmailNotifications();
 
@@ -1298,6 +1297,7 @@ notifySendBtn?.addEventListener("click", async () => {
   notifySendBtn.disabled = true;
   notifySendBtn.textContent = "Sending…";
   try {
+    const { sendNotificationToStudent } = await import("./notifications.js");
     await sendNotificationToStudent({
       targetRegId: notifySelectedRegId,
       targetName: item.fullName || item.email || "",
@@ -1332,6 +1332,7 @@ async function loadNotifyTab() {
 async function loadNotificationHistory() {
   notificationsList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
   try {
+    const { fetchNotificationHistory } = await import("./notifications.js");
     const items = await fetchNotificationHistory(100);
     if (items.length === 0) {
       notificationsList.innerHTML = `<p style="color:var(--moss-600);">No messages sent yet.</p>`;
