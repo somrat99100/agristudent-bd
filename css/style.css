@@ -2819,3 +2819,308 @@ body.viewer-layout {
   #admin-notify-bell{ font-size:.72rem !important; padding:.4rem .6rem !important; }
   .admin-topbar h1{ font-size:1.05rem; }
 }
+
+/* ============================================
+   ADMIN — REGISTRATIONS (student directory) redesign
+   ============================================ */
+.admin-panel-sub{
+  font-size:.85rem;
+  color:var(--moss-600);
+  margin:-.7rem 0 1.3rem;
+}
+
+/* ---------- Stat strip ---------- */
+.reg-stats{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:.7rem;
+  margin-bottom:1.2rem;
+}
+.reg-stat{
+  background:var(--paper-100);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:.7rem .8rem;
+  text-align:center;
+}
+.reg-stat-num{
+  display:block;
+  font-family:var(--font-display);
+  font-size:1.35rem;
+  font-weight:700;
+  color:var(--moss-900);
+  line-height:1.1;
+}
+.reg-stat-label{
+  display:block;
+  font-size:.68rem;
+  font-weight:600;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+  color:var(--moss-600);
+  margin-top:.25rem;
+}
+.reg-stat.is-warning .reg-stat-num{ color:var(--wheat-400); }
+.reg-stat.is-danger .reg-stat-num{ color:var(--terracotta-500); }
+.reg-stat.is-success .reg-stat-num{ color:var(--leaf-500); }
+
+/* ---------- Toolbar: search + filter chips ---------- */
+.reg-toolbar{
+  display:flex;
+  flex-direction:column;
+  gap:.8rem;
+  margin-bottom:1.4rem;
+}
+.reg-search-wrap{
+  position:relative;
+}
+.reg-search-input{
+  width:100%;
+  padding:.65rem .9rem .65rem 2.3rem;
+  border:1px solid var(--line);
+  border-radius:10px;
+  font-family:var(--font-body);
+  font-size:.88rem;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233C5C44' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat .8rem center;
+  background-size:15px;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.reg-search-input:focus{
+  outline:none;
+  border-color:var(--leaf-500);
+  box-shadow:0 0 0 3px rgba(107,155,94,.15);
+}
+.reg-filter-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+}
+.reg-chip{
+  background:#fff;
+  border:1px solid var(--line);
+  color:var(--moss-700);
+  font-size:.78rem;
+  font-weight:600;
+  padding:.4rem .85rem;
+  border-radius:999px;
+  cursor:pointer;
+  transition:all .15s ease;
+  white-space:nowrap;
+}
+.reg-chip:hover{ border-color:var(--leaf-500); color:var(--moss-900); }
+.reg-chip.is-active{
+  background:var(--moss-700);
+  border-color:var(--moss-700);
+  color:#fff;
+}
+.reg-empty-state{
+  text-align:center;
+  padding:2.2rem 1rem;
+  color:var(--moss-600);
+  font-size:.9rem;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  background:var(--paper-100);
+}
+
+/* ---------- Registration card ---------- */
+.reg-card{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:1.2rem;
+  flex-wrap:wrap;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:1.1rem 1.2rem;
+  margin-bottom:.9rem;
+  transition:box-shadow .18s ease, border-color .18s ease;
+}
+.reg-card:hover{
+  box-shadow:0 10px 24px rgba(31,46,34,.07);
+  border-color:#cfc6ac;
+}
+.reg-card.is-removed{ background:rgba(196,90,63,.04); }
+.reg-card.is-restricted{ border-left:3px solid var(--terracotta-500); }
+
+.reg-card-left{
+  display:flex;
+  gap:.9rem;
+  align-items:flex-start;
+  min-width:0;
+}
+.reg-avatar{
+  width:50px; height:50px;
+  border-radius:50%;
+  object-fit:cover;
+  flex-shrink:0;
+  border:2px solid var(--paper-100);
+  box-shadow:0 0 0 1px var(--line);
+}
+.reg-idthumb-link{ flex-shrink:0; }
+.reg-idthumb{
+  width:58px; height:58px;
+  object-fit:cover;
+  border-radius:8px;
+  border:1px solid var(--line);
+  display:block;
+}
+.reg-idthumb-missing{
+  width:58px; height:58px;
+  background:var(--paper-100);
+  border:1px dashed var(--line);
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-size:.62rem;
+  color:var(--moss-600);
+  flex-shrink:0;
+  padding:.2rem;
+  line-height:1.2;
+}
+.reg-info{ min-width:0; }
+.reg-name{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:1rem;
+  color:var(--moss-900);
+  display:block;
+}
+.reg-gender{
+  font-size:.78rem;
+  color:var(--moss-600);
+}
+.reg-meta-row{
+  font-size:.78rem;
+  color:var(--moss-600);
+  margin-top:.25rem;
+  display:flex;
+  flex-wrap:wrap;
+  gap:.15rem .7rem;
+}
+.reg-meta-row span{ white-space:nowrap; }
+
+.reg-card-right{
+  display:flex;
+  flex-direction:column;
+  gap:.55rem;
+  align-items:flex-end;
+  margin-left:auto;
+}
+.reg-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.35rem;
+  justify-content:flex-end;
+}
+.reg-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:.3rem;
+  padding:.32rem .65rem;
+  border-radius:999px;
+  font-size:.74rem;
+  font-weight:600;
+  white-space:nowrap;
+}
+.reg-badge--success{ background:rgba(107,155,94,.14); color:var(--moss-700); }
+.reg-badge--verified{ background:linear-gradient(135deg,rgba(107,155,94,.22),rgba(63,91,61,.18)); color:var(--leaf-500); font-weight:700; }
+.reg-badge--pending{ background:rgba(212,162,76,.16); color:#8a6a1f; }
+.reg-badge--danger{ background:rgba(196,90,63,.13); color:var(--terracotta-500); }
+.reg-badge--removed{ background:rgba(196,90,63,.16); color:var(--terracotta-500); font-weight:700; }
+
+.reg-actions{
+  display:flex;
+  gap:.4rem;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.reg-btn{
+  font-family:var(--font-body);
+  font-size:.76rem;
+  font-weight:600;
+  padding:.4rem .75rem;
+  border-radius:7px;
+  cursor:pointer;
+  transition:all .15s ease;
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--moss-700);
+  line-height:1.2;
+}
+.reg-btn:hover{ border-color:var(--moss-600); background:var(--paper-100); }
+.reg-btn:disabled{ opacity:.6; cursor:not-allowed; }
+.reg-btn--solid-success{ background:var(--leaf-500); border-color:var(--leaf-500); color:#fff; }
+.reg-btn--solid-success:hover{ background:var(--moss-700); border-color:var(--moss-700); }
+.reg-btn--outline-danger{ background:none; border-color:var(--terracotta-500); color:var(--terracotta-500); }
+.reg-btn--outline-danger:hover{ background:rgba(196,90,63,.08); }
+.reg-btn--outline-success{ background:none; border-color:var(--leaf-500); color:var(--leaf-500); }
+.reg-btn--outline-success:hover{ background:rgba(107,155,94,.08); }
+.reg-btn--solid-danger{ background:var(--terracotta-500); border-color:var(--terracotta-500); color:#fff; font-weight:600; }
+.reg-btn--solid-danger:hover{ background:#9a5119; border-color:#9a5119; }
+
+@media (max-width:640px){
+  .reg-stats{ grid-template-columns:repeat(2,1fr); }
+  .reg-card{ flex-direction:column; }
+  .reg-card-right{ align-items:flex-start; margin-left:0; width:100%; }
+  .reg-badges, .reg-actions{ justify-content:flex-start; }
+}
+
+/* ============================================
+   PASSWORD SETUP MODAL (shown on Profile page for
+   accounts without a password yet)
+   ============================================ */
+.pw-modal-title{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  font-size:1.2rem;
+}
+.pw-modal-desc{
+  color:var(--moss-600);
+  font-size:.88rem;
+  line-height:1.55;
+  margin-bottom:1.2rem;
+}
+.pw-modal-field label{
+  display:block;
+  font-weight:600;
+  margin-bottom:.3rem;
+  font-size:.86rem;
+  color:var(--moss-900);
+}
+.pw-modal-field input{
+  width:100%;
+  padding:.7rem .85rem;
+  border:1px solid var(--line);
+  border-radius:9px;
+  font-family:var(--font-body);
+  font-size:.92rem;
+  margin-bottom:1rem;
+  background:#fff;
+}
+.pw-modal-field input:focus{
+  outline:none;
+  border-color:var(--leaf-500);
+  box-shadow:0 0 0 3px rgba(107,155,94,.15);
+}
+.pw-modal-actions{
+  display:flex;
+  gap:.7rem;
+  align-items:center;
+  margin-top:.3rem;
+}
+.pw-modal-skip{
+  background:none;
+  border:none;
+  color:var(--moss-600);
+  font-size:.86rem;
+  font-weight:600;
+  cursor:pointer;
+  padding:.75rem .5rem;
+}
+.pw-modal-skip:hover{ color:var(--terracotta-500); }
+#pw-modal-status{ margin-top:.8rem; font-size:.86rem; min-height:1.2em; }

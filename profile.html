@@ -480,6 +480,44 @@
   </div>
 </section>
 
+<!-- ============================================
+     PASSWORD SETUP POPUP
+     Shown right after Profile loads whenever this account has no
+     password yet. The student can set one right here by typing
+     normally, or dismiss it (✕ / "Skip for now") and keep browsing
+     the rest of the profile — it'll simply be offered again next
+     time. It can also be set later from the Account tab. The moment
+     a password exists, this popup stops appearing for good.
+     ============================================ -->
+<div id="password-setup-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:420px;">
+    <button type="button" class="modal-close" id="password-setup-modal-close" title="Skip for now">✕</button>
+    <div class="modal-body">
+      <h3 class="pw-modal-title">🔑 Set up a password</h3>
+      <p class="pw-modal-desc">
+        You're currently logging in with your Student ID and email. Set a password now for faster, more secure logins —
+        <strong>once you set one, you'll need your Student ID and password to log in</strong> (your email will no longer work for login).
+        You can skip this and set it up later from the <strong>Account</strong> tab.
+      </p>
+
+      <div class="pw-modal-field">
+        <label for="pw-modal-new-password">New password (min. 6 characters)</label>
+        <input type="password" id="pw-modal-new-password" autocomplete="new-password" minlength="6" placeholder="Type a new password">
+      </div>
+      <div class="pw-modal-field">
+        <label for="pw-modal-new-password-confirm">Confirm password</label>
+        <input type="password" id="pw-modal-new-password-confirm" autocomplete="new-password" minlength="6" placeholder="Retype the password">
+      </div>
+
+      <div class="pw-modal-actions">
+        <button type="button" id="pw-modal-submit-btn" class="btn-primary" style="flex:1;">Save Password</button>
+        <button type="button" id="pw-modal-skip-btn" class="pw-modal-skip">Skip for now</button>
+      </div>
+      <div id="pw-modal-status"></div>
+    </div>
+  </div>
+</div>
+
 <footer>
   <div class="container">
     <div class="footer-bottom">© Agri Core — All Rights Reserved.</div>

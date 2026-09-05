@@ -975,55 +975,135 @@ async function loadTimeline() {
 // ============================================
 // REGISTRATIONS (student ID verification)
 // ============================================
+function renderRegStats(items) {
+  const statsEl = document.getElementById("reg-stats");
+  if (!statsEl) return;
+  const total = items.length;
+  const verified = items.filter(i => i.idVerified).length;
+  const unverified = total - verified;
+  const restricted = items.filter(i => !!i.accountRestrictedUntil).length;
+  const removed = items.filter(i => !!i.removed).length;
+  statsEl.innerHTML = `
+    <div class="reg-stat"><span class="reg-stat-num">${total}</span><span class="reg-stat-label">Total</span></div>
+    <div class="reg-stat is-success"><span class="reg-stat-num">${verified}</span><span class="reg-stat-label">ID Verified</span></div>
+    <div class="reg-stat is-warning"><span class="reg-stat-num">${unverified}</span><span class="reg-stat-label">Not Verified</span></div>
+    <div class="reg-stat is-danger"><span class="reg-stat-num">${restricted}</span><span class="reg-stat-label">Restricted</span></div>
+    <div class="reg-stat is-danger"><span class="reg-stat-num">${removed}</span><span class="reg-stat-label">Removed</span></div>`;
+}
+
+/** Applies the current search text + active filter chip to the already-
+ * rendered cards, purely client-side (no re-fetch), so typing/filtering
+ * feels instant. */
+function applyRegFilters() {
+  const term = (document.getElementById("reg-search-input")?.value || "").trim().toLowerCase();
+  const activeChip = document.querySelector("#reg-filter-chips .reg-chip.is-active");
+  const filter = activeChip ? activeChip.dataset.filter : "all";
+  let visibleCount = 0;
+
+  regList.querySelectorAll(".reg-card").forEach(card => {
+    const matchesSearch = !term || card.dataset.search.includes(term);
+    let matchesFilter = true;
+    if (filter === "verified") matchesFilter = card.dataset.verified === "true";
+    else if (filter === "unverified") matchesFilter = card.dataset.verified === "false";
+    else if (filter === "restricted") matchesFilter = card.dataset.restricted === "true";
+    else if (filter === "removed") matchesFilter = card.dataset.removed === "true";
+
+    const show = matchesSearch && matchesFilter;
+    card.classList.toggle("hidden", !show);
+    if (show) visibleCount++;
+  });
+
+  const emptyEl = document.getElementById("reg-empty-state");
+  if (emptyEl) emptyEl.classList.toggle("hidden", visibleCount !== 0);
+}
+
+document.getElementById("reg-search-input")?.addEventListener("input", applyRegFilters);
+document.getElementById("reg-filter-chips")?.addEventListener("click", (e) => {
+  const chip = e.target.closest(".reg-chip");
+  if (!chip) return;
+  document.querySelectorAll("#reg-filter-chips .reg-chip").forEach(c => c.classList.remove("is-active"));
+  chip.classList.add("is-active");
+  applyRegFilters();
+});
+
 async function loadRegistrations() {
   regList.innerHTML = `<p style="color:var(--moss-600);">Loading…</p>`;
   try {
     const q = query(collection(db, "registrations"), orderBy("submittedAt", "desc"));
     const snap = await getDocs(q);
 
-    if (snap.empty) { regList.innerHTML = `<p style="color:var(--moss-600);">No registrations yet.</p>`; return; }
+    if (snap.empty) {
+      document.getElementById("reg-stats").innerHTML = "";
+      regList.innerHTML = `<p style="color:var(--moss-600);">No registrations yet.</p>`;
+      return;
+    }
+
+    renderRegStats(snap.docs.map(d => d.data()));
 
     regList.innerHTML = "";
     snap.forEach(d => {
       const item = d.data();
       registrationsCache[d.id] = item;
-      const row = document.createElement("div");
-      row.className = "resource-row";
-      row.innerHTML = `
-        <div style="display:flex;gap:.8rem;align-items:flex-start;">
-          <img src="${esc(item.avatarUrl) || (item.gender === 'female' ? 'assets/avatar-female.svg' : 'assets/avatar-male.svg')}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:50%;flex-shrink:0;">
-          ${item.studentIdUrl ? `<a href="${esc(item.studentIdUrl)}" target="_blank" rel="noopener"><img src="${esc(item.studentIdUrl)}" alt="ID" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;"></a>` : `<div style="width:60px;height:60px;background:var(--paper-100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--moss-600);flex-shrink:0;">No ID photo</div>`}
-          <div>
-            <strong>${esc(item.fullName)}</strong>
-            <div style="font-size:.8rem;color:var(--moss-600);">${esc(item.gender) || "—"}</div>
-            <div style="font-size:.78rem;color:var(--moss-600);margin-top:.2rem;">✉️ ${esc(item.email) || "—"}</div>
-            ${item.studentIdNumber ? `<div style="font-size:.78rem;color:var(--moss-600);">ID #: ${esc(item.studentIdNumber)}</div>` : ""}
+      const isVerified = !!item.idVerified;
+      const isRestricted = !!item.accountRestrictedUntil;
+      const isRemoved = !!item.removed;
+      const searchBlob = [item.fullName, item.email, item.studentIdNumber].filter(Boolean).join(" ").toLowerCase();
+
+      const card = document.createElement("div");
+      card.className = "reg-card" + (isRestricted ? " is-restricted" : "") + (isRemoved ? " is-removed" : "");
+      card.dataset.verified = String(isVerified);
+      card.dataset.restricted = String(isRestricted);
+      card.dataset.removed = String(isRemoved);
+      card.dataset.search = esc(searchBlob);
+      card.innerHTML = `
+        <div class="reg-card-left">
+          <img class="reg-avatar" src="${esc(item.avatarUrl) || (item.gender === 'female' ? 'assets/avatar-female.svg' : 'assets/avatar-male.svg')}" alt="">
+          ${item.studentIdUrl
+            ? `<a class="reg-idthumb-link" href="${esc(item.studentIdUrl)}" target="_blank" rel="noopener"><img class="reg-idthumb" src="${esc(item.studentIdUrl)}" alt="Student ID"></a>`
+            : `<div class="reg-idthumb-missing">No ID photo</div>`}
+          <div class="reg-info">
+            <span class="reg-name">${esc(item.fullName)}</span>
+            <span class="reg-gender">${esc(item.gender) || "—"}</span>
+            <div class="reg-meta-row">
+              <span>✉️ ${esc(item.email) || "—"}</span>
+              ${item.studentIdNumber ? `<span>🆔 ${esc(item.studentIdNumber)}</span>` : ""}
+            </div>
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
-          <span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(63,91,61,.10);color:var(--moss-700);font-size:.78rem;font-weight:600;">✅ OTP Verified · Auto-approved</span>
-          ${item.idVerified
-            ? `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:linear-gradient(135deg,rgba(107,155,94,.22),rgba(63,91,61,.18));color:var(--leaf-500);font-size:.78rem;font-weight:700;">🟢 ID Verified</span>`
-            : `<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(214,171,74,.15);color:var(--wheat-400);font-size:.78rem;font-weight:600;">🕓 ID Not Verified</span>`}
-          ${item.accountRestrictedUntil ? `<span class="account-restriction-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.12);color:var(--terracotta-500);font-size:.78rem;font-weight:600;">⛔ Restricted until ${esc(fmtAdminDate(item.accountRestrictedUntil))}</span>` : ""}
-          ${item.removed ? `<span class="user-removed-badge" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .65rem;border-radius:999px;background:rgba(196,90,63,.14);color:var(--terracotta-500);font-size:.78rem;font-weight:700;">🚫 Removed${item.removedAt ? ` · ${esc(fmtAdminDate(item.removedAt))}` : ""}</span>` : ""}
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
-            <button type="button" class="edit-btn" data-schema="registrations" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✏️ Edit</button>
-            ${item.idVerified
-              ? `<button type="button" class="unverify-id-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--line);color:var(--moss-600);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">↩️ Unverify</button>`
-              : `<button type="button" class="verify-id-btn" data-id="${esc(d.id)}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">🟢 Mark Verified</button>`}
-            ${item.accountRestrictedUntil
-              ? `<button type="button" class="unrestrict-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--leaf-500);color:var(--leaf-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✅ Lift Restriction</button>`
-              : `<button type="button" class="restrict-week-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Restrict 7d</button>
-                 <button type="button" class="restrict-custom-btn" data-id="${esc(d.id)}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">⛔ Custom…</button>`}
-            ${item.removed
-              ? `<button type="button" class="restore-user-btn" data-id="${esc(d.id)}" data-name="${esc(item.fullName || "")}" style="background:var(--leaf-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">↩️ Restore User</button>
-                 <button type="button" class="erase-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:none;border:1px solid var(--terracotta-500);color:var(--terracotta-500);padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.72rem;">🗑️ Erase Permanently</button>`
-              : `<button type="button" class="remove-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}" style="background:var(--terracotta-500);border:none;color:#fff;padding:.35rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;">🗑️ Remove User</button>`}
+        <div class="reg-card-right">
+          <div class="reg-badges">
+            <span class="reg-badge reg-badge--success">✅ OTP Verified · Auto-approved</span>
+            ${isVerified
+              ? `<span class="reg-badge reg-badge--verified">🟢 ID Verified</span>`
+              : `<span class="reg-badge reg-badge--pending">🕓 ID Not Verified</span>`}
+            ${isRestricted ? `<span class="reg-badge reg-badge--danger account-restriction-badge">⛔ Restricted until ${esc(fmtAdminDate(item.accountRestrictedUntil))}</span>` : ""}
+            ${isRemoved ? `<span class="reg-badge reg-badge--removed user-removed-badge">🚫 Removed${item.removedAt ? ` · ${esc(fmtAdminDate(item.removedAt))}` : ""}</span>` : ""}
+          </div>
+          <div class="reg-actions">
+            <button type="button" class="reg-btn edit-btn" data-schema="registrations" data-id="${esc(d.id)}">✏️ Edit</button>
+            ${isVerified
+              ? `<button type="button" class="reg-btn unverify-id-btn" data-id="${esc(d.id)}">↩️ Unverify</button>`
+              : `<button type="button" class="reg-btn reg-btn--solid-success verify-id-btn" data-id="${esc(d.id)}">🟢 Mark Verified</button>`}
+            ${isRestricted
+              ? `<button type="button" class="reg-btn reg-btn--outline-success unrestrict-btn" data-id="${esc(d.id)}">✅ Lift Restriction</button>`
+              : `<button type="button" class="reg-btn reg-btn--outline-danger restrict-week-btn" data-id="${esc(d.id)}">⛔ Restrict 7d</button>
+                 <button type="button" class="reg-btn reg-btn--outline-danger restrict-custom-btn" data-id="${esc(d.id)}">⛔ Custom…</button>`}
+            ${isRemoved
+              ? `<button type="button" class="reg-btn reg-btn--solid-success restore-user-btn" data-id="${esc(d.id)}" data-name="${esc(item.fullName || "")}">↩️ Restore User</button>
+                 <button type="button" class="reg-btn reg-btn--outline-danger erase-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}">🗑️ Erase Permanently</button>`
+              : `<button type="button" class="reg-btn reg-btn--solid-danger remove-user-btn" data-id="${esc(d.id)}" data-email="${esc(item.email || "")}" data-name="${esc(item.fullName || "")}">🗑️ Remove User</button>`}
           </div>
         </div>`;
-      regList.appendChild(row);
+      regList.appendChild(card);
     });
+
+    const emptyEl = document.createElement("p");
+    emptyEl.id = "reg-empty-state";
+    emptyEl.className = "reg-empty-state hidden";
+    emptyEl.textContent = "No students match your search/filter.";
+    regList.appendChild(emptyEl);
+
+    applyRegFilters();
 
     regList.querySelectorAll(".remove-user-btn").forEach(btn => {
       btn.addEventListener("click", async () => {

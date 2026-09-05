@@ -173,6 +173,23 @@
 
       <div id="registrations-panel" class="admin-panel-card hidden">
         <h2 class="admin-panel-heading">Student Registrations — Verify ID</h2>
+        <p class="admin-panel-sub">Review each student's ID photo, verify their identity, and manage account access.</p>
+
+        <div id="reg-stats" class="reg-stats"></div>
+
+        <div class="reg-toolbar">
+          <div class="reg-search-wrap">
+            <input type="text" id="reg-search-input" class="reg-search-input" placeholder="Search by name, email, or Student ID…" autocomplete="off">
+          </div>
+          <div id="reg-filter-chips" class="reg-filter-chips">
+            <button type="button" class="reg-chip is-active" data-filter="all">All</button>
+            <button type="button" class="reg-chip" data-filter="unverified">🕓 ID Not Verified</button>
+            <button type="button" class="reg-chip" data-filter="verified">🟢 ID Verified</button>
+            <button type="button" class="reg-chip" data-filter="restricted">⛔ Restricted</button>
+            <button type="button" class="reg-chip" data-filter="removed">🚫 Removed</button>
+          </div>
+        </div>
+
         <div id="admin-registrations-list"></div>
       </div>
 

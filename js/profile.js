@@ -158,6 +158,7 @@ async function init() {
 
     renderIdentity(reg);
     renderPasswordSection(session.regId, reg);
+    setupPasswordModal(session.regId, reg);
 
     // Each section loads independently — a failure in one (e.g. a blocked
     // Firestore query for blog posts) no longer blanks out the whole page.
@@ -244,6 +245,19 @@ function renderIdentity(reg) {
 }
 
 // ============================================
+// Shared save routine — hashes + writes the new password and emails
+// the student their new credentials. Used by both the Account-tab
+// form (renderPasswordSection) and the popup (setupPasswordModal) so
+// the two never drift out of sync.
+// ============================================
+async function persistNewPassword(regId, reg, password) {
+  const passwordHash = await hashPassword(password, reg.email);
+  await updateDoc(doc(db, "registrations", regId), { passwordHash });
+  reg.passwordHash = passwordHash;
+  sendCredentialsEmail({ toEmail: reg.email, toName: reg.fullName, studentId: reg.studentIdNumber, password });
+}
+
+// ============================================
 // LOGIN PASSWORD SECTION
 // Shows a "set up a password" prompt for legacy accounts that were
 // created before password login existed (no passwordHash yet), or a
@@ -289,17 +303,18 @@ function renderPasswordSection(regId, reg) {
     showPwStatus("Saving your password…");
 
     try {
-      const passwordHash = await hashPassword(password, reg.email);
-      await updateDoc(doc(db, "registrations", regId), { passwordHash });
-      reg.passwordHash = passwordHash;
-
-      sendCredentialsEmail({ toEmail: reg.email, toName: reg.fullName, studentId: reg.studentIdNumber, password });
+      await persistNewPassword(regId, reg, password);
 
       newPasswordInput.value = "";
       confirmInput.value = "";
       showPwStatus("✅ Password saved. From now on, log in with your Student ID + this password (your email will no longer work for login).");
       noPasswordBlock.classList.add("hidden");
       hasPasswordBlock.classList.remove("hidden");
+
+      // If the popup happens to still be open (e.g. the student switched
+      // to the Account tab instead of using it), close it now that a
+      // password exists — it should never be shown again after this.
+      document.getElementById("password-setup-modal")?.classList.add("hidden");
     } catch (err) {
       console.error("[Profile] failed to save password:", err);
       showPwStatus("Something went wrong saving your password. (" + err.message + ")", true);
@@ -308,6 +323,94 @@ function renderPasswordSection(regId, reg) {
       freshBtn.textContent = "Save Password";
     }
   });
+}
+
+// ============================================
+// PASSWORD SETUP POPUP
+// Appears automatically whenever the account has no password yet.
+// The student can type a password right in the popup and save it, or
+// dismiss it (✕ / "Skip for now") and keep browsing — it'll simply be
+// offered again on a future visit. Once a password exists, this is
+// skipped entirely (see the reg.passwordHash check below), so it never
+// shows again after the student sets one, whether from here or later
+// from the Account tab.
+// ============================================
+function setupPasswordModal(regId, reg) {
+  const overlay = document.getElementById("password-setup-modal");
+  if (!overlay) return;
+
+  // Already has a password — nothing to prompt for, ever again.
+  if (reg.passwordHash) {
+    overlay.classList.add("hidden");
+    return;
+  }
+
+  const closeBtn = document.getElementById("password-setup-modal-close");
+  const skipBtn = document.getElementById("pw-modal-skip-btn");
+  const submitBtn = document.getElementById("pw-modal-submit-btn");
+  const statusEl = document.getElementById("pw-modal-status");
+  const newPasswordInput = document.getElementById("pw-modal-new-password");
+  const confirmInput = document.getElementById("pw-modal-new-password-confirm");
+
+  function showModalStatus(msg, isError = false) {
+    statusEl.textContent = msg;
+    statusEl.style.color = isError ? "var(--terracotta-500)" : "var(--moss-600)";
+  }
+
+  function closeModal() {
+    overlay.classList.add("hidden");
+  }
+
+  // Clone-and-replace to strip any listener left over from a previous
+  // init() call (e.g. the "Try Again" retry button re-running init()).
+  const freshClose = closeBtn.cloneNode(true);
+  closeBtn.replaceWith(freshClose);
+  const freshSkip = skipBtn.cloneNode(true);
+  skipBtn.replaceWith(freshSkip);
+  const freshSubmit = submitBtn.cloneNode(true);
+  submitBtn.replaceWith(freshSubmit);
+
+  freshClose.addEventListener("click", closeModal);
+  freshSkip.addEventListener("click", closeModal);
+  // Tapping the dimmed backdrop counts as "cross it" too.
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+
+  newPasswordInput.value = "";
+  confirmInput.value = "";
+  showModalStatus("");
+
+  freshSubmit.addEventListener("click", async () => {
+    const password = newPasswordInput.value;
+    const confirmVal = confirmInput.value;
+
+    if (!isPasswordValid(password)) {
+      showModalStatus("Password must be at least 6 characters.", true);
+      return;
+    }
+    if (password !== confirmVal) {
+      showModalStatus("Passwords don't match.", true);
+      return;
+    }
+
+    freshSubmit.disabled = true;
+    freshSubmit.textContent = "Saving…";
+    showModalStatus("Saving your password…");
+
+    try {
+      await persistNewPassword(regId, reg, password);
+      showModalStatus("✅ Password saved! From now on, log in with your Student ID + this password.");
+      renderPasswordSection(regId, reg); // keep the Account tab in sync
+      setTimeout(closeModal, 900);
+    } catch (err) {
+      console.error("[Profile] failed to save password from popup:", err);
+      showModalStatus("Something went wrong saving your password. (" + err.message + ")", true);
+    } finally {
+      freshSubmit.disabled = false;
+      freshSubmit.textContent = "Save Password";
+    }
+  });
+
+  overlay.classList.remove("hidden");
 }
 
 async function renderCredits(email, fullName) {
