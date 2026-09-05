@@ -244,6 +244,49 @@ function stopAllViewTracking() {
 }
 
 // ============================================
+// LIKE STATE (per logged-in user, via Firestore — NOT localStorage)
+// ------------------------------------------------------------------
+// FIX — like counting fell down / new users got blocked from reacting:
+// the old code decided whether a post was "already liked" by reading a
+// localStorage flag keyed ONLY by post id (`agri_blog_liked_${id}`) —
+// nothing in that key identifies WHICH user is looking at the browser.
+// So on any shared/public device, or any time a second account logs in
+// on the same browser, the heart could still show red from a completely
+// different student's earlier like. That new user's click was then read
+// as "unlike" — it deleted a blogLikes doc that was never theirs (a
+// silent no-op) but still ran `likesCount: increment(-1)`, so the count
+// dropped for a like that user never actually removed, and the same
+// button now looked like a fresh "Like" even though the real liker's
+// doc was untouched. Repeated across a few students on one device, the
+// counter stalls or falls instead of climbing, and a genuinely new
+// reaction never gets recorded.
+//
+// The fix: the "have I liked this?" state is read from the same place
+// the like is actually stored — the blogLikes collection, one doc per
+// (postId, normalizedEmail) pair — instead of a browser-wide flag. All
+// of the current user's like doc ids are fetched once per page load
+// (loadMyLikes) into myLikedPostIds, kept in sync locally as they like/
+// unlike posts, and renderPostCard/wirePostCard read from that set.
+// ============================================
+let myLikedPostIds = new Set();
+
+async function loadMyLikes() {
+  myLikedPostIds = new Set();
+  const s = getSession();
+  if (!s || !s.email) return; // logged-out visitors can't have liked anything yet
+  try {
+    const email = normalizeEmail(s.email);
+    const snap = await getDocs(query(collection(db, "blogLikes"), where("email", "==", email)));
+    snap.forEach(d => {
+      const postId = d.data().postId;
+      if (postId) myLikedPostIds.add(postId);
+    });
+  } catch (err) {
+    console.error("[Blog] failed to load your likes:", err);
+  }
+}
+
+// ============================================
 // PENDING IMAGES ARRAY (for composer preview)
 // ============================================
 let pendingImages = []; // Array of { name, url (blob or cloudinary), file }
@@ -1384,7 +1427,10 @@ function renderPostCard(id, item) {
   article.dataset.searchTitle = (item.title || "").toLowerCase();
   article.dataset.searchAuthor = (item.authorName || "").toLowerCase();
 
-  const alreadyLiked = localStorage.getItem(`agri_blog_liked_${id}`) === "1";
+  // Per-user truth from Firestore (see loadMyLikes above) — not a
+  // browser-wide localStorage flag, so each individual account sees its
+  // own, correct like state even on a shared device.
+  const alreadyLiked = myLikedPostIds.has(id);
 
   // Build gallery HTML
   const galleryHTML = buildGalleryHTML(item.imageUrls);
@@ -1585,14 +1631,14 @@ function wirePostCard(article, id, item) {
         item.likesCount = Math.max(0, (item.likesCount || 1) - 1);
         likeBtn.classList.remove("is-active");
         likeBtn.innerHTML = "🤍 Like";
-        localStorage.removeItem(`agri_blog_liked_${id}`);
+        myLikedPostIds.delete(id);
       } else {
         await setDoc(doc(db, "blogLikes", likeId), { postId: id, email: normalizeEmail(s.email), createdAt: serverTimestamp() });
         await updateDoc(doc(db, "blogPosts", id), { likesCount: increment(1) });
         item.likesCount = (item.likesCount || 0) + 1;
         likeBtn.classList.add("is-active");
         likeBtn.innerHTML = "❤️ Like";
-        localStorage.setItem(`agri_blog_liked_${id}`, "1");
+        myLikedPostIds.add(id);
       }
       likeCountEl.textContent = `❤️ ${item.likesCount}`;
     } catch (err) {
@@ -1910,8 +1956,16 @@ async function loadHeroStats() {
 // ============================================
 // INIT
 // ============================================
-updateComposerUI();
-loadDeepLinkedPost();
-loadDeepLinkedEdit();
-loadMorePosts();
-loadHeroStats();
+// loadMyLikes() must finish before any post card renders (loadMorePosts /
+// loadDeepLinkedPost both call renderPostCard, which reads myLikedPostIds
+// synchronously) — otherwise every card would briefly, or permanently,
+// render as "not liked" even for posts the current user already liked.
+async function initBlogFeed() {
+  updateComposerUI();
+  await loadMyLikes();
+  loadDeepLinkedPost();
+  loadDeepLinkedEdit();
+  loadMorePosts();
+  loadHeroStats();
+}
+initBlogFeed();
